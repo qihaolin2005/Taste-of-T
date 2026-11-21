@@ -21,9 +21,14 @@ type Props = {
   trailing?: ReactNode;
   /** Hide the tab bar for focused flows. */
   hideTabBar?: boolean;
+  /**
+   * Skip the nav bar and large title, for screens that draw their own header (Home).
+   * `title` is still required for consistency but isn't rendered.
+   */
+  hideHeader?: boolean;
 };
 
-export default function Screen({ title, tab, children, back, trailing, hideTabBar }: Props) {
+export default function Screen({ title, tab, children, back, trailing, hideTabBar, hideHeader }: Props) {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -40,39 +45,46 @@ export default function Screen({ title, tab, children, back, trailing, hideTabBa
 
   return (
     <div className="min-h-dvh bg-grouped">
-      <header
-        className={`sticky top-0 z-30 transition-colors duration-200 ${
-          collapsed ? "border-b-[0.5px] border-separator bg-bar backdrop-blur-xl backdrop-saturate-150" : "border-b-[0.5px] border-transparent"
-        }`}
-        style={{ paddingTop: "var(--safe-top)" }}
-      >
-        <div className="relative mx-auto flex h-11 max-w-lg items-center px-2">
-          <div className="flex min-w-0 flex-1 items-center">
-            {back && (
-              <Link href={back.href} className="flex items-center text-[17px] text-tint active:opacity-50">
-                <ChevronLeft />
-                <span className="truncate">{back.label}</span>
-              </Link>
-            )}
+      {!hideHeader && (
+        <header
+          className={`sticky top-0 z-30 transition-colors duration-200 ${
+            collapsed ? "border-b-[0.5px] border-separator bg-bar backdrop-blur-xl backdrop-saturate-150" : "border-b-[0.5px] border-transparent"
+          }`}
+          style={{ paddingTop: "var(--safe-top)" }}
+        >
+          <div className="relative mx-auto flex h-11 max-w-lg items-center px-2">
+            <div className="flex min-w-0 flex-1 items-center">
+              {back && (
+                <Link href={back.href} className="flex items-center text-[17px] text-tint active:opacity-50">
+                  <ChevronLeft />
+                  <span className="truncate">{back.label}</span>
+                </Link>
+              )}
+            </div>
+            <p
+              className={`pointer-events-none absolute inset-x-24 truncate text-center text-[17px] font-semibold transition-opacity duration-200 ${
+                collapsed ? "opacity-100" : "opacity-0"
+              }`}
+            >
+              {title}
+            </p>
+            <div className="flex flex-1 items-center justify-end gap-3 pr-2 text-tint">{trailing}</div>
           </div>
-          <p
-            className={`pointer-events-none absolute inset-x-24 truncate text-center text-[17px] font-semibold transition-opacity duration-200 ${
-              collapsed ? "opacity-100" : "opacity-0"
-            }`}
-          >
-            {title}
-          </p>
-          <div className="flex flex-1 items-center justify-end gap-3 pr-2 text-tint">{trailing}</div>
-        </div>
-      </header>
+        </header>
+      )}
 
       <main
         className="mx-auto max-w-lg px-5"
-        style={{ paddingBottom: hideTabBar ? "calc(var(--safe-bottom) + 24px)" : NAV_SPACE }}
+        style={{
+          paddingBottom: hideTabBar ? "calc(var(--safe-bottom) + 24px)" : NAV_SPACE,
+          ...(hideHeader ? { paddingTop: "calc(var(--safe-top) + 14px)" } : {}),
+        }}
       >
-        <h1 ref={titleRef} className="pb-3 pt-1 font-serif text-[34px] font-normal leading-[1.08] tracking-[-0.025em] text-label">
-          {title}
-        </h1>
+        {!hideHeader && (
+          <h1 ref={titleRef} className="pb-3 pt-1 font-serif text-[34px] font-normal leading-[1.08] tracking-[-0.025em] text-label">
+            {title}
+          </h1>
+        )}
         {children}
       </main>
 
