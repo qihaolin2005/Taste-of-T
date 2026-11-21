@@ -96,7 +96,7 @@ def score(req: dict):
 If the service is down, slow, or returns the wrong number of scores, the app **falls back
 to `baselineModel`** and reports `fallbackReason`, so the demo keeps working offline.
 
-To try it without the planner: `POST /api/me/recommendations` with `{ "candidates": [...] }`.
+To try it without the planner: `POST /api/me/recommendations/score` with `{ "candidates": [...] }`.
 
 ## Rules for model code
 
@@ -104,6 +104,47 @@ To try it without the planner: `POST /api/me/recommendations` with `{ "candidate
 - The context includes coarse location. Only send it to a model service **we run**, never
   to a third-party API.
 - Beat `baselineModel` on held-out data before switching the default; it's the benchmark.
+
+## Recommenders (`recommend/`)
+
+Two pure, synchronous recommenders on top of `UserContext`. All tunable numbers are in
+`recommend/config.ts`. Missing data (swipes, restaurant fields, city) is listed in
+[`docs/ml-schema-proposal.md`](../../../docs/ml-schema-proposal.md).
+
+**Dietary filter (`dietary.ts`).** A hard filter that runs before any scoring. Vegetarian means
+not `non-veg-only` and has vegetarian options; vegan means has vegan options; other needs must be
+listed explicitly. Unknown dietary info = not supported. Groups use the union of members' needs.
+(`baselineModel` still treats unknown as a soft -0.5; not changed yet.)
+
+**Individual: `recommendForUser(ctx, places, opts)`**
+- Candidates: `nearby` (5 mi haversine from location, then start, then home station) or
+  `destination` (a neighborhood plus places near its center).
+- Then: dietary filter, `avoid` tags, places the user rated badly.
+- Preference: ratings (signed), wishlist and check-ins (weak likes), optional swipes, with recent
+  items weighted higher. The user vector is a weighted average of liked minus disliked restaurant
+  vectors (cuisine, price level, Bayesian rating, dietary flags).
+- Score = similarity, quality and distance. The similarity weight ramps in with evidence, so cold
+  start is quality and distance only.
+- Then MMR for cuisine variety, and a reason per result.
+
+**Group: `buildGroupDeck(members, places)` → `rankAfterSwipes(deck, votes, memberIds)`**
+- Deck: city, union dietary, per-member individual scores, group score
+  `0.6 × mean + 0.4 × min`, a veto when anyone would hate a place (dropped if it leaves < 5), and
+  ~18 cards with MMR variety plus 3 explore picks.
+- Top 5: like ratio among members who swiped, then a bonus if every member liked it, then group
+  score, then rating. Short on likes → fill from unvoted places, marked `not-voted`.
+- `groupVotesToSwipes()` turns group votes into each member's individual swipes (weighted 0.7).
+
+**"For you" API: `recommendations.ts`.** `POST /api/me/recommendations` calls
+`getRecommendations(db, userId, { mode?, limit?, origin?, candidates? })`. It builds the
+`UserContext`, loads the user's swipes (`history.ts`), and runs `recommendForUser`. Candidates
+default to `data/seed-restaurants.json` (`loadSeedRestaurants`) until the places client exists.
+
+**Squad session: `session.ts`.** Combines every member's taste and history into a shortlist of 10
+(`createSessionDeck`), tracks `sessionProgress` and `liveStandings` as swipes arrive, and builds
+the final top-5 `SquadPlan` once everyone has swiped all 10. Database storage and the
+start/swipe/live/end flow are in `src/features/squads`; the route contract is in
+[`docs/squad-session-api.md`](../../../docs/squad-session-api.md).
 
 ## Training data (next step)
 

@@ -155,6 +155,12 @@ positions, and which stations you've stamped.
   shared 10 s cache, so we stay under the 20 requests/min no-key limit. Set `MBTA_API_KEY`
   (free at api-v3.mbta.com) for 1000/min.
 
+## ML recommendations and squad sessions
+
+Solo recommendations, group recommendations, and the live squad flow (host starts → everyone
+swipes on a shortlist of 10 → top 5 plan). **Start with [docs/HANDOFF-ml-squads.md](docs/HANDOFF-ml-squads.md)**:
+what was added, the database changes (`npm run db:push` after pulling), and what's left to wire up.
+
 ## Other scripts
 
 | Script | What it does |

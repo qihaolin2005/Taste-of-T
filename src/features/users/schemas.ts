@@ -29,6 +29,7 @@ export const preferencesUpdateSchema = z
     maxWalkMinutes: z.number().int().min(1).max(60).nullable(),
     homeStationId: stationId.nullable(),
     usualStartStationId: stationId.nullable(),
+    city: z.string().trim().min(1).max(60).nullable(),
     shareLocation: z.boolean(),
   })
   .partial()
