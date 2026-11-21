@@ -74,6 +74,18 @@ export const RECOMMENDER_CONFIG = {
     /** Extra like-ratio credit for a unanimous like among members who swiped. */
     unanimousBonus: 0.25,
   },
+
+  /** Live squad session ("Start adventure"): everyone swipes the same shortlist, then top 5. */
+  session: {
+    /** Shortlist size: every member swipes on all of these. */
+    deckSize: 10,
+    /** Of those, lower-confidence picks that teach us something from the swipes. */
+    exploreSlots: 2,
+    /** Next-best eligible places kept with the deck, used only to fill the top 5 if too few got likes. */
+    backups: 10,
+    /** How many past swipes per member to load into their taste profile. */
+    historySwipes: 200,
+  },
 };
 
 export type RecommenderConfig = typeof RECOMMENDER_CONFIG;

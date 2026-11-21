@@ -135,6 +135,12 @@ listed explicitly. Unknown dietary info = not supported. Groups use the union of
   score, then rating. Short on likes → fill from unvoted places, marked `not-voted`.
 - `groupVotesToSwipes()` turns group votes into each member's individual swipes (weighted 0.7).
 
+**Squad session: `session.ts`.** Combines every member's taste and history into a shortlist of 10
+(`createSessionDeck`), tracks `sessionProgress` and `liveStandings` as swipes arrive, and builds
+the final top-5 `SquadPlan` once everyone has swiped all 10. Database storage and the
+start/swipe/live/end flow are in `src/features/squads`; the route contract is in
+[`docs/squad-session-api.md`](../../../docs/squad-session-api.md).
+
 ## Training data (next step)
 
 Labels already exist in the DB: ratings (explicit 0-10), check-ins (went there), wishlist

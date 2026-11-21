@@ -13,43 +13,11 @@ import {
   type GroupVote,
   type RestaurantCandidate,
 } from "@/features/ml";
-import { makeContext, makePlace } from "./fixtures";
+import { makeContext, makePlace, syntheticCity } from "./fixtures";
 
 // ------------------------------------------------------------- a synthetic city
 
-const CUISINES = ["thai", "italian", "mexican", "chinese", "indian", "japanese", "korean", "american", "mediterranean", "vietnamese"];
-const DIETS: Partial<RestaurantCandidate>[] = [
-  { dietStyle: "mixed", dietary: ["vegetarian", "vegan"] },
-  { dietStyle: "mixed", dietary: ["vegetarian"] },
-  { dietStyle: "non-veg-only" },
-  { dietStyle: "mixed" }, // unknown
-  { dietStyle: "vegan-only" },
-];
-
-/** 50 Boston places (5 per cuisine) + a few in other cities. Deterministic. */
-function city(): RestaurantCandidate[] {
-  const out: RestaurantCandidate[] = [];
-  CUISINES.forEach((c, ci) =>
-    DIETS.forEach((d, di) =>
-      out.push(
-        makePlace(`${c}-${di}`, {
-          cuisines: [c],
-          city: "Boston",
-          lat: 42.35 + ci * 0.002,
-          lng: -71.06 - di * 0.002,
-          rating: 3.6 + ((ci * 7 + di * 3) % 14) / 10,
-          reviewCount: 100 + ((ci * 13 + di * 29) % 900),
-          ...d,
-        }),
-      ),
-    ),
-  );
-  out.push(makePlace("nyc-thai", { cuisines: ["thai"], city: "New York", rating: 5, reviewCount: 9000, dietStyle: "vegan-only" }));
-  out.push(makePlace("cam-thai", { cuisines: ["thai"], city: "Cambridge", rating: 5, reviewCount: 9000, dietStyle: "vegan-only" }));
-  return out;
-}
-
-const PLACES = city();
+const PLACES = syntheticCity();
 const member = (id: string, o: Parameters<typeof makeContext>[0] = {}, cityName = "Boston"): GroupMember => ({ id, ctx: makeContext({ location: null, ...o }, id), city: cityName });
 
 // ------------------------------------------------------------- deck

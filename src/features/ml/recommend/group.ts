@@ -173,7 +173,7 @@ function interleave(main: DeckItem[], explore: DeckItem[]): DeckItem[] {
 export function buildGroupDeck(
   members: readonly GroupMember[],
   places: readonly RestaurantCandidate[],
-  opts: { city?: string; deckSize?: number; catalog?: readonly RestaurantCandidate[]; config?: RecommenderConfig } = {},
+  opts: { city?: string; deckSize?: number; exploreSlots?: number; catalog?: readonly RestaurantCandidate[]; config?: RecommenderConfig } = {},
 ): GroupDeck {
   const cfg = opts.config ?? RECOMMENDER_CONFIG;
   const g = cfg.group;
@@ -214,7 +214,7 @@ export function buildGroupDeck(
   } else counts.vetoed = scored.length - kept.length;
 
   // 5. Deck: MMR on group score for most slots, then lower-confidence explore picks
-  const exploreN = Math.min(g.exploreSlots, Math.max(0, ranked.length - 1), Math.floor(deckSize / 3));
+  const exploreN = Math.min(opts.exploreSlots ?? g.exploreSlots, Math.max(0, ranked.length - 1), Math.floor(deckSize / 3));
   const mainN = Math.min(deckSize - exploreN, ranked.length);
   const main = mmrRerank(ranked.map((c) => ({ c, place: c.place, score: c.groupScore })), mainN, cfg.mmr.lambda, cfg).map((x) => x.c);
   const chosen = new Set(main.map((c) => c.place.id));
