@@ -24,6 +24,14 @@ export const RIDE_RULES = {
   /** ...faster than walking (m/s) and slower than any MBTA vehicle could go. */
   minAvgSpeedMps: 2.5,
   maxAvgSpeedMps: 40,
+  /**
+   * Slow traffic: city buses often average walking pace (stops, lights, jams; a live Bus 41
+   * did 1.7 m/s). Staying with the SAME vehicle for this many matches over this long counts
+   * too, as long as it's still moving at least slowMinAvgSpeedMps.
+   */
+  slowMinMatches: 4,
+  slowMinDurationSec: 180,
+  slowMinAvgSpeedMps: 0.8,
 };
 
 export type Ping = LatLng & { accuracyM?: number };
@@ -54,6 +62,19 @@ export function matchPing(ping: Ping, vehicles: readonly LiveVehicle[], now: Dat
   return best;
 }
 
+/** Every live vehicle this ping could be on, closest first (busy stops, bunched buses, Green Line trunk). */
+export function matchAll(ping: Ping, vehicles: readonly LiveVehicle[], now: Date, r = RIDE_RULES): Match[] {
+  if (ping.accuracyM != null && ping.accuracyM > r.maxPhoneAccuracyM) return [];
+  const out: Match[] = [];
+  for (const v of vehicles) {
+    const ageSec = (now.getTime() - v.updatedAt.getTime()) / 1000;
+    if (ageSec > r.maxVehicleAgeSec) continue;
+    const d = distanceMeters(ping, v);
+    if (d <= matchRadius(ping.accuracyM, ageSec, r)) out.push({ vehicle: v, distanceM: d });
+  }
+  return out.sort((a, b) => a.distanceM - b.distanceM);
+}
+
 export type RideProgress = {
   matchedPings: number;
   firstMatchAt: Date;
@@ -70,7 +91,9 @@ export function verificationGap(p: RideProgress, r = RIDE_RULES): string | null 
   if (seconds < r.minDurationSec) return "Keep riding a little longer…";
   if (meters < r.minDistanceM) return "Waiting for the vehicle to move…";
   const speed = meters / seconds;
-  if (speed < r.minAvgSpeedMps) return "Moving slower than a bus. Still checking…";
   if (speed > r.maxAvgSpeedMps) return "That doesn't look like a real ride.";
-  return null;
+  if (speed >= r.minAvgSpeedMps) return null;
+  // slow traffic: same vehicle, more matches, longer
+  if (p.matchedPings >= r.slowMinMatches && seconds >= r.slowMinDurationSec && speed >= r.slowMinAvgSpeedMps) return null;
+  return "Slow traffic. Staying with your bus a little longer to be sure…";
 }

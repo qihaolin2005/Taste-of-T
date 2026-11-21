@@ -54,9 +54,71 @@ describe("recording a ride", () => {
     // 2 matches on the same bus, 60 s and 500 m apart, ~8 m/s: verified
     expect(r).toMatchObject({ status: "verified", matchedPings: 2, mode: "bus" });
     expect(r.distanceM).toBeGreaterThan(450);
-    // further pings don't change a verified ride
+    // still on the bus: the verified ride keeps following you (to know where you got off)
     r = await recordPing(db, u, me(1100), deps([bus("y1", 1090, 150)], 152), r.id);
-    expect(r).toMatchObject({ status: "verified", matchedPings: 2 });
+    expect(r).toMatchObject({ status: "verified", matchedPings: 3, onVehicle: true });
+    expect(r.distanceM).toBeGreaterThan(1050);
+    // got off: the bus is gone, you aren't on it; the ride stays verified and ends where it was
+    r = await recordPing(db, u, me(1150), deps([bus("y1", 1900, 210)], 212), r.id);
+    expect(r).toMatchObject({ status: "verified", matchedPings: 3, onVehicle: false });
+    const row = await db.ride.findUniqueOrThrow({ where: { id: r.id! } });
+    expect(row.endLat).toBeCloseTo(north(START.lat, 1100), 3);
+  });
+
+  it("picks the bus you're really on when several are bunched together (Silver Line, Green Line trunk)", async () => {
+    // At the stop an SL4 is closer than your SL3. Both leave; the SL4 falls behind.
+    const u = await newUser();
+    const sl3 = (m: number, s: number) => bus("y-sl3", m, s, "743");
+    const sl4 = (m: number, s: number) => bus("y-sl4", m, s, "751");
+    const names = async (id: string) => (id === "743" ? "SL3" : "SL4");
+    const d = (vs: LiveVehicle[], s: number) => ({ vehicles: vs, routeName: names, now: at(s) });
+    let r = await recordPing(db, u, me(0), d([sl4(5, 0), sl3(40, 0)], 0));
+    expect(r.routeName).toBe("SL4"); // closest, for now
+    r = await recordPing(db, u, me(200), d([sl3(200, 40), sl4(120, 40)], 40), r.id); // both still within range
+    r = await recordPing(db, u, me(450), d([sl3(450, 80), sl4(180, 80)], 80), r.id); // SL4 is now far behind
+    expect(r.routeName).toBe("SL3");
+    r = await recordPing(db, u, me(700), d([sl3(700, 120), sl4(260, 120)], 120), r.id);
+    expect(r).toMatchObject({ status: "verified", routeName: "SL3", mode: "bus", onVehicle: true });
+  });
+
+  it("two trains together the whole way: the one that stays closest to you wins", async () => {
+    // Like two Green Line C trains a block apart: both match every ping.
+    const u = await newUser();
+    const mine = (m: number, s: number) => bus("G-mine", m, s, "Green-C");
+    const behind = (m: number, s: number) => bus("G-behind", m - 120, s, "Green-C");
+    const d = (vs: LiveVehicle[], s: number) => ({ vehicles: vs, routeName: async () => "Green Line C", now: at(s) });
+    let r = await recordPing(db, u, me(0), d([behind(0, 0), mine(0, 0)], 0));
+    for (let i = 1; i <= 3; i++) r = await recordPing(db, u, me(i * 200), d([behind(i * 200, i * 40), mine(i * 200, i * 40)], i * 40), r.id);
+    const row = await db.ride.findUniqueOrThrow({ where: { id: r.id! } });
+    expect(row.vehicleId).toBe("G-mine");
+    expect(r).toMatchObject({ status: "verified", mode: "t" });
+  });
+
+  it("stores nothing for a ping that isn't on any bus or train (walking, at home)", async () => {
+    const u = await newUser();
+    const r = await recordPing(db, u, me(0), deps([bus("far", 2000, 0)], 5));
+    expect(r).toMatchObject({ id: null, status: "none", onVehicle: false });
+    expect(await db.ride.count({ where: { userId: u } })).toBe(0);
+  });
+
+  it("verifies a slow bus in traffic (walking pace) by staying with it longer", async () => {
+    // Like a real Bus 41 on a Saturday: ~1.8 m/s with stops. One ping every 45 s.
+    const u = await newUser();
+    let r = await recordPing(db, u, me(0), deps([bus("slow", 0, 0)], 0));
+    for (let i = 1; i <= 3; i++) {
+      r = await recordPing(db, u, me(i * 80), deps([bus("slow", i * 80, i * 45)], i * 45), r.id!);
+      expect(r.status).toBe("tracking"); // too slow for the fast rule, not enough matches yet
+    }
+    expect(r.message).toMatch(/move/); // 240 m so far, under the 300 m minimum
+    r = await recordPing(db, u, me(320), deps([bus("slow", 320, 180)], 180), r.id!); // 5 matches, 3 min, 320 m
+    expect(r).toMatchObject({ status: "verified", mode: "bus" });
+  });
+
+  it("still doesn't verify standing still next to a bus stuck in traffic", async () => {
+    const u = await newUser();
+    let r = await recordPing(db, u, me(0), deps([bus("stuck", 0, 0)], 0));
+    for (let i = 1; i <= 6; i++) r = await recordPing(db, u, me(0), deps([bus("stuck", 20, i * 45)], i * 45), r.id!);
+    expect(r.status).toBe("tracking"); // never moved 300 m
   });
 
   it("does NOT verify someone standing at a stop while a bus goes by", async () => {
@@ -106,7 +168,7 @@ describe("recording a ride", () => {
     const u = await newUser();
     let r = await recordPing(db, u, { lat: 42.365512345, lng: -71.103812345, accuracyM: 5 }, deps([bus("y6", 0, 0)], 0));
     r = await recordPing(db, u, me(800), deps([bus("y6", 800, 90)], 90), r.id);
-    const row = await db.ride.findUniqueOrThrow({ where: { id: r.id } });
+    const row = await db.ride.findUniqueOrThrow({ where: { id: r.id! } });
     expect(row.startLat).toBe(42.3655);
     expect(row.startLng).toBe(-71.1038);
     expect(await db.ride.count({ where: { userId: u } })).toBe(1);
@@ -118,7 +180,7 @@ describe("using a ride for a reward", () => {
   async function verified(u: string) {
     let r = await recordPing(db, u, me(0), deps([bus("z", 0, 0)], 0));
     r = await recordPing(db, u, me(1000), deps([bus("z", 1000, 120)], 120), r.id);
-    return r.id;
+    return r.id!;
   }
   const endPoint = { lat: north(START.lat, 1000), lng: START.lng };
 
