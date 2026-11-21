@@ -138,7 +138,9 @@ listed explicitly. Unknown dietary info = not supported. Groups use the union of
 **"For you" API: `recommendations.ts`.** `POST /api/me/recommendations` calls
 `getRecommendations(db, userId, { mode?, limit?, origin?, candidates? })`. It builds the
 `UserContext`, loads the user's swipes (`history.ts`), and runs `recommendForUser`. Candidates
-default to `data/seed-restaurants.json` (`loadSeedRestaurants`) until the places client exists.
+come from a `RestaurantSource` (`recommend/source.ts`; the places client plugs in there, see
+[`docs/restaurant-source.md`](../../../docs/restaurant-source.md)). If it's missing, fails or times out,
+they come from `data/seed-restaurants.json`.
 
 **Squad session: `session.ts`.** Combines every member's taste and history into a shortlist of 10
 (`createSessionDeck`), tracks `sessionProgress` and `liveStandings` as swipes arrive, and builds
