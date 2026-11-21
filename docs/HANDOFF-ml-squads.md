@@ -114,14 +114,14 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[roomId]/
   try {
     return Response.json(await submitSwipe(db, roomId, auth.userId, parsed.data.placeId, parsed.data.liked));
   } catch (e) {
-    if (e instanceof SquadSessionError) return apiError(e.code === "conflict" ? "bad_request" : e.code, e.message);
+    if (e instanceof SquadSessionError) return apiError(e.code, e.message);
     throw e;
   }
 }
 ```
 
 Errors come back as `SquadSessionError` with `code`: `not_found` (404), `forbidden` (403),
-`conflict` (409; `apiError` has no 409 yet, so add it or map it to 400), and `bad_request` (400).
+`conflict` (409), and `bad_request` (400). The codes match `apiError` in `src/lib/api.ts`, so pass them straight through.
 
 When creating a room, set `hostUserId` to the creator's user id. Only that user can start or end.
 
@@ -150,6 +150,20 @@ The seed file is empty, and starting an adventure with no restaurants returns a
 
 `startAdventure` takes the places as an argument, so once the places client exists the
 `start` route does `places: await placesClient.search(...)` (or the seed list) and passes them in.
+
+### d) Solo "for you" list: done, just call it
+
+`POST /api/me/recommendations` (empty body is fine) returns the user's ranked recommendations
+with a `reason` each, using their dietary needs, ratings, wishlist, check-ins and swipes.
+
+Optional body fields:
+- `mode`: `{ kind: "nearby", radiusMiles? }` (the default, 5 mi) or `{ kind: "destination", neighborhood }`
+- `limit`: how many results
+- `origin`: `{ lat, lng }`, the phone's current position (used once, not stored)
+- `candidates`: restaurants to rank; defaults to the seed list
+
+Until the seed list has restaurants, `results` is empty and `warnings` says why. The old raw
+scoring endpoint moved to `POST /api/me/recommendations/score`.
 
 ## 6. Tuning
 

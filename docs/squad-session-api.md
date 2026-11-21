@@ -35,13 +35,13 @@ Functions throw `SquadSessionError` with a `code`:
 | `conflict` | 409 | started twice, swiping before start, swiping after the plan is made |
 | `bad_request` | 400 | place not in the deck, nobody joined, nothing fits everyone's diet |
 
-`apiError` in `src/lib/api.ts` has no 409 yet. Either add `conflict: 409` there (P2) or map it to 400.
+These codes match `apiError` in `src/lib/api.ts`, so pass `e.code` straight through.
 
 ```ts
 try {
   return Response.json(await submitSwipe(db, roomId, auth.userId, body.placeId, body.liked));
 } catch (e) {
-  if (e instanceof SquadSessionError) return apiError(e.code === "conflict" ? "bad_request" : e.code, e.message);
+  if (e instanceof SquadSessionError) return apiError(e.code, e.message);
   throw e;
 }
 ```

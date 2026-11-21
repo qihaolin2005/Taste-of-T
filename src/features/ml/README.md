@@ -96,7 +96,7 @@ def score(req: dict):
 If the service is down, slow, or returns the wrong number of scores, the app **falls back
 to `baselineModel`** and reports `fallbackReason`, so the demo keeps working offline.
 
-To try it without the planner: `POST /api/me/recommendations` with `{ "candidates": [...] }`.
+To try it without the planner: `POST /api/me/recommendations/score` with `{ "candidates": [...] }`.
 
 ## Rules for model code
 
@@ -134,6 +134,11 @@ listed explicitly. Unknown dietary info = not supported. Groups use the union of
 - Top 5: like ratio among members who swiped, then a bonus if every member liked it, then group
   score, then rating. Short on likes → fill from unvoted places, marked `not-voted`.
 - `groupVotesToSwipes()` turns group votes into each member's individual swipes (weighted 0.7).
+
+**"For you" API: `recommendations.ts`.** `POST /api/me/recommendations` calls
+`getRecommendations(db, userId, { mode?, limit?, origin?, candidates? })`. It builds the
+`UserContext`, loads the user's swipes (`history.ts`), and runs `recommendForUser`. Candidates
+default to `data/seed-restaurants.json` (`loadSeedRestaurants`) until the places client exists.
 
 **Squad session: `session.ts`.** Combines every member's taste and history into a shortlist of 10
 (`createSessionDeck`), tracks `sessionProgress` and `liveStandings` as swipes arrive, and builds

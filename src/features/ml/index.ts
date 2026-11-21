@@ -6,3 +6,5 @@ export * from "./features";
 export * from "./model";
 export * from "./recommend";
 export * from "./session";
+export * from "./history";
+export * from "./recommendations";

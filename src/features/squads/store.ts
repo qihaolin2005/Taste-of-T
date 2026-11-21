@@ -2,7 +2,7 @@
 // Database access for squad sessions and swipe history. Every function takes the Prisma
 // client so tests can pass their own. No business rules here: see service.ts.
 import type { PrismaClient } from "@/generated/prisma/client";
-import type { GroupVote, SessionDeck, SquadPlan, Swipe } from "@/features/ml";
+import type { GroupVote, SessionDeck, SquadPlan } from "@/features/ml";
 
 export type Db = PrismaClient;
 
@@ -59,21 +59,5 @@ export async function latestRoomPlan(db: Db, roomId: string) {
 
 // ------------------------------------------------------------- swipe history
 
-/** A user's swipes (solo and group), most recent first, as the ML Swipe type. */
-export async function loadUserSwipes(db: Db, userId: string, take = 200): Promise<Swipe[]> {
-  const rows = await db.swipe.findMany({ where: { userId }, orderBy: { updatedAt: "desc" }, take });
-  return rows.map((r) => ({
-    placeId: r.placeId,
-    liked: r.liked,
-    source: r.source === "group" ? "group" : "solo",
-    at: r.updatedAt.getTime(),
-    ...(r.roomId ? { sessionId: r.roomId } : {}),
-  }));
-}
-
-/** A swipe outside any squad (e.g. a solo "for you" deck). Swiping the same place again updates it. */
-export async function recordSoloSwipe(db: Db, userId: string, placeId: string, liked: boolean) {
-  const existing = await db.swipe.findFirst({ where: { userId, placeId, roomId: null }, select: { id: true } });
-  if (existing) return db.swipe.update({ where: { id: existing.id }, data: { liked } });
-  return db.swipe.create({ data: { userId, placeId, liked, source: "solo" } });
-}
+// Swipe history is the user's taste data, so it lives in the ML layer; re-exported here for callers.
+export { loadUserSwipes, recordSoloSwipe } from "@/features/ml";
