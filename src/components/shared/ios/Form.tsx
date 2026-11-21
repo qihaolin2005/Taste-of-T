@@ -1,5 +1,6 @@
 // Owner: P3 - Group Mode & App Shell (see TEAM.md)
-// iOS form controls: text field rows (inside ListSection) and a segmented control.
+// Form controls in the Taste of T style: text field and select rows (inside ListSection)
+// and the lavender segmented control.
 "use client";
 
 import type { InputHTMLAttributes } from "react";
@@ -11,11 +12,11 @@ export function TextFieldRow({ label, id, ...input }: FieldProps) {
   const inputId = id ?? `f-${label.toLowerCase().replace(/\W+/g, "-")}`;
   return (
     <div className="ios-row flex items-center">
-      <div className="ios-row-body ml-4 flex min-h-11 flex-1 items-center gap-3 pr-4">
-        <label htmlFor={inputId} className="w-24 shrink-0 text-[17px]">
+      <div className="ios-row-body ml-4 flex min-h-[56px] flex-1 items-center gap-3 pr-4">
+        <label htmlFor={inputId} className="w-24 shrink-0 text-[16px] font-semibold">
           {label}
         </label>
-        <input id={inputId} className="min-w-0 flex-1 bg-transparent py-2.5 text-[17px] outline-none placeholder:text-label-3" {...input} />
+        <input id={inputId} className="min-w-0 flex-1 bg-transparent py-3 text-[16px] outline-none placeholder:text-label-3" {...input} />
       </div>
     </div>
   );
@@ -36,8 +37,8 @@ export function SelectRow<T extends string | number>({
   const id = `sel-${label.toLowerCase().replace(/\W+/g, "-")}`;
   return (
     <div className="ios-row flex items-center">
-      <div className="ios-row-body ml-4 flex min-h-11 flex-1 items-center gap-3 pr-4">
-        <label htmlFor={id} className="shrink-0 text-[17px]">
+      <div className="ios-row-body ml-4 flex min-h-[56px] flex-1 items-center gap-3 pr-4">
+        <label htmlFor={id} className="shrink-0 text-[16px] font-semibold">
           {label}
         </label>
         <select
@@ -47,7 +48,7 @@ export function SelectRow<T extends string | number>({
             const picked = options.find((o) => String(o.value) === e.target.value);
             if (picked) onChange(picked.value);
           }}
-          className="min-w-0 flex-1 appearance-none bg-transparent py-2.5 text-right text-[17px] text-label-2 outline-none"
+          className="min-w-0 flex-1 appearance-none bg-transparent py-3 text-right text-[16px] text-label-2 outline-none"
         >
           {options.map((o) => (
             <option key={String(o.value)} value={String(o.value)}>
@@ -60,10 +61,10 @@ export function SelectRow<T extends string | number>({
   );
 }
 
-/** iOS segmented control (UISegmentedControl / Picker .segmented). */
+/** Segmented control: lavender track, white pill on the selected option (Figma "tabs"). */
 export function SegmentedControl<T extends string>({ options, value, onChange }: { options: { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
   return (
-    <div role="tablist" className="flex rounded-[9px] bg-cell-2 p-[2px]">
+    <div role="tablist" className="flex rounded-[16px] bg-lavender p-1">
       {options.map((o) => {
         const active = o.value === value;
         return (
@@ -73,7 +74,7 @@ export function SegmentedControl<T extends string>({ options, value, onChange }:
             role="tab"
             aria-selected={active}
             onClick={() => onChange(o.value)}
-            className={`flex-1 rounded-[7px] py-1.5 text-[13px] font-semibold transition-all ${active ? "bg-cell shadow-sm ring-[0.5px] ring-black/5" : "text-label-2"}`}
+            className={`h-10 flex-1 rounded-[13px] text-[15px] font-semibold transition-all ${active ? "bg-cell text-label shadow-[0_3px_9px_rgb(56_46_90/0.08)]" : "text-label-2"}`}
           >
             {o.label}
           </button>

@@ -41,7 +41,7 @@ export default function InstallPrompt() {
 
   return (
     // Sits just above the tab bar.
-    <div className="fixed inset-x-3 bottom-[calc(var(--safe-bottom)+49px+12px)] z-50 rounded-[14px] bg-cell p-4 text-[15px] shadow-xl ring-[0.5px] ring-separator">
+    <div className="fixed inset-x-3 bottom-[calc(max(12px,var(--safe-bottom))+70px+12px)] z-50 rounded-[20px] bg-cell p-4 text-[15px] shadow-xl ring-1 ring-separator">
       <p className="font-semibold">Install Taste of T</p>
       <p className="mt-1 text-label-2">
         Tap the Share button <span aria-hidden>⬆︎</span> in Safari, then{" "}

@@ -1,12 +1,13 @@
 // Owner: P3 - Group Mode & App Shell (see TEAM.md)
-// One iOS screen: SwiftUI-style large title that collapses into a small centered title in a
-// blurred bar as you scroll, safe-area padding, and the tab bar. Every page renders inside this.
+// One screen: large DM Serif title that collapses into a small centered title in a blurred
+// lavender bar as you scroll, safe-area padding, and the floating tab bar. Every page renders
+// inside this.
 "use client";
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import InstallPrompt from "../InstallPrompt";
-import TabBar, { type TabId } from "./TabBar";
+import TabBar, { NAV_SPACE, type TabId } from "./TabBar";
 import { ChevronLeft } from "./icons";
 
 type Props = {
@@ -66,10 +67,10 @@ export default function Screen({ title, tab, children, back, trailing, hideTabBa
       </header>
 
       <main
-        className="mx-auto max-w-lg px-4"
-        style={{ paddingBottom: hideTabBar ? "calc(var(--safe-bottom) + 24px)" : "calc(var(--safe-bottom) + 49px + 24px)" }}
+        className="mx-auto max-w-lg px-5"
+        style={{ paddingBottom: hideTabBar ? "calc(var(--safe-bottom) + 24px)" : NAV_SPACE }}
       >
-        <h1 ref={titleRef} className="pb-2 pt-1 text-[34px] font-bold leading-[41px] tracking-[0.01em]">
+        <h1 ref={titleRef} className="pb-3 pt-1 font-serif text-[34px] font-normal leading-[1.08] tracking-[-0.025em] text-label">
           {title}
         </h1>
         {children}
