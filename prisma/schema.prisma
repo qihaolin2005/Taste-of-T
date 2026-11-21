@@ -28,6 +28,8 @@ model User {
   googleSub    String?   @unique // Google account id ("sub" claim) for Sign in with Google
   displayName  String    @default("T Explorer")
   avatar       String?   // emoji or short string
+  /// Points balance (shown as "points" in the app). Only changed by awardPoints() in
+  /// src/features/gamification/points.ts, together with a PointsEvent row.
   xp           Int       @default(0)
   /// Set when first-run onboarding (dietary restrictions) is done.
   onboardedAt  DateTime?
@@ -45,6 +47,8 @@ model User {
   memberships  RoomMember[]
   plans        Plan[]
   swipes       Swipe[]
+  quests       Quest[]
+  pointsEvents PointsEvent[]
 }
 
 /// Defaults that prefill the Spin form and room join form.
@@ -223,4 +227,39 @@ model WishlistItem {
   addedAt DateTime @default(now())
 
   @@id([userId, placeId])
+}
+
+// ------------------------------------------------------------- points
+
+/// A solo food quest ("Spin the T"). Its point value is fixed by the server when the quest
+/// is created, so completing it can't be gamed by the client.
+model Quest {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  stationId   String?
+  /// Points awarded on completion. TODO(ML): set by the points model; today a fixed default.
+  points      Int
+  status      String       @default("active") // "active" | "completed" | "abandoned"
+  createdAt   DateTime     @default(now())
+  completedAt DateTime?
+  award       PointsEvent?
+
+  @@index([userId, status])
+}
+
+/// Append-only log of every points change. User.xp is the running total of these.
+/// One event per quest at most (questId is unique), so a quest can never pay out twice.
+model PointsEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount    Int
+  reason    String   // "quest_completed" (more later: check-ins, achievements...)
+  questId   String?  @unique
+  quest     Quest?   @relation(fields: [questId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
