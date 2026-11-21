@@ -6,7 +6,7 @@ Every stub file starts with an `// Owner:` line.
 
 | Who | Area | Owns |
 |-----|------|------|
-| **P1** | Planner & Quests | `src/features/planner/`, `src/features/spin/`, `src/types/index.ts`, `src/lib/time.ts`, `api/plan`, `api/spin` |
+| **P1** | Planner & Quests | `src/features/planner/`, `src/features/spin/`, `src/features/ml/` (user context, features, model scoring), `src/types/index.ts`, `src/lib/time.ts`, `api/plan`, `api/spin`, `api/me/context`, `api/me/recommendations` |
 | **P2** | Data & Integrations | `src/lib/mbta/`, `src/lib/places/`, `src/lib/geo.ts`, `src/lib/db.ts`, `src/lib/session*.ts`, `src/lib/api.ts`, `src/features/users/`, `prisma/`, `data/`, `scripts/`, `api/me/**`, `api/restaurants`, `api/stations` |
 | **P3** | Group Mode & App Shell | `src/app/page.tsx`, `spin/`, `room/**` pages, `demo/`, `src/features/rooms/`, `api/rooms/**`, `src/components/group/`, `solo/`, `shared/` (incl. the iOS kit), `demo/` |
 | **P4** | Game Layer & Map | `src/app/map/`, `src/app/profile/`, `src/features/gamification/`, `src/features/ratings/`, `src/lib/identity.ts`, `api/checkin`, `api/ratings`, `api/wishlist`, `src/components/game/`, `public/stamps/` |
