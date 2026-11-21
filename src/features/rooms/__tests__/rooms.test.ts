@@ -106,7 +106,8 @@ describe("rooms", () => {
     const hostView = await getRoomView(db, code, host);
     const json = JSON.stringify(hostView);
     expect(hostView.you).toBeNull();
-    expect(json).not.toContain("99");
+    // Check for the fields, not the raw text "99": ids and timestamps (e.g. "…30.799Z") can contain it.
+    expect(json).not.toMatch(/"budget"|"homeStation|"dietary"|"leaveBy"/);
     expect(json).not.toContain("place-harsq");
     expect(json).not.toContain("halal");
   });
