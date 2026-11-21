@@ -21,7 +21,7 @@ export const HUBS: Hub[] = [
 /** Google place types to search for each of our stop categories. */
 export const CATEGORY_TYPES: Record<PlaceCategory, string[]> = {
   dinner: ["restaurant"],
-  dessert: ["dessert_shop", "ice_cream_shop", "bakery", "cafe"],
+  dessert: ["dessert_shop", "ice_cream_shop", "bakery", "cafe", "tea_house"], // tea_house = boba
   activity: ["bowling_alley", "movie_theater", "museum", "amusement_center", "art_gallery", "night_club"],
 };
 

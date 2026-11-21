@@ -40,6 +40,8 @@ const TYPE_TO_TAG: Record<string, string> = {
   dessert_restaurant: "dessert",
   confectionery: "dessert",
   ice_cream_shop: "ice-cream",
+  // Google has no bubble-tea type: boba shops come back as tea_house (checked live in Boston).
+  tea_house: "boba",
   indian_restaurant: "indian",
   italian_restaurant: "italian",
   japanese_restaurant: "japanese",
@@ -69,7 +71,7 @@ const TYPE_TO_TAG: Record<string, string> = {
   night_club: "live-music",
 };
 
-const DESSERT_TYPES = new Set(["dessert_shop", "dessert_restaurant", "ice_cream_shop", "bakery", "cafe", "coffee_shop", "confectionery"]);
+const DESSERT_TYPES = new Set(["dessert_shop", "dessert_restaurant", "ice_cream_shop", "bakery", "cafe", "coffee_shop", "confectionery", "tea_house"]);
 const ACTIVITY_TYPES = new Set(["bowling_alley", "karaoke", "comedy_club", "video_arcade", "amusement_center", "museum", "art_gallery", "park", "night_club", "movie_theater"]);
 
 /** Typical spend per person when Google gives a price level but no range. */
@@ -83,7 +85,10 @@ const LEVEL_PRICE: Record<string, { level?: number; usd: number }> = {
 /** When Google has no price info at all. */
 const DEFAULT_PRICE: Record<PlaceCategory, number> = { dinner: 25, dessert: 9, activity: 20 };
 
-export function categoryOf(types: readonly string[], hint?: PlaceCategory): PlaceCategory {
+export function categoryOf(types: readonly string[], hint?: PlaceCategory, primaryType?: string): PlaceCategory {
+  // The primary type is Google's best single label, so it wins when it's clear-cut.
+  if (primaryType && ACTIVITY_TYPES.has(primaryType)) return "activity";
+  if (primaryType && DESSERT_TYPES.has(primaryType)) return "dessert";
   if (types.some((t) => ACTIVITY_TYPES.has(t))) return "activity";
   if (types.includes("restaurant") || types.some((t) => t.endsWith("_restaurant") && !DESSERT_TYPES.has(t))) {
     return hint === "dessert" && types.some((t) => DESSERT_TYPES.has(t)) ? "dessert" : "dinner";
@@ -137,7 +142,7 @@ export function mapGooglePlace(g: GooglePlace, ctx: MapContext): Place | null {
   if (g.businessStatus && g.businessStatus !== "OPERATIONAL") return null;
 
   const types = g.types ?? (g.primaryType ? [g.primaryType] : []);
-  const category = categoryOf(types, ctx.categoryHint);
+  const category = categoryOf(types, ctx.categoryHint, g.primaryType);
   const point = { lat: g.location.latitude, lng: g.location.longitude };
   const near = nearestStation(point, ctx.stations, 2500);
   const stationId = near?.station.id ?? ctx.hub?.stationId;

@@ -106,6 +106,16 @@ describe("Google -> Place mapping", () => {
     expect(mapGooglePlace({ ...RAMEN, location: undefined }, { stations })).toBeNull();
   });
 
+  it("treats boba shops (Google tea_house) as dessert tagged boba", () => {
+    // Real types Google returned for Gong Cha near Harvard.
+    const gongCha: GooglePlace = { ...VEGAN_BAKERY, id: "ChIJgong", displayName: { text: "Gong Cha" }, types: ["tea_house", "point_of_interest", "establishment"], primaryType: "tea_house" };
+    const p = mapGooglePlace(gongCha, { stations })!;
+    expect(p.category).toBe("dessert");
+    expect(p.tags).toContain("boba");
+    // primary type wins even when "restaurant" is also listed
+    expect(categoryOf(["tea_house", "restaurant"], undefined, "tea_house")).toBe("dessert");
+  });
+
   it("picks categories from Google types", () => {
     expect(categoryOf(["bowling_alley", "point_of_interest"])).toBe("activity");
     expect(categoryOf(["ice_cream_shop", "food"])).toBe("dessert");
