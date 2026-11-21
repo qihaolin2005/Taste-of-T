@@ -1,5 +1,2344 @@
 {
-  "_owner": "P2 - Data & Integrations",
-  "_notice": "DEMO DATA - names, hours, and prices are illustrative, not real.",
-  "places": []
+ "_owner": "P2 - Data & Integrations",
+ "_notice": "DEMO DATA: fictional places near real T stations. Names, hours, prices, ratings and dietary info are made up. Live data comes from Google Places (src/lib/places), which must not be saved here.",
+ "places": [
+  {
+   "id": "seed-lantern-dumpling-house",
+   "name": "Lantern Dumpling House",
+   "category": "dinner",
+   "tags": [
+    "chinese",
+    "dumplings",
+    "late-night"
+   ],
+   "cuisines": [
+    "chinese",
+    "dumplings",
+    "late-night"
+   ],
+   "pricePerPerson": 14,
+   "stationId": "place-chncl",
+   "lat": 42.35315,
+   "lng": -71.06235,
+   "walkMinutes": 2,
+   "city": "Boston",
+   "neighborhood": "Chinatown",
+   "rating": 4.5,
+   "reviewCount": 1240,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 660,
+      "close": 1560
+     }
+    ],
+    "1": [
+     {
+      "open": 660,
+      "close": 1560
+     }
+    ],
+    "2": [
+     {
+      "open": 660,
+      "close": 1560
+     }
+    ],
+    "3": [
+     {
+      "open": 660,
+      "close": 1560
+     }
+    ],
+    "4": [
+     {
+      "open": 660,
+      "close": 1560
+     }
+    ],
+    "5": [
+     {
+      "open": 660,
+      "close": 1560
+     }
+    ],
+    "6": [
+     {
+      "open": 660,
+      "close": 1560
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 1
+  },
+  {
+   "id": "seed-golden-wok-hot-pot",
+   "name": "Golden Wok Hot Pot",
+   "category": "dinner",
+   "tags": [
+    "chinese",
+    "hot-pot",
+    "spicy",
+    "late-night"
+   ],
+   "cuisines": [
+    "chinese",
+    "hot-pot",
+    "spicy",
+    "late-night"
+   ],
+   "pricePerPerson": 28,
+   "stationId": "place-chncl",
+   "lat": 42.35275,
+   "lng": -71.06365,
+   "walkMinutes": 2,
+   "city": "Boston",
+   "neighborhood": "Chinatown",
+   "rating": 4.3,
+   "reviewCount": 860,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian",
+    "gluten-free"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 690,
+      "close": 1440
+     }
+    ],
+    "1": [
+     {
+      "open": 690,
+      "close": 1440
+     }
+    ],
+    "2": [
+     {
+      "open": 690,
+      "close": 1440
+     }
+    ],
+    "3": [
+     {
+      "open": 690,
+      "close": 1440
+     }
+    ],
+    "4": [
+     {
+      "open": 690,
+      "close": 1440
+     }
+    ],
+    "5": [
+     {
+      "open": 690,
+      "close": 1440
+     }
+    ],
+    "6": [
+     {
+      "open": 690,
+      "close": 1440
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 2
+  },
+  {
+   "id": "seed-pearl-tea-bar",
+   "name": "Pearl Tea Bar",
+   "category": "dessert",
+   "tags": [
+    "boba"
+   ],
+   "cuisines": [
+    "boba"
+   ],
+   "pricePerPerson": 7,
+   "stationId": "place-chncl",
+   "lat": 42.35345,
+   "lng": -71.06305,
+   "walkMinutes": 2,
+   "city": "Boston",
+   "neighborhood": "Chinatown",
+   "rating": 4.4,
+   "reviewCount": 530,
+   "dietStyle": "vegan-only",
+   "dietary": [
+    "vegan",
+    "vegetarian",
+    "dairy-free"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 660,
+      "close": 1380
+     }
+    ],
+    "1": [
+     {
+      "open": 660,
+      "close": 1380
+     }
+    ],
+    "2": [
+     {
+      "open": 660,
+      "close": 1380
+     }
+    ],
+    "3": [
+     {
+      "open": 660,
+      "close": 1380
+     }
+    ],
+    "4": [
+     {
+      "open": 660,
+      "close": 1380
+     }
+    ],
+    "5": [
+     {
+      "open": 660,
+      "close": 1380
+     }
+    ],
+    "6": [
+     {
+      "open": 660,
+      "close": 1380
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 1
+  },
+  {
+   "id": "seed-night-market-pho",
+   "name": "Night Market Pho",
+   "category": "dinner",
+   "tags": [
+    "vietnamese",
+    "noodles"
+   ],
+   "cuisines": [
+    "vietnamese",
+    "noodles"
+   ],
+   "pricePerPerson": 15,
+   "stationId": "place-chncl",
+   "lat": 42.35185,
+   "lng": -71.06255,
+   "walkMinutes": 2,
+   "city": "Boston",
+   "neighborhood": "Chinatown",
+   "rating": 4.2,
+   "reviewCount": 710,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian",
+    "gluten-free"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 600,
+      "close": 1320
+     }
+    ],
+    "1": [
+     {
+      "open": 600,
+      "close": 1320
+     }
+    ],
+    "2": [
+     {
+      "open": 600,
+      "close": 1320
+     }
+    ],
+    "3": [
+     {
+      "open": 600,
+      "close": 1320
+     }
+    ],
+    "4": [
+     {
+      "open": 600,
+      "close": 1320
+     }
+    ],
+    "5": [
+     {
+      "open": 600,
+      "close": 1320
+     }
+    ],
+    "6": [
+     {
+      "open": 600,
+      "close": 1320
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 2
+  },
+  {
+   "id": "seed-chinatown-dessert-hall",
+   "name": "Chinatown Dessert Hall",
+   "category": "dessert",
+   "tags": [
+    "dessert",
+    "boba",
+    "late-night"
+   ],
+   "cuisines": [
+    "dessert",
+    "boba",
+    "late-night"
+   ],
+   "pricePerPerson": 9,
+   "stationId": "place-chncl",
+   "lat": 42.35295,
+   "lng": -71.06175,
+   "walkMinutes": 2,
+   "city": "Boston",
+   "neighborhood": "Chinatown",
+   "rating": 4.1,
+   "reviewCount": 320,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 720,
+      "close": 1500
+     }
+    ],
+    "1": [
+     {
+      "open": 720,
+      "close": 1500
+     }
+    ],
+    "2": [
+     {
+      "open": 720,
+      "close": 1500
+     }
+    ],
+    "3": [
+     {
+      "open": 720,
+      "close": 1500
+     }
+    ],
+    "4": [
+     {
+      "open": 720,
+      "close": 1500
+     }
+    ],
+    "5": [
+     {
+      "open": 720,
+      "close": 1500
+     }
+    ],
+    "6": [
+     {
+      "open": 720,
+      "close": 1500
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 1
+  },
+  {
+   "id": "seed-crossing-pizza-co",
+   "name": "Crossing Pizza Co.",
+   "category": "dinner",
+   "tags": [
+    "pizza",
+    "italian",
+    "late-night"
+   ],
+   "cuisines": [
+    "pizza",
+    "italian",
+    "late-night"
+   ],
+   "pricePerPerson": 14,
+   "stationId": "place-dwnxg",
+   "lat": 42.35602,
+   "lng": -71.06102,
+   "walkMinutes": 2,
+   "city": "Boston",
+   "neighborhood": "Downtown",
+   "rating": 4.0,
+   "reviewCount": 950,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 660,
+      "close": 1500
+     }
+    ],
+    "1": [
+     {
+      "open": 660,
+      "close": 1500
+     }
+    ],
+    "2": [
+     {
+      "open": 660,
+      "close": 1500
+     }
+    ],
+    "3": [
+     {
+      "open": 660,
+      "close": 1500
+     }
+    ],
+    "4": [
+     {
+      "open": 660,
+      "close": 1500
+     }
+    ],
+    "5": [
+     {
+      "open": 660,
+      "close": 1500
+     }
+    ],
+    "6": [
+     {
+      "open": 660,
+      "close": 1500
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 1
+  },
+  {
+   "id": "seed-ladder-street-karaoke",
+   "name": "Ladder Street Karaoke",
+   "category": "activity",
+   "tags": [
+    "karaoke",
+    "late-night"
+   ],
+   "cuisines": [
+    "karaoke",
+    "late-night"
+   ],
+   "pricePerPerson": 20,
+   "stationId": "place-dwnxg",
+   "lat": 42.35512,
+   "lng": -71.05962,
+   "walkMinutes": 2,
+   "city": "Boston",
+   "neighborhood": "Downtown",
+   "rating": 4.4,
+   "reviewCount": 410,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian",
+    "vegan",
+    "halal",
+    "kosher",
+    "gluten-free",
+    "dairy-free",
+    "nut-free"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 1080,
+      "close": 1560
+     }
+    ],
+    "1": [
+     {
+      "open": 1080,
+      "close": 1560
+     }
+    ],
+    "2": [
+     {
+      "open": 1080,
+      "close": 1560
+     }
+    ],
+    "3": [
+     {
+      "open": 1080,
+      "close": 1560
+     }
+    ],
+    "4": [
+     {
+      "open": 1080,
+      "close": 1560
+     }
+    ],
+    "5": [
+     {
+      "open": 1080,
+      "close": 1560
+     }
+    ],
+    "6": [
+     {
+      "open": 1080,
+      "close": 1560
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 2
+  },
+  {
+   "id": "seed-common-ground-greens",
+   "name": "Common Ground Greens",
+   "category": "dinner",
+   "tags": [
+    "mediterranean",
+    "vegan-friendly"
+   ],
+   "cuisines": [
+    "mediterranean",
+    "vegan-friendly"
+   ],
+   "pricePerPerson": 13,
+   "stationId": "place-dwnxg",
+   "lat": 42.35642,
+   "lng": -71.06002,
+   "walkMinutes": 2,
+   "city": "Boston",
+   "neighborhood": "Downtown",
+   "rating": 4.3,
+   "reviewCount": 620,
+   "dietStyle": "veg-only",
+   "dietary": [
+    "vegetarian",
+    "vegan",
+    "gluten-free"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 630,
+      "close": 1260
+     }
+    ],
+    "1": [
+     {
+      "open": 630,
+      "close": 1260
+     }
+    ],
+    "2": [
+     {
+      "open": 630,
+      "close": 1260
+     }
+    ],
+    "3": [
+     {
+      "open": 630,
+      "close": 1260
+     }
+    ],
+    "4": [
+     {
+      "open": 630,
+      "close": 1260
+     }
+    ],
+    "5": [
+     {
+      "open": 630,
+      "close": 1260
+     }
+    ],
+    "6": [
+     {
+      "open": 630,
+      "close": 1260
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 1
+  },
+  {
+   "id": "seed-hanover-trattoria",
+   "name": "Hanover Trattoria",
+   "category": "dinner",
+   "tags": [
+    "italian",
+    "seafood"
+   ],
+   "cuisines": [
+    "italian",
+    "seafood"
+   ],
+   "pricePerPerson": 38,
+   "stationId": "place-haecl",
+   "lat": 42.36412,
+   "lng": -71.05639,
+   "walkMinutes": 4,
+   "city": "Boston",
+   "neighborhood": "North End",
+   "rating": 4.6,
+   "reviewCount": 1800,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian",
+    "gluten-free"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 960,
+      "close": 1350
+     }
+    ],
+    "1": [
+     {
+      "open": 960,
+      "close": 1350
+     }
+    ],
+    "2": [
+     {
+      "open": 960,
+      "close": 1350
+     }
+    ],
+    "3": [
+     {
+      "open": 960,
+      "close": 1350
+     }
+    ],
+    "4": [
+     {
+      "open": 960,
+      "close": 1350
+     }
+    ],
+    "5": [
+     {
+      "open": 960,
+      "close": 1350
+     }
+    ],
+    "6": [
+     {
+      "open": 960,
+      "close": 1350
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 3
+  },
+  {
+   "id": "seed-cannoli-corner",
+   "name": "Cannoli Corner",
+   "category": "dessert",
+   "tags": [
+    "bakery",
+    "dessert"
+   ],
+   "cuisines": [
+    "bakery",
+    "dessert"
+   ],
+   "pricePerPerson": 8,
+   "stationId": "place-haecl",
+   "lat": 42.36462,
+   "lng": -71.05589,
+   "walkMinutes": 5,
+   "city": "Boston",
+   "neighborhood": "North End",
+   "rating": 4.7,
+   "reviewCount": 3100,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 480,
+      "close": 1380
+     }
+    ],
+    "1": [
+     {
+      "open": 480,
+      "close": 1380
+     }
+    ],
+    "2": [
+     {
+      "open": 480,
+      "close": 1380
+     }
+    ],
+    "3": [
+     {
+      "open": 480,
+      "close": 1380
+     }
+    ],
+    "4": [
+     {
+      "open": 480,
+      "close": 1380
+     }
+    ],
+    "5": [
+     {
+      "open": 480,
+      "close": 1380
+     }
+    ],
+    "6": [
+     {
+      "open": 480,
+      "close": 1380
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 1
+  },
+  {
+   "id": "seed-wharf-fish-house",
+   "name": "Wharf Fish House",
+   "category": "dinner",
+   "tags": [
+    "seafood"
+   ],
+   "cuisines": [
+    "seafood"
+   ],
+   "pricePerPerson": 45,
+   "stationId": "place-haecl",
+   "lat": 42.36362,
+   "lng": -71.05529,
+   "walkMinutes": 5,
+   "city": "Boston",
+   "neighborhood": "North End",
+   "rating": 4.4,
+   "reviewCount": 990,
+   "dietStyle": "non-veg-only",
+   "dietary": [
+    "gluten-free",
+    "dairy-free"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 720,
+      "close": 1320
+     }
+    ],
+    "1": [
+     {
+      "open": 720,
+      "close": 1320
+     }
+    ],
+    "2": [
+     {
+      "open": 720,
+      "close": 1320
+     }
+    ],
+    "3": [
+     {
+      "open": 720,
+      "close": 1320
+     }
+    ],
+    "4": [
+     {
+      "open": 720,
+      "close": 1320
+     }
+    ],
+    "5": [
+     {
+      "open": 720,
+      "close": 1320
+     }
+    ],
+    "6": [
+     {
+      "open": 720,
+      "close": 1320
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 3
+  },
+  {
+   "id": "seed-copley-ramen-bar",
+   "name": "Copley Ramen Bar",
+   "category": "dinner",
+   "tags": [
+    "ramen",
+    "japanese",
+    "noodles",
+    "late-night"
+   ],
+   "cuisines": [
+    "ramen",
+    "japanese",
+    "noodles",
+    "late-night"
+   ],
+   "pricePerPerson": 22,
+   "stationId": "place-coecl",
+   "lat": 42.35067,
+   "lng": -71.07685,
+   "walkMinutes": 2,
+   "city": "Boston",
+   "neighborhood": "Back Bay",
+   "rating": 4.5,
+   "reviewCount": 1500,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 690,
+      "close": 1425
+     }
+    ],
+    "1": [
+     {
+      "open": 690,
+      "close": 1425
+     }
+    ],
+    "2": [
+     {
+      "open": 690,
+      "close": 1425
+     }
+    ],
+    "3": [
+     {
+      "open": 690,
+      "close": 1425
+     }
+    ],
+    "4": [
+     {
+      "open": 690,
+      "close": 1425
+     }
+    ],
+    "5": [
+     {
+      "open": 690,
+      "close": 1425
+     }
+    ],
+    "6": [
+     {
+      "open": 690,
+      "close": 1425
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 2
+  },
+  {
+   "id": "seed-boylston-burger-club",
+   "name": "Boylston Burger Club",
+   "category": "dinner",
+   "tags": [
+    "burgers",
+    "american"
+   ],
+   "cuisines": [
+    "burgers",
+    "american"
+   ],
+   "pricePerPerson": 18,
+   "stationId": "place-coecl",
+   "lat": 42.34967,
+   "lng": -71.07845,
+   "walkMinutes": 2,
+   "city": "Boston",
+   "neighborhood": "Back Bay",
+   "rating": 4.1,
+   "reviewCount": 1100,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian",
+    "gluten-free",
+    "halal"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 660,
+      "close": 1380
+     }
+    ],
+    "1": [
+     {
+      "open": 660,
+      "close": 1380
+     }
+    ],
+    "2": [
+     {
+      "open": 660,
+      "close": 1380
+     }
+    ],
+    "3": [
+     {
+      "open": 660,
+      "close": 1380
+     }
+    ],
+    "4": [
+     {
+      "open": 660,
+      "close": 1380
+     }
+    ],
+    "5": [
+     {
+      "open": 660,
+      "close": 1380
+     }
+    ],
+    "6": [
+     {
+      "open": 660,
+      "close": 1380
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 2
+  },
+  {
+   "id": "seed-sweet-lab-gelato",
+   "name": "Sweet Lab Gelato",
+   "category": "dessert",
+   "tags": [
+    "ice-cream",
+    "dessert",
+    "late-night"
+   ],
+   "cuisines": [
+    "ice-cream",
+    "dessert",
+    "late-night"
+   ],
+   "pricePerPerson": 7,
+   "stationId": "place-coecl",
+   "lat": 42.35097,
+   "lng": -71.07785,
+   "walkMinutes": 2,
+   "city": "Boston",
+   "neighborhood": "Back Bay",
+   "rating": 4.6,
+   "reviewCount": 870,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian",
+    "vegan",
+    "gluten-free",
+    "nut-free"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 720,
+      "close": 1440
+     }
+    ],
+    "1": [
+     {
+      "open": 720,
+      "close": 1440
+     }
+    ],
+    "2": [
+     {
+      "open": 720,
+      "close": 1440
+     }
+    ],
+    "3": [
+     {
+      "open": 720,
+      "close": 1440
+     }
+    ],
+    "4": [
+     {
+      "open": 720,
+      "close": 1440
+     }
+    ],
+    "5": [
+     {
+      "open": 720,
+      "close": 1440
+     }
+    ],
+    "6": [
+     {
+      "open": 720,
+      "close": 1440
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 1
+  },
+  {
+   "id": "seed-esplanade-sunset-walk",
+   "name": "Esplanade Sunset Walk",
+   "category": "activity",
+   "tags": [
+    "outdoors"
+   ],
+   "cuisines": [
+    "outdoors"
+   ],
+   "pricePerPerson": 0,
+   "stationId": "place-armnl",
+   "lat": 42.3554,
+   "lng": -71.06989,
+   "walkMinutes": 7,
+   "city": "Boston",
+   "neighborhood": "Back Bay",
+   "rating": 4.8,
+   "reviewCount": 2400,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian",
+    "vegan",
+    "halal",
+    "kosher",
+    "gluten-free",
+    "dairy-free",
+    "nut-free"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 360,
+      "close": 1380
+     }
+    ],
+    "1": [
+     {
+      "open": 360,
+      "close": 1380
+     }
+    ],
+    "2": [
+     {
+      "open": 360,
+      "close": 1380
+     }
+    ],
+    "3": [
+     {
+      "open": 360,
+      "close": 1380
+     }
+    ],
+    "4": [
+     {
+      "open": 360,
+      "close": 1380
+     }
+    ],
+    "5": [
+     {
+      "open": 360,
+      "close": 1380
+     }
+    ],
+    "6": [
+     {
+      "open": 360,
+      "close": 1380
+     }
+    ]
+   },
+   "source": "seed"
+  },
+  {
+   "id": "seed-fenway-lanes",
+   "name": "Fenway Lanes",
+   "category": "activity",
+   "tags": [
+    "bowling",
+    "arcade",
+    "late-night"
+   ],
+   "cuisines": [
+    "bowling",
+    "arcade",
+    "late-night"
+   ],
+   "pricePerPerson": 25,
+   "stationId": "place-kencl",
+   "lat": 42.34935,
+   "lng": -71.09397,
+   "walkMinutes": 2,
+   "city": "Boston",
+   "neighborhood": "Fenway",
+   "rating": 4.2,
+   "reviewCount": 760,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian",
+    "vegan",
+    "halal",
+    "kosher",
+    "gluten-free",
+    "dairy-free",
+    "nut-free"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 720,
+      "close": 1500
+     }
+    ],
+    "1": [
+     {
+      "open": 720,
+      "close": 1500
+     }
+    ],
+    "2": [
+     {
+      "open": 720,
+      "close": 1500
+     }
+    ],
+    "3": [
+     {
+      "open": 720,
+      "close": 1500
+     }
+    ],
+    "4": [
+     {
+      "open": 720,
+      "close": 1500
+     }
+    ],
+    "5": [
+     {
+      "open": 720,
+      "close": 1500
+     }
+    ],
+    "6": [
+     {
+      "open": 720,
+      "close": 1500
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 2
+  },
+  {
+   "id": "seed-kenmore-taqueria",
+   "name": "Kenmore Taqueria",
+   "category": "dinner",
+   "tags": [
+    "mexican",
+    "tacos",
+    "late-night"
+   ],
+   "cuisines": [
+    "mexican",
+    "tacos",
+    "late-night"
+   ],
+   "pricePerPerson": 13,
+   "stationId": "place-kencl",
+   "lat": 42.34835,
+   "lng": -71.09567,
+   "walkMinutes": 2,
+   "city": "Boston",
+   "neighborhood": "Fenway",
+   "rating": 4.3,
+   "reviewCount": 1320,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian",
+    "vegan",
+    "gluten-free"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 660,
+      "close": 1560
+     }
+    ],
+    "1": [
+     {
+      "open": 660,
+      "close": 1560
+     }
+    ],
+    "2": [
+     {
+      "open": 660,
+      "close": 1560
+     }
+    ],
+    "3": [
+     {
+      "open": 660,
+      "close": 1560
+     }
+    ],
+    "4": [
+     {
+      "open": 660,
+      "close": 1560
+     }
+    ],
+    "5": [
+     {
+      "open": 660,
+      "close": 1560
+     }
+    ],
+    "6": [
+     {
+      "open": 660,
+      "close": 1560
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 1
+  },
+  {
+   "id": "seed-lansdowne-comedy-cellar",
+   "name": "Lansdowne Comedy Cellar",
+   "category": "activity",
+   "tags": [
+    "comedy",
+    "late-night"
+   ],
+   "cuisines": [
+    "comedy",
+    "late-night"
+   ],
+   "pricePerPerson": 22,
+   "stationId": "place-kencl",
+   "lat": 42.35015,
+   "lng": -71.09357,
+   "walkMinutes": 4,
+   "city": "Boston",
+   "neighborhood": "Fenway",
+   "rating": 4.5,
+   "reviewCount": 540,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian",
+    "vegan",
+    "halal",
+    "kosher",
+    "gluten-free",
+    "dairy-free",
+    "nut-free"
+   ],
+   "hours": {
+    "3": [
+     {
+      "open": 1140,
+      "close": 1440
+     }
+    ],
+    "4": [
+     {
+      "open": 1140,
+      "close": 1440
+     }
+    ],
+    "5": [
+     {
+      "open": 1140,
+      "close": 1440
+     }
+    ],
+    "6": [
+     {
+      "open": 1140,
+      "close": 1440
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 2
+  },
+  {
+   "id": "seed-beacon-kosher-deli",
+   "name": "Beacon Kosher Deli",
+   "category": "dinner",
+   "tags": [
+    "sandwiches",
+    "american"
+   ],
+   "cuisines": [
+    "sandwiches",
+    "american"
+   ],
+   "pricePerPerson": 16,
+   "stationId": "place-kencl",
+   "lat": 42.34795,
+   "lng": -71.09337,
+   "walkMinutes": 4,
+   "city": "Boston",
+   "neighborhood": "Fenway",
+   "rating": 4.4,
+   "reviewCount": 380,
+   "dietStyle": "mixed",
+   "dietary": [
+    "kosher",
+    "vegetarian"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 660,
+      "close": 1260
+     }
+    ],
+    "1": [
+     {
+      "open": 660,
+      "close": 1260
+     }
+    ],
+    "2": [
+     {
+      "open": 660,
+      "close": 1260
+     }
+    ],
+    "3": [
+     {
+      "open": 660,
+      "close": 1260
+     }
+    ],
+    "4": [
+     {
+      "open": 660,
+      "close": 1260
+     }
+    ],
+    "5": [
+     {
+      "open": 660,
+      "close": 900
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 2
+  },
+  {
+   "id": "seed-kendall-thai-garden",
+   "name": "Kendall Thai Garden",
+   "category": "dinner",
+   "tags": [
+    "thai",
+    "spicy"
+   ],
+   "cuisines": [
+    "thai",
+    "spicy"
+   ],
+   "pricePerPerson": 20,
+   "stationId": "place-knncl",
+   "lat": 42.36299,
+   "lng": -71.08688,
+   "walkMinutes": 2,
+   "city": "Cambridge",
+   "neighborhood": "Kendall",
+   "rating": 4.4,
+   "reviewCount": 690,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian",
+    "vegan",
+    "gluten-free"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 660,
+      "close": 1320
+     }
+    ],
+    "1": [
+     {
+      "open": 660,
+      "close": 1320
+     }
+    ],
+    "2": [
+     {
+      "open": 660,
+      "close": 1320
+     }
+    ],
+    "3": [
+     {
+      "open": 660,
+      "close": 1320
+     }
+    ],
+    "4": [
+     {
+      "open": 660,
+      "close": 1320
+     }
+    ],
+    "5": [
+     {
+      "open": 660,
+      "close": 1320
+     }
+    ],
+    "6": [
+     {
+      "open": 660,
+      "close": 1320
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 2
+  },
+  {
+   "id": "seed-night-at-the-lab-museum",
+   "name": "Night at the Lab Museum",
+   "category": "activity",
+   "tags": [
+    "museum"
+   ],
+   "cuisines": [
+    "museum"
+   ],
+   "pricePerPerson": 25,
+   "stationId": "place-knncl",
+   "lat": 42.36489,
+   "lng": -71.08218,
+   "walkMinutes": 7,
+   "city": "Cambridge",
+   "neighborhood": "Kendall",
+   "rating": 4.7,
+   "reviewCount": 2900,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian",
+    "vegan",
+    "halal",
+    "kosher",
+    "gluten-free",
+    "dairy-free",
+    "nut-free"
+   ],
+   "hours": {
+    "4": [
+     {
+      "open": 1020,
+      "close": 1260
+     }
+    ],
+    "5": [
+     {
+      "open": 1020,
+      "close": 1260
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 2
+  },
+  {
+   "id": "seed-saffron-halal-grill",
+   "name": "Saffron Halal Grill",
+   "category": "dinner",
+   "tags": [
+    "mediterranean",
+    "late-night"
+   ],
+   "cuisines": [
+    "mediterranean",
+    "late-night"
+   ],
+   "pricePerPerson": 14,
+   "stationId": "place-cntsq",
+   "lat": 42.36589,
+   "lng": -71.1029,
+   "walkMinutes": 2,
+   "city": "Cambridge",
+   "neighborhood": "Central Square",
+   "rating": 4.5,
+   "reviewCount": 840,
+   "dietStyle": "mixed",
+   "dietary": [
+    "halal",
+    "vegetarian"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 660,
+      "close": 1440
+     }
+    ],
+    "1": [
+     {
+      "open": 660,
+      "close": 1440
+     }
+    ],
+    "2": [
+     {
+      "open": 660,
+      "close": 1440
+     }
+    ],
+    "3": [
+     {
+      "open": 660,
+      "close": 1440
+     }
+    ],
+    "4": [
+     {
+      "open": 660,
+      "close": 1440
+     }
+    ],
+    "5": [
+     {
+      "open": 660,
+      "close": 1440
+     }
+    ],
+    "6": [
+     {
+      "open": 660,
+      "close": 1440
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 1
+  },
+  {
+   "id": "seed-mass-ave-momo",
+   "name": "Mass Ave Momo",
+   "category": "dinner",
+   "tags": [
+    "dumplings",
+    "spicy"
+   ],
+   "cuisines": [
+    "dumplings",
+    "spicy"
+   ],
+   "pricePerPerson": 15,
+   "stationId": "place-cntsq",
+   "lat": 42.36499,
+   "lng": -71.1044,
+   "walkMinutes": 2,
+   "city": "Cambridge",
+   "neighborhood": "Central Square",
+   "rating": 4.6,
+   "reviewCount": 1150,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian",
+    "halal"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 690,
+      "close": 1320
+     }
+    ],
+    "1": [
+     {
+      "open": 690,
+      "close": 1320
+     }
+    ],
+    "2": [
+     {
+      "open": 690,
+      "close": 1320
+     }
+    ],
+    "3": [
+     {
+      "open": 690,
+      "close": 1320
+     }
+    ],
+    "4": [
+     {
+      "open": 690,
+      "close": 1320
+     }
+    ],
+    "5": [
+     {
+      "open": 690,
+      "close": 1320
+     }
+    ],
+    "6": [
+     {
+      "open": 690,
+      "close": 1320
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 2
+  },
+  {
+   "id": "seed-central-arcade-bar",
+   "name": "Central Arcade Bar",
+   "category": "activity",
+   "tags": [
+    "arcade",
+    "late-night"
+   ],
+   "cuisines": [
+    "arcade",
+    "late-night"
+   ],
+   "pricePerPerson": 15,
+   "stationId": "place-cntsq",
+   "lat": 42.36629,
+   "lng": -71.105,
+   "walkMinutes": 3,
+   "city": "Cambridge",
+   "neighborhood": "Central Square",
+   "rating": 4.3,
+   "reviewCount": 470,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian",
+    "vegan",
+    "halal",
+    "kosher",
+    "gluten-free",
+    "dairy-free",
+    "nut-free"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 960,
+      "close": 1500
+     }
+    ],
+    "1": [
+     {
+      "open": 960,
+      "close": 1500
+     }
+    ],
+    "2": [
+     {
+      "open": 960,
+      "close": 1500
+     }
+    ],
+    "3": [
+     {
+      "open": 960,
+      "close": 1500
+     }
+    ],
+    "4": [
+     {
+      "open": 960,
+      "close": 1500
+     }
+    ],
+    "5": [
+     {
+      "open": 960,
+      "close": 1500
+     }
+    ],
+    "6": [
+     {
+      "open": 960,
+      "close": 1500
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 2
+  },
+  {
+   "id": "seed-moonlight-vegan-bakery",
+   "name": "Moonlight Vegan Bakery",
+   "category": "dessert",
+   "tags": [
+    "bakery",
+    "cafe",
+    "vegan-friendly"
+   ],
+   "cuisines": [
+    "bakery",
+    "cafe",
+    "vegan-friendly"
+   ],
+   "pricePerPerson": 9,
+   "stationId": "place-cntsq",
+   "lat": 42.36659,
+   "lng": -71.1035,
+   "walkMinutes": 3,
+   "city": "Cambridge",
+   "neighborhood": "Central Square",
+   "rating": 4.6,
+   "reviewCount": 410,
+   "dietStyle": "vegan-only",
+   "dietary": [
+    "vegan",
+    "vegetarian",
+    "dairy-free",
+    "nut-free"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 480,
+      "close": 1320
+     }
+    ],
+    "1": [
+     {
+      "open": 480,
+      "close": 1320
+     }
+    ],
+    "2": [
+     {
+      "open": 480,
+      "close": 1320
+     }
+    ],
+    "3": [
+     {
+      "open": 480,
+      "close": 1320
+     }
+    ],
+    "4": [
+     {
+      "open": 480,
+      "close": 1320
+     }
+    ],
+    "5": [
+     {
+      "open": 480,
+      "close": 1320
+     }
+    ],
+    "6": [
+     {
+      "open": 480,
+      "close": 1320
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 1
+  },
+  {
+   "id": "seed-brattle-noodle-shop",
+   "name": "Brattle Noodle Shop",
+   "category": "dinner",
+   "tags": [
+    "noodles",
+    "chinese",
+    "spicy"
+   ],
+   "cuisines": [
+    "noodles",
+    "chinese",
+    "spicy"
+   ],
+   "pricePerPerson": 16,
+   "stationId": "place-harsq",
+   "lat": 42.37396,
+   "lng": -71.11976,
+   "walkMinutes": 2,
+   "city": "Cambridge",
+   "neighborhood": "Harvard Square",
+   "rating": 4.3,
+   "reviewCount": 990,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 660,
+      "close": 1350
+     }
+    ],
+    "1": [
+     {
+      "open": 660,
+      "close": 1350
+     }
+    ],
+    "2": [
+     {
+      "open": 660,
+      "close": 1350
+     }
+    ],
+    "3": [
+     {
+      "open": 660,
+      "close": 1350
+     }
+    ],
+    "4": [
+     {
+      "open": 660,
+      "close": 1350
+     }
+    ],
+    "5": [
+     {
+      "open": 660,
+      "close": 1350
+     }
+    ],
+    "6": [
+     {
+      "open": 660,
+      "close": 1350
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 2
+  },
+  {
+   "id": "seed-square-crepe-cafe",
+   "name": "Square Crepe Cafe",
+   "category": "dessert",
+   "tags": [
+    "dessert",
+    "cafe"
+   ],
+   "cuisines": [
+    "dessert",
+    "cafe"
+   ],
+   "pricePerPerson": 10,
+   "stationId": "place-harsq",
+   "lat": 42.37296,
+   "lng": -71.11826,
+   "walkMinutes": 2,
+   "city": "Cambridge",
+   "neighborhood": "Harvard Square",
+   "rating": 4.4,
+   "reviewCount": 760,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian",
+    "gluten-free"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 540,
+      "close": 1380
+     }
+    ],
+    "1": [
+     {
+      "open": 540,
+      "close": 1380
+     }
+    ],
+    "2": [
+     {
+      "open": 540,
+      "close": 1380
+     }
+    ],
+    "3": [
+     {
+      "open": 540,
+      "close": 1380
+     }
+    ],
+    "4": [
+     {
+      "open": 540,
+      "close": 1380
+     }
+    ],
+    "5": [
+     {
+      "open": 540,
+      "close": 1380
+     }
+    ],
+    "6": [
+     {
+      "open": 540,
+      "close": 1380
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 1
+  },
+  {
+   "id": "seed-harvard-square-bhavan",
+   "name": "Harvard Square Bhavan",
+   "category": "dinner",
+   "tags": [
+    "indian",
+    "spicy"
+   ],
+   "cuisines": [
+    "indian",
+    "spicy"
+   ],
+   "pricePerPerson": 18,
+   "stationId": "place-harsq",
+   "lat": 42.37436,
+   "lng": -71.11856,
+   "walkMinutes": 2,
+   "city": "Cambridge",
+   "neighborhood": "Harvard Square",
+   "rating": 4.5,
+   "reviewCount": 680,
+   "dietStyle": "veg-only",
+   "dietary": [
+    "vegetarian",
+    "vegan",
+    "gluten-free"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 690,
+      "close": 1320
+     }
+    ],
+    "1": [
+     {
+      "open": 690,
+      "close": 1320
+     }
+    ],
+    "2": [
+     {
+      "open": 690,
+      "close": 1320
+     }
+    ],
+    "3": [
+     {
+      "open": 690,
+      "close": 1320
+     }
+    ],
+    "4": [
+     {
+      "open": 690,
+      "close": 1320
+     }
+    ],
+    "5": [
+     {
+      "open": 690,
+      "close": 1320
+     }
+    ],
+    "6": [
+     {
+      "open": 690,
+      "close": 1320
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 2
+  },
+  {
+   "id": "seed-late-night-falafel",
+   "name": "Late Night Falafel",
+   "category": "dinner",
+   "tags": [
+    "mediterranean",
+    "late-night"
+   ],
+   "cuisines": [
+    "mediterranean",
+    "late-night"
+   ],
+   "pricePerPerson": 10,
+   "stationId": "place-harsq",
+   "lat": 42.37256,
+   "lng": -71.11926,
+   "walkMinutes": 2,
+   "city": "Cambridge",
+   "neighborhood": "Harvard Square",
+   "rating": 4.2,
+   "reviewCount": 1430,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian",
+    "vegan",
+    "halal"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 660,
+      "close": 1620
+     }
+    ],
+    "1": [
+     {
+      "open": 660,
+      "close": 1620
+     }
+    ],
+    "2": [
+     {
+      "open": 660,
+      "close": 1620
+     }
+    ],
+    "3": [
+     {
+      "open": 660,
+      "close": 1620
+     }
+    ],
+    "4": [
+     {
+      "open": 660,
+      "close": 1620
+     }
+    ],
+    "5": [
+     {
+      "open": 660,
+      "close": 1620
+     }
+    ],
+    "6": [
+     {
+      "open": 660,
+      "close": 1620
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 1
+  },
+  {
+   "id": "seed-davis-square-tacos",
+   "name": "Davis Square Tacos",
+   "category": "dinner",
+   "tags": [
+    "tacos",
+    "mexican",
+    "late-night"
+   ],
+   "cuisines": [
+    "tacos",
+    "mexican",
+    "late-night"
+   ],
+   "pricePerPerson": 12,
+   "stationId": "place-davis",
+   "lat": 42.39724,
+   "lng": -71.12121,
+   "walkMinutes": 2,
+   "city": "Somerville",
+   "neighborhood": "Davis Square",
+   "rating": 4.4,
+   "reviewCount": 1010,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian",
+    "vegan",
+    "gluten-free"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 660,
+      "close": 1440
+     }
+    ],
+    "1": [
+     {
+      "open": 660,
+      "close": 1440
+     }
+    ],
+    "2": [
+     {
+      "open": 660,
+      "close": 1440
+     }
+    ],
+    "3": [
+     {
+      "open": 660,
+      "close": 1440
+     }
+    ],
+    "4": [
+     {
+      "open": 660,
+      "close": 1440
+     }
+    ],
+    "5": [
+     {
+      "open": 660,
+      "close": 1440
+     }
+    ],
+    "6": [
+     {
+      "open": 660,
+      "close": 1440
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 1
+  },
+  {
+   "id": "seed-holland-ave-creamery",
+   "name": "Holland Ave Creamery",
+   "category": "dessert",
+   "tags": [
+    "ice-cream"
+   ],
+   "cuisines": [
+    "ice-cream"
+   ],
+   "pricePerPerson": 7,
+   "stationId": "place-davis",
+   "lat": 42.39634,
+   "lng": -71.12251,
+   "walkMinutes": 2,
+   "city": "Somerville",
+   "neighborhood": "Davis Square",
+   "rating": 4.7,
+   "reviewCount": 1650,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian",
+    "gluten-free"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 720,
+      "close": 1380
+     }
+    ],
+    "1": [
+     {
+      "open": 720,
+      "close": 1380
+     }
+    ],
+    "2": [
+     {
+      "open": 720,
+      "close": 1380
+     }
+    ],
+    "3": [
+     {
+      "open": 720,
+      "close": 1380
+     }
+    ],
+    "4": [
+     {
+      "open": 720,
+      "close": 1380
+     }
+    ],
+    "5": [
+     {
+      "open": 720,
+      "close": 1380
+     }
+    ],
+    "6": [
+     {
+      "open": 720,
+      "close": 1380
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 1
+  },
+  {
+   "id": "seed-davis-square-cinema-night",
+   "name": "Davis Square Cinema Night",
+   "category": "activity",
+   "tags": [
+    "live-music",
+    "late-night"
+   ],
+   "cuisines": [
+    "live-music",
+    "late-night"
+   ],
+   "pricePerPerson": 15,
+   "stationId": "place-davis",
+   "lat": 42.39744,
+   "lng": -71.12201,
+   "walkMinutes": 2,
+   "city": "Somerville",
+   "neighborhood": "Davis Square",
+   "rating": 4.6,
+   "reviewCount": 1200,
+   "dietStyle": "mixed",
+   "dietary": [
+    "vegetarian",
+    "vegan",
+    "halal",
+    "kosher",
+    "gluten-free",
+    "dairy-free",
+    "nut-free"
+   ],
+   "hours": {
+    "0": [
+     {
+      "open": 1020,
+      "close": 1440
+     }
+    ],
+    "1": [
+     {
+      "open": 1020,
+      "close": 1440
+     }
+    ],
+    "2": [
+     {
+      "open": 1020,
+      "close": 1440
+     }
+    ],
+    "3": [
+     {
+      "open": 1020,
+      "close": 1440
+     }
+    ],
+    "4": [
+     {
+      "open": 1020,
+      "close": 1440
+     }
+    ],
+    "5": [
+     {
+      "open": 1020,
+      "close": 1440
+     }
+    ],
+    "6": [
+     {
+      "open": 1020,
+      "close": 1440
+     }
+    ]
+   },
+   "source": "seed",
+   "priceLevel": 2
+  }
+ ]
 }

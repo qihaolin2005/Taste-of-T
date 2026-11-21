@@ -3,6 +3,14 @@
 **For:** whoever builds the restaurant data and endpoint (P2, `src/lib/places`).
 **From:** ML (P1). The ML side is ready and only waits on one function from you.
 
+> **Status (P2):** implemented. `listRestaurants` is exported from `@/lib/places` (Google Places
+> API (New), see `src/lib/places/README.md`) and already wired into
+> `/api/me/recommendations`. The squad `start` route still needs its one-line hookup (step 2).
+> One deviation: `data/seed-restaurants.json` is hand-written demo data, **not** a Google
+> snapshot, because Google's terms forbid storing Places content (place ids excepted).
+> Note for P1: activities carry a full `dietary` list in the seed so restricted users still see
+> them; consider skipping the diet filter for `category: "activity"` instead.
+
 ## The one function to provide
 
 ```ts
