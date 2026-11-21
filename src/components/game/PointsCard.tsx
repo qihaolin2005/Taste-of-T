@@ -37,7 +37,7 @@ const when = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month:
 export function PointsHistory() {
   const points = usePoints();
   return (
-    <ListSection header="Points History" footer={points && points.events.length === 0 ? "Complete a quest to earn your first points." : undefined}>
+    <ListSection header="Points History" footer={points && points.events.length === 0 ? "Complete a quest or eat at a recommended place to earn your first points." : undefined}>
       {!points ? (
         <ListRow title="Loading…" />
       ) : points.events.length === 0 ? (
@@ -48,7 +48,7 @@ export function PointsHistory() {
             key={e.id}
             icon={<StarIcon size={17} />}
             iconBg="#ffcc00"
-            title={e.questTitle ?? "Quest completed"}
+            title={e.title}
             subtitle={when(e.createdAt)}
             value={<span className="font-semibold text-tint">+{e.amount}</span>}
           />

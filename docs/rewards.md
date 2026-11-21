@@ -25,7 +25,14 @@ Examples:
 - **Squad of 12, all T, $60 each, first visit:** (20 + 30 + 5 + 10) × 1.55 = **101 each** (the maximum)
 
 **Group bonus is fair to whoever claims first.** When another squad-mate claims the same place,
-everyone's multiplier is recalculated, and earlier claimers get the difference added.
+everyone's multiplier is recalculated, and earlier claimers get the difference added. Points
+already earned never go down.
+
+**One balance, one history.** Rewards go through P4's `awardPointsTx`
+(`src/features/gamification/points.ts`), like quest payouts. Each visit is a `PointsEvent` with
+reason `restaurant_visit`, and each top-up a `group_bonus`, linked to the `RewardVisit`. So
+`User.xp` always equals the sum of the history, and the profile's Points History shows entries like
+"Lantern Dumpling House +52" and "Group bonus · Lantern Dumpling House +3".
 
 ## Rules a visit must pass
 
@@ -82,12 +89,13 @@ with its point breakdown ("20 meal + 15 spend + 10 bus…").
 - **Receipt reading (OCR, not built yet):** turn the photo into `receipt.total`, `date`, and ideally
   `merchantName` and `receiptNumber`, then call the endpoint. **Don't store the photo**: receipts
   can show card digits and names. Only the total, date and a receipt key are kept.
-- **XP display and levels (P4):** points go into the existing `User.xp`, which P4's XP and
-  achievement code can read.
+- **Points display (P4):** shown by the existing points card and `GET /api/me/points`.
 
 ## Database
 
-Two new tables (run `npm run db:push` after pulling):
+Tables (run `npm run db:push` after pulling):
 - **`RewardVisit`:** one row per rewarded visit, with the receipt facts, travel mode, base points,
   group multiplier, points awarded and a breakdown.
 - **`RecommendationShown`:** the latest time each place was shown to each user in "for you".
+- **`PointsEvent.rewardVisitId`:** links a history entry to its visit. `RewardVisit.placeName`
+  provides the title shown in the history.
