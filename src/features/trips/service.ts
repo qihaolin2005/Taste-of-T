@@ -56,15 +56,23 @@ export type TripView = {
   startHidden: boolean;
 };
 
-type RideSummary = { mode: string | null; routeName: string | null; firstMatchAt: Date | null; userId: string };
+type RideSummary = { mode: string | null; routeName: string | null; firstMatchAt: Date | null; lastMatchAt: Date | null; userId: string };
 
 function toView(trip: Trip, opts: { viewerId: string; name?: string | null; rides: RideSummary[] }): TripView {
   const isYou = trip.userId === opts.viewerId;
   const all = readPoints(trip.points);
   const points: StoredPoint[] = isYou ? all : hideStart(all);
-  const legs = splitLegs(points);
-  const end = trip.endedAt ?? trip.lastPointAt ?? trip.startedAt;
   const until = trip.endedAt ?? new Date(8.64e15);
+  // verified rides that overlap the trip
+  const rides = opts.rides.filter(
+    (r) => r.userId === trip.userId && r.firstMatchAt && r.lastMatchAt && r.lastMatchAt >= trip.startedAt && r.firstMatchAt <= until,
+  );
+  const sec = (d: Date) => (d.getTime() - trip.startedAt.getTime()) / 1000;
+  const legs = splitLegs(
+    points,
+    rides.map((r) => ({ fromSec: sec(r.firstMatchAt!), toSec: sec(r.lastMatchAt!), mode: r.mode, routeName: r.routeName })),
+  );
+  const end = trip.endedAt ?? trip.lastPointAt ?? trip.startedAt;
   return {
     id: trip.id,
     isYou,
@@ -80,9 +88,7 @@ function toView(trip: Trip, opts: { viewerId: string; name?: string | null; ride
     distanceM: Math.round(trip.distanceM),
     walkM: legs.filter((l) => l.mode === "walk").reduce((s, l) => s + l.distanceM, 0),
     transitM: legs.filter((l) => l.mode === "transit").reduce((s, l) => s + l.distanceM, 0),
-    rides: opts.rides
-      .filter((r) => r.userId === trip.userId && r.firstMatchAt && r.firstMatchAt >= trip.startedAt && r.firstMatchAt <= until)
-      .map(({ mode, routeName }) => ({ mode, routeName })),
+    rides: rides.map(({ mode, routeName }) => ({ mode, routeName })),
     legs,
     startHidden: !isYou && points.length < all.length,
   };
@@ -91,8 +97,8 @@ function toView(trip: Trip, opts: { viewerId: string; name?: string | null; ride
 async function ridesFor(db: Db, userIds: string[], since: Date): Promise<RideSummary[]> {
   if (!userIds.length) return [];
   return db.ride.findMany({
-    where: { userId: { in: userIds }, status: "verified", firstMatchAt: { gte: since } },
-    select: { userId: true, mode: true, routeName: true, firstMatchAt: true },
+    where: { userId: { in: userIds }, status: "verified", lastMatchAt: { gte: since } },
+    select: { userId: true, mode: true, routeName: true, firstMatchAt: true, lastMatchAt: true },
     orderBy: { firstMatchAt: "asc" },
   });
 }

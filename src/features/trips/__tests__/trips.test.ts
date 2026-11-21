@@ -68,6 +68,29 @@ describe("cleaning a GPS path", () => {
     expect(splitLegs([sp(0, 0), sp(13, 10), sp(113, 20), sp(126, 30)]).map((l) => l.mode)).toEqual(["walk"]);
   });
 
+  it("a verified ride makes a leg a bus/T leg even at walking pace (slow bus in traffic)", () => {
+    // 1.5 m/s the whole way: speed alone would say "walked"
+    const pts = Array.from({ length: 31 }, (_, i) => sp(i * 15, i * 10)); // 0..300 s
+    expect(splitLegs(pts).map((l) => l.mode)).toEqual(["walk"]);
+    const legs = splitLegs(pts, [{ fromSec: 90, toSec: 210, mode: "bus", routeName: "Bus 41" }]);
+    expect(legs.map((l) => [l.mode, l.ride?.routeName ?? null])).toEqual([
+      ["walk", null],
+      ["transit", "Bus 41"],
+      ["walk", null],
+    ]);
+    // boarding/alighting allowance: ~30 s each side of the first/last match
+    expect(legs[1].distanceM).toBeGreaterThan(15 * 17);
+  });
+
+  it("names back-to-back rides separately (a transfer)", () => {
+    const pts = Array.from({ length: 41 }, (_, i) => sp(i * 60, i * 10)); // 6 m/s throughout
+    const legs = splitLegs(pts, [
+      { fromSec: 0, toSec: 150, mode: "bus", routeName: "Bus 1" },
+      { fromSec: 250, toSec: 400, mode: "t", routeName: "Red Line" },
+    ]);
+    expect(legs.filter((l) => l.ride).map((l) => l.ride!.routeName)).toEqual(["Bus 1", "Red Line"]);
+  });
+
   it("counts a jump after an underground gap as transit when the speed says so", () => {
     // no fixes for 4 minutes underground, then 2 km away
     expect(splitLegs([[START.lat, START.lng, 0], [north(13), START.lng, 10], [north(2013), START.lng, 250]]).map((l) => l.mode)).toEqual(["walk", "transit"]);
@@ -103,8 +126,8 @@ describe("recording a trip", () => {
   it("lists verified MBTA rides taken during the trip", async () => {
     const u = await newUser();
     const trip = await startTrip(db, u, {}, T0);
-    await db.ride.create({ data: { userId: u, status: "verified", mode: "bus", routeName: "Bus 1", firstMatchAt: at(120), verifiedAt: at(200) } });
-    await db.ride.create({ data: { userId: u, status: "verified", mode: "t", routeName: "Red Line", firstMatchAt: at(-3600) } }); // before the trip
+    await db.ride.create({ data: { userId: u, status: "verified", mode: "bus", routeName: "Bus 1", firstMatchAt: at(120), lastMatchAt: at(300), verifiedAt: at(200) } });
+    await db.ride.create({ data: { userId: u, status: "verified", mode: "t", routeName: "Red Line", firstMatchAt: at(-3600), lastMatchAt: at(-3000) } }); // before the trip
     const done = await finishTrip(db, u, trip.id, at(600));
     expect(done.rides).toEqual([{ mode: "bus", routeName: "Bus 1" }]);
   });

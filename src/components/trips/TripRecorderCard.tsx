@@ -19,7 +19,7 @@ type Props = {
 };
 
 function rideText(ride: RideView | null): string | null {
-  if (!ride) return null;
+  if (!ride || ride.status === "none") return null;
   if (ride.status === "verified") return `${ride.routeName ?? "Ride"} verified ✓ (travel points unlocked)`;
   return ride.routeName ? `On ${ride.routeName}? ${ride.message}` : null;
 }

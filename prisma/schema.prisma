@@ -344,6 +344,9 @@ model Ride {
   routeId      String?
   routeName    String?
   vehicleId    String?
+  /// Vehicles near your pings and how often each matched ({ [vehicleId]: {...} }). The one you're
+  /// really on keeps matching; it becomes vehicleId. See src/features/rides/service.ts.
+  candidates   Json?
   matchedPings Int          @default(0)
   firstMatchAt DateTime?
   lastMatchAt  DateTime?

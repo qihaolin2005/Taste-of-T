@@ -6,8 +6,10 @@
 //   ...await rec.finish();                                        // "I'm here" (or arriving finishes it)
 //
 // - Asks for location (the browser prompt) when recording starts.
-// - Sends the path every 15 s. While you're moving at bus/train speed it also pings
-//   /api/rides/ping, so bus/T legs get verified for travel points along the way.
+// - Sends the path every 15 s, and a ride ping (/api/rides/ping) every 30 s. The server checks
+//   each ping against live MBTA vehicles, so bus/T legs get verified (and named: "Bus 41",
+//   "Red Line") along the way. No speed gate on the phone: city buses often move at walking
+//   pace, and only matching the same live vehicle again and again tells a slow bus from a walk.
 // - Keeps the screen awake: iPhone web apps can't track location in the background, so the
 //   app has to stay open (the phone can sit in your pocket with the screen on).
 import type { RideView } from "@/features/rides/service";
@@ -15,8 +17,8 @@ import type { TripView } from "./service";
 
 const FLUSH_MS = 15_000;
 const RIDE_PING_MS = 30_000;
-/** ~18 km/h: faster than walking or jogging, so probably on a bus or train. */
-const VEHICLE_SPEED_MPS = 5;
+/** A verified ride ends (you got off) after this many pings in a row off its vehicle. */
+const OFF_VEHICLE_PINGS = 2;
 
 type Fix = { lat: number; lng: number; t: number; accuracyM?: number };
 
@@ -43,20 +45,15 @@ type Options = {
 
 export type TripRecorder = { finish: () => Promise<TripView | null>; stop: () => void };
 
-function metersBetween(a: Fix, b: Fix) {
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const h = Math.sin(toRad(b.lat - a.lat) / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(toRad(b.lng - a.lng) / 2) ** 2;
-  return 2 * 6_371_000 * Math.asin(Math.sqrt(h));
-}
-
 export function recordTrip(tripId: string, { onUpdate, onRide, onError }: Options): TripRecorder {
   const base = `/api/trips/${encodeURIComponent(tripId)}`;
   let buffer: Fix[] = [];
   let sending: Promise<void> | null = null;
   let stopped = false;
-  let prev: Fix | null = null;
+  let latest: Fix | null = null;
   let lastRidePing = 0;
   let rideId: string | undefined;
+  let offVehicle = 0;
   let wakeLock: { release: () => Promise<void> } | null = null;
 
   const keepAwake = async () => {
@@ -93,15 +90,27 @@ export function recordTrip(tripId: string, { onUpdate, onRide, onError }: Option
     return sending;
   };
 
-  const pingRide = async (fix: Fix) => {
-    lastRidePing = fix.t;
+  const pingRide = async () => {
+    const fix = latest;
+    // Only recent fixes. Phones report less often when not moving (bus at a light), so allow a
+    // minute; a fix older than that would be compared with where vehicles are now.
+    if (stopped || !fix || Date.now() - fix.t > 60_000) return;
+    lastRidePing = Date.now();
     try {
       const ride = await call<RideView>("/api/rides/ping", {
         method: "POST",
         body: JSON.stringify({ lat: fix.lat, lng: fix.lng, accuracyM: fix.accuracyM, ...(rideId ? { rideId } : {}) }),
       });
-      // once a ride is verified, the next fast stretch (a transfer) starts a new ride
-      rideId = ride.status === "verified" ? undefined : ride.id;
+      if (ride.status === "verified" && !ride.onVehicle) {
+        // off the vehicle twice in a row: you got off. The next vehicle (a transfer) is a new ride.
+        if (++offVehicle >= OFF_VEHICLE_PINGS) {
+          rideId = undefined;
+          offVehicle = 0;
+        }
+      } else {
+        offVehicle = 0;
+        rideId = ride.id ?? undefined;
+      }
       onRide?.(ride);
     } catch {
       // ride checks are a bonus; the path is still recorded
@@ -112,22 +121,26 @@ export function recordTrip(tripId: string, { onUpdate, onRide, onError }: Option
     (pos) => {
       if (stopped) return;
       const fix: Fix = { lat: pos.coords.latitude, lng: pos.coords.longitude, t: Math.round(pos.timestamp), accuracyM: pos.coords.accuracy };
-      const speed = pos.coords.speed ?? (prev && fix.t > prev.t ? metersBetween(prev, fix) / ((fix.t - prev.t) / 1000) : 0);
-      prev = fix;
+      latest = fix;
       buffer.push(fix);
       if (buffer.length === 1 && !sending) void flush(); // first fix shows up right away
-      if (speed >= VEHICLE_SPEED_MPS && fix.t - lastRidePing >= RIDE_PING_MS) void pingRide(fix);
+      if (Date.now() - lastRidePing >= RIDE_PING_MS) void pingRide();
     },
     (err) => onError?.(err.code === err.PERMISSION_DENIED ? "Allow location to record your trip (Settings > Safari > Location)." : "Can't get your location right now."),
     { enableHighAccuracy: true, maximumAge: 3_000 },
   );
   const timer = setInterval(() => void flush(), FLUSH_MS);
+  // also ping when the phone reports no new position (e.g. the bus is stopped at a light)
+  const rideTimer = setInterval(() => {
+    if (Date.now() - lastRidePing >= RIDE_PING_MS) void pingRide();
+  }, 5_000);
 
   function stop() {
     if (stopped) return;
     stopped = true;
     navigator.geolocation.clearWatch(watchId);
     clearInterval(timer);
+    clearInterval(rideTimer);
     document.removeEventListener("visibilitychange", onVisible);
     void wakeLock?.release().catch(() => {});
     wakeLock = null;

@@ -34,7 +34,7 @@ export function startRideTracking({ onUpdate, onError, intervalMs = 30_000 }: Op
       const body = await res.json();
       if (!res.ok) return onError?.(body?.error?.message ?? "Ride check failed");
       const ride = body as RideView;
-      rideId = ride.id;
+      rideId = ride.id ?? undefined; // null = not on a vehicle yet
       onUpdate(ride);
       if (ride.status === "verified") stop();
     } catch {

@@ -24,7 +24,12 @@ export const TRIP_RULES = {
 export type StoredPoint = [number, number, number];
 export type RawFix = LatLng & { t: number; accuracyM?: number };
 export type LegMode = "walk" | "transit";
-export type Leg = { mode: LegMode; path: [number, number][]; distanceM: number };
+/** A verified MBTA ride during the trip, in seconds since the trip started. */
+export type RideWindow = { fromSec: number; toSec: number; mode: string | null; routeName: string | null };
+/** `ride` is set when the leg is a verified MBTA ride ("Bus 41", mode "bus" | "t"). */
+export type Leg = { mode: LegMode; path: [number, number][]; distanceM: number; ride?: { mode: string | null; routeName: string | null } };
+/** Phones ping every ~30 s, so you boarded up to ~30 s before the first match and got off up to ~30 s after the last. */
+const RIDE_EDGE_SEC = 30;
 
 const round5 = (n: number) => Math.round(n * 1e5) / 1e5; // ~1 m
 const ll = (p: StoredPoint): LatLng => ({ lat: p[0], lng: p[1] });
@@ -66,34 +71,39 @@ export function pathDistance(points: readonly StoredPoint[]): number {
 }
 
 /**
- * Split a path into walking and transit legs by speed. A gap with no fixes (underground)
- * followed by a jump counts as transit when the average speed over the gap is vehicle speed.
+ * Split a path into walking and transit legs.
+ * 1. Steps during a verified MBTA ride are that ride, whatever the speed (city buses often
+ *    crawl at walking pace, so speed alone can't tell them apart).
+ * 2. Other steps go by speed. A gap with no fixes (underground) followed by a jump counts as
+ *    transit when the average speed over the gap is vehicle speed.
  */
-export function splitLegs(points: readonly StoredPoint[]): Leg[] {
+export function splitLegs(points: readonly StoredPoint[], rides: readonly RideWindow[] = []): Leg[] {
   if (points.length < 2) return points.length ? [{ mode: "walk", path: [[points[0][0], points[0][1]]], distanceM: 0 }] : [];
-  // 1) classify each step
+  // 1) classify each step (ride = index into `rides`, or -1)
   const steps = points.slice(1).map((p, i) => {
     const prev = points[i];
     const m = distanceMeters(ll(prev), ll(p));
-    const mode: LegMode = m / Math.max(1, p[2] - prev[2]) >= TRIP_RULES.transitSpeedMps ? "transit" : "walk";
-    return { m, mode };
+    const mid = (prev[2] + p[2]) / 2;
+    const ride = rides.findIndex((r) => mid >= r.fromSec - RIDE_EDGE_SEC && mid <= r.toSec + RIDE_EDGE_SEC);
+    const mode: LegMode = ride >= 0 || m / Math.max(1, p[2] - prev[2]) >= TRIP_RULES.transitSpeedMps ? "transit" : "walk";
+    return { m, mode, ride };
   });
-  // 2) group runs of the same mode
-  type Run = { mode: LegMode; from: number; to: number; m: number }; // point indexes [from, to]
+  // 2) group runs of the same mode (and the same ride)
+  type Run = { mode: LegMode; ride: number; from: number; to: number; m: number }; // point indexes [from, to]
   const runs: Run[] = [];
   steps.forEach((s, i) => {
     const last = runs.at(-1);
-    if (last && last.mode === s.mode) {
+    if (last && last.mode === s.mode && last.ride === s.ride) {
       last.to = i + 1;
       last.m += s.m;
-    } else runs.push({ mode: s.mode, from: i, to: i + 1, m: s.m });
+    } else runs.push({ mode: s.mode, ride: s.ride, from: i, to: i + 1, m: s.m });
   });
-  // 3) short transit runs are noise -> walking; then merge neighbors that now match
-  for (const r of runs) if (r.mode === "transit" && r.m < TRIP_RULES.minTransitLegM) r.mode = "walk";
+  // 3) short speed-only transit runs are noise -> walking; then merge neighbors that now match
+  for (const r of runs) if (r.mode === "transit" && r.ride < 0 && r.m < TRIP_RULES.minTransitLegM) r.mode = "walk";
   const merged: Run[] = [];
   for (const r of runs) {
     const last = merged.at(-1);
-    if (last && last.mode === r.mode) {
+    if (last && last.mode === r.mode && last.ride === r.ride) {
       last.to = r.to;
       last.m += r.m;
     } else merged.push({ ...r });
@@ -102,6 +112,7 @@ export function splitLegs(points: readonly StoredPoint[]): Leg[] {
     mode: r.mode,
     path: points.slice(r.from, r.to + 1).map((p) => [p[0], p[1]] as [number, number]),
     distanceM: Math.round(r.m),
+    ...(r.ride >= 0 ? { ride: { mode: rides[r.ride].mode, routeName: rides[r.ride].routeName } } : {}),
   }));
 }
 

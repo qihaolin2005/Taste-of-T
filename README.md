@@ -185,21 +185,31 @@ positions, and which stations you've stamped.
 Reward points for getting to a restaurant by **bus (+10)** or **T (+5)** are only given for a
 ride the server checked against live MBTA vehicle positions, so nobody can just claim one.
 
-1. When the user is on board, the app calls `startRideTracking()` (`src/features/rides/client.ts`),
-   which sends the phone's location to `POST /api/rides/ping` every 30 s.
-2. Each ping is matched to a live MBTA vehicle right there (all buses, subway, light rail,
-   commuter rail, from the V3 `/vehicles` feed, shared 10 s cache).
-3. **Verified** = 2+ matches on the same vehicle, 60+ s and 300+ m apart, faster than walking.
+1. During a trip (see Trips below) the phone sends its location to `POST /api/rides/ping` every
+   30 s, whatever the speed (`startRideTracking()` in `src/features/rides/client.ts` does the
+   same on its own). Pings that aren't on any vehicle store nothing.
+2. Each ping is compared with every live MBTA vehicle (all buses, subway, light rail, commuter
+   rail, from the V3 `/vehicles` feed, shared 10 s cache). Every vehicle near you scores a
+   match. The one you're really on keeps matching; bunched buses and the next train on the
+   same track drift away. The vehicle with the most matches (ties: closest on average) is
+   yours, and gives the mode (bus / T) and the name ("Bus 62", "Green Line C").
+3. **Verified** = 2+ matches on that vehicle, 60+ s and 300+ m apart, faster than walking. Slow
+   traffic (buses often average walking pace) also counts after 4+ matches over 3+ minutes.
    Standing at a stop while a bus passes, or walking along a bus route, doesn't count.
-4. Send the ride's id with the reward claim: `travel: { rideId }` (see `docs/rewards.md`).
+4. After that, pings keep following the vehicle, so the ride ends where you got off.
+5. Send the ride's id with the reward claim: `travel: { rideId }` (see `docs/rewards.md`).
 
-Tested live: a ride on a real Bus 225 verified after 3 matches over 1.5 km.
+Tested live (phone position = the vehicle's live position, sent through the real API): Bus 62
+verified after 4 matches and followed for 3.9 km; Green Line C verified on the right train
+while a second C train ran 100–400 m behind it the whole time.
 
 **Limits:** the app has to stay open during the ride (iOS web apps can't track location in the
 background). **Underground, phones often have no GPS fix**, so subway rides verify on the
-above-ground parts (Green Line surface, Red Line to Braintree/Ashmont, Orange Line ends). Buses
-and commuter rail work best. Raw pings aren't stored, only each ride's first and last matched
-points (rounded to ~11 m).
+above-ground parts (Green Line surface, Red Line to Braintree/Ashmont, Orange Line ends). The
+Silver Line tunnel (SL1/SL2/SL3 at South Station–Seaport) has the same problem: there the MBTA
+itself only reports a bus's position about once a minute. Buses on streets and commuter rail
+work best. Raw pings aren't stored, only each ride's first and last matched points (rounded to
+~11 m) and a short list of nearby vehicle ids with match counts.
 
 ## Trips (everyone's path to the restaurant, like Strava)
 
