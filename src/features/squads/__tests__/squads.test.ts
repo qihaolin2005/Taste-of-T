@@ -2,7 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { createTestDb } from "@/test/db";
 import { getOrCreateUser, updatePreferences } from "@/features/users";
 import { recommendForUser, buildUserContext } from "@/features/ml";
-import { syntheticCity } from "@/features/ml/recommend/__tests__/fixtures";
+import { makePlace, syntheticCity } from "@/features/ml/recommend/__tests__/fixtures";
 import {
   completeRoom,
   endAdventure,
@@ -292,5 +292,40 @@ describe("members leaving mid-session", () => {
     await swipeAll(s.id, s.users[1], ids, () => false);
     const json = JSON.stringify(await getLiveState(db, s.id, s.users[1]));
     for (const u of s.users) expect(json).not.toContain(u);
+  });
+});
+
+describe("the shortlist follows the night's stops", () => {
+  const DESSERTS = ["boba", "gelato", "bakery"].map((c, i) =>
+    makePlace(`dessert-${c}`, { category: "dessert", cuisines: [c === "gelato" ? "ice-cream" : c], city: "Somerville", rating: 4.5, reviewCount: 300 + i, dietStyle: "mixed", dietary: ["vegetarian", "vegan"] }),
+  );
+  const ACTIVITY = makePlace("karaoke", { category: "activity", cuisines: ["karaoke"], city: "Boston", rating: 4.8, reviewCount: 900 });
+  const MIXED = [...PLACES, ...DESSERTS, ACTIVITY];
+
+  async function roomWithStops(slots: string[]) {
+    const s = await squad(2, [{}, { dietary: ["vegan"] }]);
+    await db.room.update({ where: { id: s.id }, data: { slots } });
+    return s;
+  }
+
+  it("a dinner night (the default) swipes on dinner places only", async () => {
+    const s = await roomWithStops(["dinner", "dessert", "activity"]);
+    const deck = await startAdventure(db, s.id, s.host, { places: MIXED });
+    expect(deck.category).toBe("dinner");
+    expect(deck.items.every((i) => i.place.category === "dinner")).toBe(true);
+    expect((await getLiveState(db, s.id, s.host)).category).toBe("dinner");
+  });
+
+  it("a dessert-or-boba night swipes on dessert spots, including Somerville ones for a Boston squad", async () => {
+    const s = await roomWithStops(["dessert"]);
+    const deck = await startAdventure(db, s.id, s.host, { places: MIXED });
+    expect(deck.category).toBe("dessert");
+    expect(deck.items.map((i) => i.place.id).sort()).toEqual(DESSERTS.map((d) => d.id).sort());
+  });
+
+  it("an activity-only night swipes on activities, which skip the dietary filter", async () => {
+    const s = await roomWithStops(["activity"]);
+    const deck = await startAdventure(db, s.id, s.host, { places: MIXED });
+    expect(deck.items.map((i) => i.place.id)).toEqual(["karaoke"]); // vegan member, no dietary info: still shown
   });
 });

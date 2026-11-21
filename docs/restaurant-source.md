@@ -10,6 +10,11 @@
 > snapshot, because Google's terms forbid storing Places content (place ids excepted).
 > Note for P1: activities carry a full `dietary` list in the seed so restricted users still see
 > them; consider skipping the diet filter for `category: "activity"` instead.
+>
+> **Reply (P1): done.** Activities now skip the dietary filter, so the seed's activities no longer
+> need a `dietary` list (keeping it is harmless). Also: Boston, Cambridge and Somerville (the hub
+> cities) count as one area for squads, the squad shortlist uses the room's first stop
+> (dinner → dessert → activity), and the solo "for you" list shows dinner + dessert by default.
 
 ## The one function to provide
 
@@ -83,7 +88,7 @@ fields (hours, address, phone, a Google place id…) are fine; they're ignored.
 | `dietStyle` | `"veg-only"`, `"vegan-only"`, `"non-veg-only"` or `"mixed"` | **see below** | |
 | `dietary` | string[] from the list below | **see below** | Needs the place can serve |
 
-### Dietary info decides who can see a place
+### Dietary info decides who can see a place (food only)
 
 The dietary filter is strict: **a place with no `dietary` list and no `dietStyle` is never shown to
 anyone with a dietary restriction**, and many users will have one, since onboarding asks for them.
@@ -94,6 +99,7 @@ another source or filling in by hand.
 - Vegan users need `dietStyle: "vegan-only"` or `"vegan"` in `dietary`
 - Everything else (halal, kosher, gluten-free…) must be listed in `dietary`
 - `"non-veg-only"` is never shown to vegetarians or vegans, whatever `dietary` says
+- `category: "activity"` places skip the dietary filter entirely
 
 ### Allowed values
 

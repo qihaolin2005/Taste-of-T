@@ -142,6 +142,12 @@ come from a `RestaurantSource` (`recommend/source.ts`; the places client plugs i
 [`docs/restaurant-source.md`](../../../docs/restaurant-source.md)). If it's missing, fails or times out,
 they come from `data/seed-restaurants.json`.
 
+**Kinds of place, areas, tags (`config.ts`).** Places are `dinner`, `dessert` or `activity`, like
+the room stops. Activities skip the dietary filter. The squad shortlist uses the room's first stop;
+the solo list defaults to dinner + dessert. `metroAreas` groups cities (Boston + Cambridge +
+Somerville = Greater Boston) for the squad city filter. `nonTasteTags` ("late-night",
+"vegan-friendly") stay on places but don't count toward taste, variety, or reasons.
+
 **Squad session: `session.ts`.** Combines every member's taste and history into a shortlist of 10
 (`createSessionDeck`), tracks `sessionProgress` and `liveStandings` as swipes arrive, and builds
 the final top-5 `SquadPlan` once everyone has swiped all 10. Database storage and the

@@ -2,7 +2,8 @@
 // Recommender 2: a group session. Two steps:
 //
 // buildGroupDeck(members, places)
-//   city filter -> strict dietary filter on the UNION of everyone's restrictions
+//   kind of place (the room's stop) -> city area (Boston + Cambridge + Somerville = one area)
+//   -> strict dietary filter on the UNION of everyone's restrictions
 //   -> score every place for every member with the individual model (no distance: groups have no radius)
 //   -> group score = 0.6 * mean + 0.4 * min, with a "hate" veto  [config.ts: group.*]
 //   -> deck of ~18: MMR for cuisine variety + a few lower-confidence "explore" picks
@@ -33,6 +34,7 @@ import { dietaryHighlights, filterByDietary, unionDietary } from "./dietary";
 import { groupSwipesToHistory, type Swipe } from "./interactions";
 import { mmrRerank, profileUser, scorePlace, type ProfiledUser } from "./individual";
 import { cuisinesOf, type RestaurantCandidate } from "./restaurant";
+import { tasteTagsOf } from "./vectors";
 
 export type GroupMember = {
   /** Stable member id within the session (RoomMember.id). */
@@ -67,7 +69,7 @@ export type GroupDeck = {
   city: string | null;
   dietary: string[];
   vetoDropped: boolean;
-  counts: { input: number; outOfCity: number; dietary: number; vetoed: number };
+  counts: { input: number; otherCategory: number; outOfCity: number; dietary: number; vetoed: number };
   warnings: string[];
 };
 
@@ -96,6 +98,13 @@ const round = (n: number, d = 4) => Math.round(n * 10 ** d) / 10 ** d;
 const norm = (s: string) => s.trim().toLowerCase();
 
 // ------------------------------------------------------------- deck
+
+/** The metro area a city belongs to (config.metroAreas), or the city itself. Case-insensitive. */
+export function areaOf(city: string, cfg: RecommenderConfig = RECOMMENDER_CONFIG): string {
+  const c = norm(city);
+  for (const [area, cities] of Object.entries(cfg.metroAreas)) if (cities.includes(c)) return area;
+  return c;
+}
 
 function resolveCity(members: readonly GroupMember[], override?: string): string | null {
   if (override) return override;
@@ -154,7 +163,7 @@ function deckReason(c: GroupCandidate, explore: boolean, dietary: string[]): str
   if (explore) parts.push("wildcard: helps us learn the group's taste");
   else if (c.min >= 0.6) parts.push("a good fit for everyone");
   else if (c.mean >= 0.6) parts.push("most of the group should like it");
-  const cu = cuisinesOf(c.place).slice(0, 2);
+  const cu = tasteTagsOf(c.place).slice(0, 2);
   if (cu.length) parts.push(cu.join(", "));
   if (c.place.rating != null) parts.push(`${c.place.rating.toFixed(1)}★`);
   parts.push(...dietaryHighlights(c.place, dietary));
@@ -173,23 +182,36 @@ function interleave(main: DeckItem[], explore: DeckItem[]): DeckItem[] {
 export function buildGroupDeck(
   members: readonly GroupMember[],
   places: readonly RestaurantCandidate[],
-  opts: { city?: string; deckSize?: number; exploreSlots?: number; catalog?: readonly RestaurantCandidate[]; config?: RecommenderConfig } = {},
+  opts: {
+    city?: string;
+    /** Only these kinds of place ("dinner", "dessert", "activity"). Default: all of them. */
+    categories?: readonly string[];
+    deckSize?: number;
+    exploreSlots?: number;
+    catalog?: readonly RestaurantCandidate[];
+    config?: RecommenderConfig;
+  } = {},
 ): GroupDeck {
   const cfg = opts.config ?? RECOMMENDER_CONFIG;
   const g = cfg.group;
   const deckSize = opts.deckSize ?? g.deckSize;
   const warnings: string[] = [];
-  const counts = { input: places.length, outOfCity: 0, dietary: 0, vetoed: 0 };
+  const counts = { input: places.length, otherCategory: 0, outOfCity: 0, dietary: 0, vetoed: 0 };
   const dietary = unionDietary(members.map((m) => m.ctx.preferences.dietary));
 
   if (!members.length) return { deck: [], ranked: [], city: null, dietary, vetoDropped: false, counts, warnings: ["No members in the session."] };
 
-  // 1. City
+  // 1. Kind of place, then city area (places in Cambridge count for a Boston squad)
+  const wanted = opts.categories ? new Set(opts.categories) : null;
+  let pool = wanted ? places.filter((p) => wanted.has(p.category)) : [...places];
+  counts.otherCategory = places.length - pool.length;
   const city = resolveCity(members, opts.city);
-  let pool = [...places];
-  if (city) pool = pool.filter((p) => p.city != null && norm(p.city) === norm(city));
-  else warnings.push("No city for this group: using every place.");
-  counts.outOfCity = places.length - pool.length;
+  const beforeCity = pool.length;
+  if (city) {
+    const area = areaOf(city, cfg);
+    pool = pool.filter((p) => p.city != null && areaOf(p.city, cfg) === area);
+  } else warnings.push("No city for this group: using every place.");
+  counts.outOfCity = beforeCity - pool.length;
 
   // 2. Dietary: union of every member's restrictions, strict
   const safe = filterByDietary(pool, dietary);

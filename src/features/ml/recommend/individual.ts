@@ -16,7 +16,7 @@ import { RECOMMENDER_CONFIG, type RecommenderConfig } from "./config";
 import { dietaryHighlights, filterByDietary, normalizeDietary } from "./dietary";
 import { deriveInteractions, type Interaction, type Swipe } from "./interactions";
 import { cuisinesOf, hasCoords, type RestaurantCandidate } from "./restaurant";
-import { bayesianRating, buildUserProfile, cosine, cuisinePart, restaurantVector, type UserProfile } from "./vectors";
+import { bayesianRating, buildUserProfile, cosine, cuisinePart, restaurantVector, tasteTagsOf, type UserProfile } from "./vectors";
 
 const METERS_PER_MILE = 1609.344;
 
@@ -60,6 +60,8 @@ export type IndividualOptions = {
   limit?: number;
   /** Override where "nearby" is measured from. Defaults to context location, then start, then home station. */
   origin?: LatLng;
+  /** Only these kinds of place ("dinner", "dessert", "activity"). Default: all of them. */
+  categories?: readonly string[];
   config?: RecommenderConfig;
 };
 
@@ -67,7 +69,7 @@ export type IndividualResult = {
   results: ScoredPlace[];
   origin: { point: LatLng; source: "override" | "location" | "start-station" | "home-station" | "destination" } | null;
   /** How many places each step removed, for debugging and UI copy. */
-  counts: { input: number; outOfArea: number; dietary: number; avoided: number; disliked: number; scored: number };
+  counts: { input: number; otherCategory: number; outOfArea: number; dietary: number; avoided: number; disliked: number; scored: number };
   confidence: number;
   warnings: string[];
 };
@@ -204,13 +206,13 @@ export function buildReasons(
   else if (h.checkInPlaceIds.includes(place.id)) r.push("you've been here");
 
   if (c.confidence > 0 && c.similarity >= 0.5 + cfg.reasons.minSimilarity / 2) {
-    const mine = new Set(cuisinesOf(place));
+    const mine = new Set(tasteTagsOf(place, cfg));
     const shared = new Map<string, number>();
     for (const id of user.profile.liked.keys()) {
       if (id === place.id) continue;
       const lp = catalogById.get(id);
       if (!lp) continue;
-      for (const cu of cuisinesOf(lp)) if (mine.has(cu)) shared.set(cu, (shared.get(cu) ?? 0) + 1);
+      for (const cu of tasteTagsOf(lp, cfg)) if (mine.has(cu)) shared.set(cu, (shared.get(cu) ?? 0) + 1);
     }
     const top = [...shared.entries()].sort((a, b) => b[1] - a[1])[0];
     r.push(top ? `you liked other ${top[0]} places` : "similar to places you liked");
@@ -230,14 +232,16 @@ export function buildReasons(
 
 // ------------------------------------------------------------- main
 
-export function recommendForUser(ctx: UserContext, places: readonly RestaurantCandidate[], opts: IndividualOptions = {}): IndividualResult {
+export function recommendForUser(ctx: UserContext, allPlaces: readonly RestaurantCandidate[], opts: IndividualOptions = {}): IndividualResult {
   const cfg = opts.config ?? RECOMMENDER_CONFIG;
   const mode: RecommendMode = opts.mode ?? { kind: "nearby" };
   const limit = opts.limit ?? cfg.defaultLimit;
-  const catalog = opts.catalog ?? places;
+  const catalog = opts.catalog ?? allPlaces;
+  const wanted = opts.categories ? new Set(opts.categories) : null;
+  const places = wanted ? allPlaces.filter((p) => wanted.has(p.category)) : allPlaces;
   const catalogById = new Map(catalog.map((p) => [p.id, p]));
   const warnings: string[] = [];
-  const counts: IndividualResult["counts"] = { input: places.length, outOfArea: 0, dietary: 0, avoided: 0, disliked: 0, scored: 0 };
+  const counts: IndividualResult["counts"] = { input: allPlaces.length, otherCategory: allPlaces.length - places.length, outOfArea: 0, dietary: 0, avoided: 0, disliked: 0, scored: 0 };
 
   // 1. Candidate generation
   let origin: IndividualResult["origin"];
