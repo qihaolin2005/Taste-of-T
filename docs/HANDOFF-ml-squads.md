@@ -160,6 +160,7 @@ with a `reason` each, using their dietary needs, ratings, wishlist, check-ins an
 Optional body fields:
 - `mode`: `{ kind: "nearby", radiusMiles? }` (the default, 5 mi) or `{ kind: "destination", neighborhood }`
 - `limit`: how many results
+- `categories`: kinds of place, e.g. `["activity"]`; default `["dinner", "dessert"]`
 - `origin`: `{ lat, lng }`, the phone's current position (used once, not stored)
 - `candidates`: restaurants to rank; defaults to the seed list
 

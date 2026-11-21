@@ -8,6 +8,7 @@ import {
   mmrRerank,
   RECOMMENDER_CONFIG,
   recommendForUser,
+  restaurantVector,
   type RestaurantCandidate,
 } from "@/features/ml";
 import { ALL_PLACES, COPLEY, makeContext, makePlace } from "./fixtures";
@@ -155,6 +156,34 @@ describe("recommendForUser: scoring", () => {
   it("is deterministic", () => {
     const ctx = makeContext({ ratings: [{ placeId: "bbThai", score: 9 }] });
     expect(recommendForUser(ctx, ALL_PLACES)).toEqual(recommendForUser(ctx, ALL_PLACES));
+  });
+});
+
+describe("kinds of place and non-taste tags", () => {
+  it("only recommends the kinds of place asked for", () => {
+    const arcade = makePlace("arcade", { category: "activity", cuisines: ["arcade"], lat: COPLEY.lat, lng: COPLEY.lng, rating: 5, reviewCount: 5000 });
+    const all = recommendForUser(makeContext(), [...ALL_PLACES, arcade], { limit: 50 });
+    expect(ids(all)).toContain("arcade");
+    const food = recommendForUser(makeContext(), [...ALL_PLACES, arcade], { limit: 50, categories: ["dinner", "dessert"] });
+    expect(ids(food)).not.toContain("arcade");
+    expect(food.counts.otherCategory).toBe(1);
+  });
+
+  it("'late-night' and 'vegan-friendly' don't count toward taste", () => {
+    const plain = makePlace("p", { cuisines: ["thai"] });
+    const tagged = makePlace("t", { cuisines: ["thai", "late-night", "vegan-friendly"] });
+    expect(restaurantVector(tagged)).toEqual(restaurantVector(plain));
+  });
+
+  it("liking a late-night thai place doesn't make other late-night places look like your taste", () => {
+    const likedThai = makePlace("liked", { cuisines: ["thai", "late-night"], lat: COPLEY.lat, lng: COPLEY.lng, dietary: ["vegetarian"] });
+    const lateBurgers = makePlace("burgers", { cuisines: ["burgers", "late-night"], lat: COPLEY.lat, lng: COPLEY.lng, dietary: ["vegetarian"] });
+    const thai = makePlace("thai", { cuisines: ["thai"], lat: COPLEY.lat, lng: COPLEY.lng, dietary: ["vegetarian"] });
+    const ctx = makeContext({ ratings: [{ placeId: "liked", score: 10 }] });
+    const r = recommendForUser(ctx, [likedThai, lateBurgers, thai], { limit: 10 });
+    const get = (id: string) => r.results.find((x) => x.place.id === id)!;
+    expect(get("thai").components.similarity).toBeGreaterThan(get("burgers").components.similarity);
+    expect(get("burgers").reason).not.toMatch(/late-night/);
   });
 });
 

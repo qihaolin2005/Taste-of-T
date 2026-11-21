@@ -84,6 +84,19 @@ describe("getRecommendations", () => {
   });
 });
 
+describe("kinds of place", () => {
+  const karaoke = { ...ALL_PLACES[0], id: "karaoke", category: "activity" as const, cuisines: ["karaoke"], dietary: undefined, dietStyle: undefined };
+
+  it("recommends food by default and activities only when asked", async () => {
+    const id = await newUser({ dietary: ["vegan"] });
+    const food = (await getRecommendations(db, id, { candidates: [...ALL_PLACES, karaoke], limit: 50 }))!;
+    expect(food.results.map((x) => x.placeId)).not.toContain("karaoke");
+    expect(food.results.every((x) => x.category !== "activity")).toBe(true);
+    const fun = (await getRecommendations(db, id, { candidates: [...ALL_PLACES, karaoke], categories: ["activity"] }))!;
+    expect(fun.results.map((x) => x.placeId)).toEqual(["karaoke"]); // shown to a vegan: activities skip the diet filter
+  });
+});
+
 describe("loadSeedRestaurants", () => {
   it("keeps valid entries, drops extra fields, and counts invalid ones", () => {
     const raw = {

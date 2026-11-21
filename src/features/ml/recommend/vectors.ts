@@ -26,10 +26,16 @@ export function bayesianRating(r: RestaurantCandidate, cfg: RecommenderConfig = 
   return (n * r.rating + priorCount * priorMean) / (n + priorCount);
 }
 
+/** The cuisine/activity tags that describe taste (cuisines minus config.nonTasteTags like "late-night"). */
+export function tasteTagsOf(r: RestaurantCandidate, cfg: RecommenderConfig = RECOMMENDER_CONFIG): string[] {
+  const skip = new Set(cfg.nonTasteTags);
+  return cuisinesOf(r).filter((c) => !skip.has(c));
+}
+
 export function restaurantVector(r: RestaurantCandidate, cfg: RecommenderConfig = RECOMMENDER_CONFIG): number[] {
   const b = cfg.vectorBlocks;
   const v = new Array<number>(VECTOR_DIM).fill(0);
-  for (const c of cuisinesOf(r)) {
+  for (const c of tasteTagsOf(r, cfg)) {
     const i = cuisineIndex.get(c);
     if (i != null) v[i] = b.cuisine;
   }

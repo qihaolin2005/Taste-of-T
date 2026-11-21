@@ -18,9 +18,25 @@ import type { RestaurantCandidate } from "./recommend/restaurant";
 export const SESSION_DECK_VERSION = 1;
 export const SQUAD_PLAN_VERSION = 1;
 
+/** The kinds of stop a host can pick for a night, in the order a night goes (rooms' STOP_CATEGORIES). */
+export const SESSION_STOP_ORDER = ["dinner", "dessert", "activity"] as const;
+export type SessionCategory = (typeof SESSION_STOP_ORDER)[number];
+
+/**
+ * What the squad swipes on: the night's first stop. A dinner night swipes restaurants, a
+ * "dessert or boba" night swipes dessert spots, an activity-only night swipes activities.
+ * `slots` is Room.slots (the stops the host picked); anything unreadable means dinner.
+ */
+export function deckCategoryForStops(slots: unknown): SessionCategory {
+  const picked = new Set(Array.isArray(slots) ? slots : []);
+  return SESSION_STOP_ORDER.find((c) => picked.has(c)) ?? "dinner";
+}
+
 export type SessionDeck = {
   version: typeof SESSION_DECK_VERSION;
   createdAt: string;
+  /** Kind of place on the cards. Missing on decks created before this field existed (= dinner). */
+  category?: SessionCategory;
   /**
    * Participant ids, fixed at start: people who join later can't swipe and don't block completion.
    * The squads service uses each member's user id here, so someone who leaves and rejoins (getting
@@ -111,13 +127,16 @@ export type SessionMember = { memberId: string; ctx: UserContext; swipes?: reado
 export function createSessionDeck(
   members: readonly SessionMember[],
   places: readonly RestaurantCandidate[],
-  opts: { city?: string; catalog?: readonly RestaurantCandidate[]; now?: Date; config?: RecommenderConfig } = {},
+  opts: { city?: string; category?: SessionCategory; catalog?: readonly RestaurantCandidate[]; now?: Date; config?: RecommenderConfig } = {},
 ): SessionDeck {
   const cfg = opts.config ?? RECOMMENDER_CONFIG;
+  const category = opts.category ?? "dinner";
   const groupMembers: GroupMember[] = members.map((m) => ({ id: m.memberId, ctx: m.ctx, swipes: m.swipes, city: m.city ?? undefined }));
   const g = buildGroupDeck(groupMembers, places, {
     city: opts.city,
-    catalog: opts.catalog,
+    categories: [category],
+    // History at any kind of place (dessert spots, activities) still teaches each member's taste.
+    catalog: opts.catalog ?? places,
     deckSize: cfg.session.deckSize,
     exploreSlots: cfg.session.exploreSlots,
     config: cfg,
@@ -126,6 +145,7 @@ export function createSessionDeck(
   return {
     version: SESSION_DECK_VERSION,
     createdAt: (opts.now ?? new Date()).toISOString(),
+    category,
     memberIds: members.map((m) => m.memberId),
     items: g.deck,
     backups: g.ranked.filter((c) => !inDeck.has(c.place.id)).slice(0, cfg.session.backups),
