@@ -62,6 +62,8 @@ export const userContextSchema = z.object({
     linesVisited: z.array(lineFamilySchema),
     ratings: z.array(z.object({ placeId: z.string(), score: z.number() })),
     wishlistPlaceIds: z.array(z.string()),
+    /** Distinct places checked in at, most recent first (max 50). Ids only, no timestamps. */
+    checkInPlaceIds: z.array(z.string()).default([]),
   }),
   consent: z.object({ location: z.boolean() }),
 });
@@ -113,9 +115,16 @@ export async function buildUserContext(db: PrismaClient, userId: string, now = n
   });
   if (!user) return null;
 
-  const [checkInCount, lastCheckIn] = await Promise.all([
+  const [checkInCount, lastCheckIn, placeCheckIns] = await Promise.all([
     db.checkIn.count({ where: { userId } }),
     db.checkIn.findFirst({ where: { userId }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
+    db.checkIn.findMany({
+      where: { userId, placeId: { not: null } },
+      orderBy: { createdAt: "desc" },
+      distinct: ["placeId"],
+      select: { placeId: true },
+      take: MAX_HISTORY_ITEMS,
+    }),
   ]);
 
   const prefs = user.preferences;
@@ -154,6 +163,7 @@ export async function buildUserContext(db: PrismaClient, userId: string, now = n
       linesVisited: [...new Set(stampedStationIds.flatMap(linesAt))],
       ratings: user.ratings,
       wishlistPlaceIds: user.wishlist.map((w) => w.placeId),
+      checkInPlaceIds: placeCheckIns.map((c) => c.placeId).filter((id): id is string => id !== null),
     },
     consent: { location: shareLocation },
   });
@@ -186,7 +196,7 @@ export function memberToContext(m: MemberInput, now = new Date()): UserContext {
     stations: { home: m.homeStationId, start: m.startStationId, homeLines: linesAt(m.homeStationId) },
     location: null,
     time: bostonTime(now),
-    history: { xp: 0, checkInCount: 0, daysSinceLastCheckIn: null, stampedStationIds: [], linesVisited: [], ratings: [], wishlistPlaceIds: [] },
+    history: { xp: 0, checkInCount: 0, daysSinceLastCheckIn: null, stampedStationIds: [], linesVisited: [], ratings: [], wishlistPlaceIds: [], checkInPlaceIds: [] },
     consent: { location: false },
   });
 }

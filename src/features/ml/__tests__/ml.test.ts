@@ -83,6 +83,23 @@ describe("buildUserContext", () => {
     expect(new Set(h.linesVisited)).toEqual(new Set(["Orange", "Red"]));
     expect(h.ratings).toEqual([{ placeId: "p1", score: 9 }]);
     expect(h.wishlistPlaceIds).toEqual(["p2"]);
+    expect(h.checkInPlaceIds).toEqual([]);
+  });
+
+  it("lists distinct checked-in place ids, most recent first", async () => {
+    const id = await userWithPrefs();
+    const at = (min: number) => new Date(Date.now() - min * 60_000);
+    await db.checkIn.createMany({
+      data: [
+        { userId: id, stationId: "place-chncl", placeId: "p1", method: "demo", createdAt: at(30) },
+        { userId: id, stationId: "place-chncl", placeId: "p2", method: "demo", createdAt: at(20) },
+        { userId: id, stationId: "place-chncl", placeId: "p1", method: "demo", createdAt: at(10) },
+        { userId: id, stationId: "place-harsq", method: "gps", createdAt: at(5) },
+      ],
+    });
+    const h = (await buildUserContext(db, id))!.history;
+    expect(h.checkInCount).toBe(4);
+    expect(h.checkInPlaceIds).toEqual(["p1", "p2"]);
   });
 
   it("returns null for an unknown user", async () => {

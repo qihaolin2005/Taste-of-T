@@ -11,6 +11,7 @@ export type Preferences = {
   maxWalkMinutes: number | null;
   homeStationId: string | null;
   usualStartStationId: string | null;
+  city: string | null;
   shareLocation: boolean;
   updatedAt: string;
 };
@@ -26,6 +27,7 @@ function toPreferences(p: Row): Preferences {
     maxWalkMinutes: p.maxWalkMinutes,
     homeStationId: p.homeStationId,
     usualStartStationId: p.usualStartStationId,
+    city: p.city,
     shareLocation: p.shareLocation,
     updatedAt: p.updatedAt.toISOString(),
   };
