@@ -1,15 +1,17 @@
 // Owner: P3 - Group Mode & App Shell (see TEAM.md)
-// iOS button styles: .borderedProminent (filled), .bordered (tinted), .borderless (plain).
+// Pill buttons from the Taste of T design system:
+//   filled = purple primary, tinted = light lavender secondary, plain = text link.
 
 import Link from "next/link";
 import type { ReactNode } from "react";
 
 type Variant = "filled" | "tinted" | "plain";
 
-const base = "inline-flex h-[50px] w-full items-center justify-center gap-2 rounded-[14px] px-5 text-[17px] font-semibold transition-opacity active:opacity-60 disabled:opacity-40";
+const base =
+  "inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full px-5 text-[16px] font-bold transition active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100";
 const variants: Record<Variant, string> = {
-  filled: "bg-tint text-tint-fg",
-  tinted: "bg-tint/15 text-tint",
+  filled: "bg-tint text-tint-fg shadow-[0_9px_20px_rgb(121_84_172/0.18)]",
+  tinted: "bg-lavender text-plum",
   plain: "text-tint",
 };
 

@@ -1,12 +1,17 @@
 // Owner: P3 - Group Mode & App Shell (see TEAM.md)
-// iOS bottom tab bar: translucent blur, tint on the active tab, sits above the home indicator.
+// Floating bottom navigation from the Taste of T design: a dark pill that floats above the
+// home indicator, with the active tab in a purple circle.
 // The active tab is passed in by the page (via <Screen tab=...>) rather than read from
 // usePathname(), so dynamic routes can still prerender with Cache Components.
+// Screen.tsx reserves NAV_SPACE at the bottom of the page so content never hides under it.
 
 import Link from "next/link";
 import { DiceIcon, GroupIcon, HomeIcon, MapIcon, PersonIcon } from "./icons";
 
 export type TabId = "home" | "spin" | "night" | "map" | "profile";
+
+/** Page bottom padding needed to clear the floating nav (gap + bar + breathing room). */
+export const NAV_SPACE = "calc(max(12px, var(--safe-bottom)) + 70px + 24px)";
 
 const TABS: { id: TabId; href: string; label: string; Icon: typeof HomeIcon }[] = [
   { id: "home", href: "/", label: "Home", Icon: HomeIcon },
@@ -19,21 +24,24 @@ const TABS: { id: TabId; href: string; label: string; Icon: typeof HomeIcon }[] 
 export default function TabBar({ active }: { active?: TabId }) {
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t-[0.5px] border-separator bg-bar backdrop-blur-xl backdrop-saturate-150"
-      style={{ paddingBottom: "var(--safe-bottom)" }}
+      aria-label="Main"
+      className="fixed left-1/2 z-40 h-[70px] w-[min(353px,calc(100vw-40px))] -translate-x-1/2 rounded-[25px] bg-nav px-[9px] py-[7px] shadow-[0_14px_30px_rgb(23_23_27/0.26)]"
+      style={{ bottom: "max(12px, var(--safe-bottom))" }}
     >
-      <ul className="mx-auto flex h-[49px] max-w-lg">
+      <ul className="grid h-full grid-cols-5">
         {TABS.map(({ id, href, label, Icon }) => {
           const isActive = id === active;
           return (
-            <li key={id} className="flex-1">
+            <li key={id}>
               <Link
                 href={href}
                 aria-current={isActive ? "page" : undefined}
-                className={`flex h-full flex-col items-center justify-center gap-0.5 pt-1 ${isActive ? "text-tint" : "text-label-2"}`}
+                className={`flex h-full flex-col items-center justify-center gap-0.5 transition-colors ${isActive ? "text-white" : "text-[var(--nav-fg)] active:text-white"}`}
               >
-                <Icon size={25} />
-                <span className="text-[10px] font-medium tracking-normal">{label}</span>
+                <span className={`grid h-9 w-[37px] place-items-center rounded-full transition-colors ${isActive ? "bg-[#7954ac]" : ""}`}>
+                  <Icon size={21} />
+                </span>
+                <span className="text-[10px] font-semibold leading-3 tracking-normal">{label}</span>
               </Link>
             </li>
           );

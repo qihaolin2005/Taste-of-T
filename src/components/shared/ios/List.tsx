@@ -1,6 +1,6 @@
 // Owner: P3 - Group Mode & App Shell (see TEAM.md)
-// SwiftUI `List` with `.insetGrouped` style: Section (header/footer) + rows with
-// optional colored icon tile, subtitle, trailing value, and disclosure chevron.
+// Grouped list in the Taste of T style: a section title + a rounded white card of rows,
+// each with an optional lavender icon tile, subtitle, trailing value, and chevron.
 
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -8,10 +8,10 @@ import { ChevronRight } from "./icons";
 
 export function ListSection({ header, footer, children }: { header?: string; footer?: ReactNode; children: ReactNode }) {
   return (
-    <section className="mt-6 first:mt-3">
-      {header && <h2 className="px-4 pb-1.5 text-[13px] uppercase tracking-normal text-label-2">{header}</h2>}
-      <div className="overflow-hidden rounded-[10px] bg-cell">{children}</div>
-      {footer && <p className="px-4 pt-1.5 text-[13px] leading-[18px] text-label-2">{footer}</p>}
+    <section className="mt-7 first:mt-3">
+      {header && <h2 className="px-1 pb-2.5 text-[18px] font-bold leading-6 tracking-[-0.02em] text-label">{header}</h2>}
+      <div className="overflow-hidden rounded-[20px] border border-separator bg-cell shadow-[var(--card-shadow)]">{children}</div>
+      {footer && <p className="px-2 pt-2 text-[13px] leading-[18px] text-label-2">{footer}</p>}
     </section>
   );
 }
@@ -21,8 +21,12 @@ type RowProps = {
   subtitle?: ReactNode;
   /** Trailing secondary text, e.g. a current value. */
   value?: ReactNode;
-  /** Colored rounded-square icon tile, like iOS Settings. */
+  /** Icon shown in a rounded lavender tile. */
   icon?: ReactNode;
+  /**
+   * Kept for compatibility with existing callers. The design system draws every icon tile
+   * in lavender + plum, so this no longer colors the tile.
+   */
   iconBg?: string;
   href?: string;
   onClick?: () => void;
@@ -31,27 +35,27 @@ type RowProps = {
   destructive?: boolean;
 };
 
-export function ListRow({ title, subtitle, value, icon, iconBg = "var(--tint)", href, onClick, accessory, destructive }: RowProps) {
+export function ListRow({ title, subtitle, value, icon, href, onClick, accessory, destructive }: RowProps) {
   const interactive = Boolean(href || onClick);
   const body = (
     <>
       {icon && (
-        <span className="ml-4 flex size-[29px] shrink-0 items-center justify-center rounded-[7px] text-white" style={{ background: iconBg }}>
+        <span className="ml-4 flex size-10 shrink-0 items-center justify-center rounded-[13px] bg-lavender text-plum">
           {icon}
         </span>
       )}
-      <span className={`ios-row-body flex min-h-11 min-w-0 flex-1 items-center gap-2 py-2.5 pr-4 ${icon ? "ml-3" : "ml-4"}`}>
+      <span className={`ios-row-body flex min-h-[60px] min-w-0 flex-1 items-center gap-2 py-3 pr-4 ${icon ? "ml-3" : "ml-4"}`}>
         <span className="min-w-0 flex-1">
-          <span className={`block truncate text-[17px] leading-[22px] ${destructive ? "text-[#ff3b30]" : ""}`}>{title}</span>
-          {subtitle && <span className="block truncate text-[15px] leading-5 text-label-2">{subtitle}</span>}
+          <span className={`block truncate text-[16px] font-semibold leading-[22px] ${destructive ? "text-danger" : ""}`}>{title}</span>
+          {subtitle && <span className="block truncate text-[14px] leading-5 text-label-2">{subtitle}</span>}
         </span>
-        {value && <span className="shrink-0 text-[17px] text-label-2">{value}</span>}
+        {value && <span className="shrink-0 text-[15px] font-medium text-label-2">{value}</span>}
         {accessory ?? (interactive && <ChevronRight className="shrink-0 text-label-3" />)}
       </span>
     </>
   );
 
-  const cls = `ios-row flex w-full items-center text-left ${interactive ? "active:bg-cell-2" : ""}`;
+  const cls = `ios-row flex w-full items-center text-left transition-colors ${interactive ? "active:bg-cell-2" : ""}`;
   if (href) return <Link href={href} className={cls}>{body}</Link>;
   if (onClick) return <button type="button" onClick={onClick} className={cls}>{body}</button>;
   return <div className={cls}>{body}</div>;

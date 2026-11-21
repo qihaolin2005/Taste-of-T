@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { DM_Sans, DM_Serif_Display } from "next/font/google";
 import "./globals.css";
 
-// Fallback for non-Apple screens (the demo laptop); iPhones use SF Pro via -apple-system.
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+// Design-system fonts (see globals.css): DM Sans for body, DM Serif Display for headings.
+const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-dm-sans" });
+const dmSerif = DM_Serif_Display({ subsets: ["latin"], weight: "400", variable: "--font-dm-serif" });
 
 export const metadata: Metadata = {
   title: "Taste of T",
@@ -29,8 +30,8 @@ export const viewport: Viewport = {
   // (No maximumScale: pinch-zoom stays on for accessibility; 16px inputs stop iOS auto-zoom.)
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f2f2f7" },
-    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+    { media: "(prefers-color-scheme: light)", color: "#f8f5ff" },
+    { media: "(prefers-color-scheme: dark)", color: "#16111c" },
   ],
 };
 
@@ -40,7 +41,7 @@ const frameScript = `if (window.self !== window.top) document.documentElement.cl
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang="en" className={`${dmSans.variable} ${dmSerif.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: frameScript }} />
       </head>

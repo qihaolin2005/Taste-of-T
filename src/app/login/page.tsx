@@ -2,22 +2,19 @@
 // Signed-out entry: Loading -> Welcome -> Sign in / Create account (see AuthEntry).
 // Signed-out visitors are sent here by src/proxy.ts; signed-in ones are sent away from it.
 // This screen has its own lavender look, so it skips <Screen> (which would add a "Welcome"
-// large title and the grey grouped background). Fonts are scoped to this page.
+// large title). DM Sans / DM Serif Display come from the root layout. It stays light-only
+// to match the Figma entry screens.
 import type { Metadata } from "next";
-import { DM_Sans, DM_Serif_Display } from "next/font/google";
 import { Suspense } from "react";
 import InstallPrompt from "@/components/shared/InstallPrompt";
 import AuthEntry, { type AuthStep } from "@/components/auth/AuthEntry";
 
 export const metadata: Metadata = { title: "Sign In · Taste of T" };
 
-const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-dm-sans" });
-const dmSerif = DM_Serif_Display({ subsets: ["latin"], weight: "400", variable: "--font-dm-serif" });
-
 export default function Page({ searchParams }: PageProps<"/login">) {
   return (
     <div
-      className={`${dmSans.variable} ${dmSerif.variable} min-h-dvh bg-[#F8F5FF] text-[#30203F] [color-scheme:light] [font-family:var(--font-dm-sans),system-ui,sans-serif]`}
+      className="min-h-dvh bg-[#F8F5FF] text-[#30203F] [color-scheme:light] [font-family:var(--font-dm-sans),system-ui,sans-serif]"
     >
       {/* searchParams is request-time data; with cacheComponents it must be read inside
           Suspense so the rest of the page prerenders. Fallback = the splash background. */}
