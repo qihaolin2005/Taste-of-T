@@ -44,8 +44,11 @@ export const claimVisitSchema = z
         receiptNumber: z.string().trim().min(1).max(60).optional(),
       })
       .strict(),
-    /** Result of trip detection. Only a verified bus or T ride earns travel points. */
-    travel: z.object({ mode: z.enum(["bus", "t", "other"]), verified: z.boolean() }).strict().optional(),
+    /**
+     * A ride verified against live MBTA data (POST /api/rides/ping, src/features/rides).
+     * The server looks up its mode (bus or T); the client can't just claim one.
+     */
+    travel: z.object({ rideId: z.string().min(1).max(40) }).strict().optional(),
   })
   .strict();
 export type ClaimVisitInput = z.infer<typeof claimVisitSchema>;
@@ -130,13 +133,15 @@ export type ClaimResult = {
   recommendedVia: Recommended["via"];
   /** Your new XP total. */
   xp: number;
+  /** Set when a ride was sent but couldn't earn travel points, and why. */
+  travelNote?: string;
 };
 
 export async function claimVisit(
   db: Db,
   userId: string,
   input: ClaimVisitInput,
-  opts: { now?: Date; placeName?: string | null; config?: RewardsConfig } = {},
+  opts: { now?: Date; placeName?: string | null; placeCoords?: LatLng | null; config?: RewardsConfig } = {},
 ): Promise<ClaimResult> {
   const cfg = opts.config ?? REWARDS_CONFIG;
   const now = opts.now ?? new Date();
@@ -169,8 +174,19 @@ export async function claimVisit(
   if (samePlaceToday >= cfg.limits.perPlacePerDay) fail("conflict", "You've already earned points here today.");
   if (visitsToday >= cfg.limits.visitsPerDay) fail("too_many_requests", `That's ${cfg.limits.visitsPerDay} rewarded visits today. Come back tomorrow!`);
 
-  // 4. Points before the group bonus
-  const travelMode: TravelMode = input.travel?.verified && input.travel.mode !== "other" ? input.travel.mode : "none";
+  // 4. Travel: only a ride verified against live MBTA data, ending near this place, unused.
+  let travelMode: TravelMode = "none";
+  let rideId: string | null = null;
+  let travelNote: string | undefined;
+  if (input.travel) {
+    const check = await checkRideForReward(db, userId, input.travel.rideId, { now, place: opts.placeCoords });
+    if ("ride" in check) {
+      travelMode = check.ride.mode;
+      rideId = check.ride.id;
+    } else travelNote = check.reason;
+  }
+
+  // Points before the group bonus
   const breakdown = basePoints({ receiptTotal: receipt.total, dinersOnReceipt: diners, travelMode, previousVisits }, cfg);
   const roomId = rec.via === "squad" ? rec.roomId : null;
 
@@ -189,6 +205,7 @@ export async function claimVisit(
           receiptDate: printed.toISOString(),
           receiptKey: key,
           travelMode,
+          rideId,
           basePoints: breakdown.base,
           groupMultiplier: 1,
           pointsAwarded: 0,
@@ -218,11 +235,23 @@ export async function claimVisit(
         await awardPointsTx(tx, v.userId, delta, v.id === visit.id ? "restaurant_visit" : "group_bonus", undefined, v.id);
       }
       const user = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { xp: true } });
-      return { visitId: visit.id, points: mine, breakdown, groupMultiplier: multiplier, groupSize: people, recommendedVia: rec.via, xp: user.xp };
+      return {
+        visitId: visit.id,
+        points: mine,
+        breakdown,
+        groupMultiplier: multiplier,
+        groupSize: people,
+        recommendedVia: rec.via,
+        xp: user.xp,
+        ...(travelNote ? { travelNote } : {}),
+      };
     });
   } catch (err) {
-    // Two claims of the same receipt at the same moment: the unique index wins.
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") fail("conflict", "You've already claimed this receipt.");
+    // Two claims at the same moment: a unique index wins (same receipt, or the same ride).
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      const target = String((err.meta as { target?: unknown } | undefined)?.target ?? "");
+      fail("conflict", target.includes("rideId") ? "That ride already earned travel points for another visit." : "You've already claimed this receipt.");
+    }
     throw err;
   }
 }

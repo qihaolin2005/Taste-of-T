@@ -1,8 +1,9 @@
 // Owner: P1 - Planner & Quests (ML, rewards) (see TEAM.md)
-//   POST /api/rewards/visits  { placeId, receipt: { total, date, merchantName?, diners?, receiptNumber? }, travel? }
-//     -> 201 ClaimResult { visitId, points, breakdown, groupMultiplier, groupSize, recommendedVia, xp }
+//   POST /api/rewards/visits  { placeId, receipt: { total, date, merchantName?, diners?, receiptNumber? }, travel?: { rideId } }
+//     -> 201 ClaimResult { visitId, points, breakdown, groupMultiplier, groupSize, recommendedVia, xp, travelNote? }
 // Claim points for eating at a recommended place. The receipt arrives already read (OCR happens
-// before this); `travel` comes from trip detection. Rules: src/features/rewards/config.ts.
+// before this); `travel.rideId` is a ride verified against live MBTA data (POST /api/rides/ping).
+// Rules: src/features/rewards/config.ts.
 import { apiError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/requireUser";
@@ -28,10 +29,13 @@ export async function POST(req: Request) {
 
   // The place's name, to check it against the receipt (skipped if the place can't be found).
   const { places } = await loadRestaurants(googlePlacesEnabled() ? listRestaurants : null);
-  const placeName = places.find((p) => p.id === parsed.data.placeId)?.name ?? null;
+  const place = places.find((p) => p.id === parsed.data.placeId);
+  const placeName = place?.name ?? null;
+  // Where the place is, to check a ride actually ended near it.
+  const placeCoords = place && typeof place.lat === "number" && typeof place.lng === "number" ? { lat: place.lat, lng: place.lng } : null;
 
   try {
-    return Response.json(await claimVisit(db, auth.userId, parsed.data, { placeName }), { status: 201 });
+    return Response.json(await claimVisit(db, auth.userId, parsed.data, { placeName, placeCoords }), { status: 201 });
   } catch (err) {
     if (err instanceof RewardError) return apiError(err.code, err.message);
     throw err;

@@ -14,7 +14,7 @@ points = (meal + spend + travel + first visit) × repeat factor × group multipl
 |---|---|---|
 | Meal | **20** | Verified receipt at a recommended place |
 | Spend | **1 per $2 per person**, up to $60/person (max **30**) | Bill ÷ number of diners on it |
-| Travel | **bus 10, T 5**, else 0 | Only a ride verified by trip detection |
+| Travel | **bus 10, T 5**, else 0 | Only a ride the server verified against live MBTA positions (see below) |
 | First visit | **+10** | First rewarded visit to that place |
 | Repeat factor | 1st & 2nd visit ×1, 3rd ×0.5, after that ×0.25 | Counts your past rewarded visits there |
 | Group multiplier | **1 + 0.05 × (people − 1)**, up to 12 people → **×1.55** | People = squad-mates who claimed the same place within 12 h |
@@ -55,11 +55,11 @@ reason `restaurant_visit`, and each top-up a `group_bonus`, linked to the `Rewar
 {
   "placeId": "seed-ct-lantern",
   "receipt": { "total": 64.5, "date": "2026-11-21T19:42:00-05:00", "merchantName": "LANTERN DUMPLING", "diners": 2, "receiptNumber": "CHK-1042" },
-  "travel": { "mode": "bus", "verified": true }
+  "travel": { "rideId": "cmw...ride" }
 }
 ```
 
-→ `201 { visitId, points, breakdown, groupMultiplier, groupSize, recommendedVia, xp }`
+→ `201 { visitId, points, breakdown, groupMultiplier, groupSize, recommendedVia, xp, travelNote? }`
 
 Errors come back as `{ error: { code, message } }`:
 
@@ -75,8 +75,17 @@ with its point breakdown ("20 meal + 15 spend + 10 bus…").
 
 ## What other features plug in
 
-- **Trip detection (teammate):** send its result as `travel: { mode: "bus" | "t" | "other", verified }`.
-  Only `verified: true` with `bus` or `t` earns travel points. No GPS trace is sent or stored.
+- **Ride verification (MBTA, built, `src/features/rides`):** the client no longer says how it
+  travelled. While riding, the phone sends a location ping every ~30 s to `POST /api/rides/ping`
+  (`startRideTracking()` in `src/features/rides/client.ts` does it). The server matches each ping
+  to a **live MBTA bus or train** (V3 `/vehicles`, all subway, light rail, commuter rail and bus).
+  A ride is **verified** after 2+ matches on the **same vehicle**, 60+ s and 300+ m apart, faster
+  than walking. Then send `travel: { rideId }` with the claim. The server takes the mode (bus or T)
+  from the ride and only counts it if it's yours, verified, under 4 h old, ended within 2 km of
+  the restaurant, and hasn't already paid out for another visit (one ride, one reward). Otherwise
+  the claim still pays meal/spend points and returns a `travelNote` saying why there were no
+  travel points. Pings aren't stored; a ride keeps only its first and last matched points
+  (rounded to ~11 m), route, and distance.
 - **Receipt reading (OCR, not built yet):** turn the photo into `receipt.total`, `date`, and ideally
   `merchantName` and `receiptNumber`, then call the endpoint. **Don't store the photo**: receipts
   can show card digits and names. Only the total, date and a receipt key are kept.
