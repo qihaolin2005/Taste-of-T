@@ -54,6 +54,33 @@ try it on their own phones.
 The UI is styled after native iOS / SwiftUI (large titles, inset-grouped lists, blurred tab bar,
 system colors, light and dark mode). Build new screens with `@/components/shared/ios`.
 
+## Backend: users, preferences, location
+
+There's no login. Each device gets an anonymous user, identified by a signed httpOnly cookie.
+From the browser, use the helpers in `src/lib/identity.ts` (`ensureUser`, `getMe`,
+`savePreferences`, `shareCurrentLocation`, …) instead of calling fetch by hand.
+
+| Endpoint | What it does |
+|---|---|
+| `POST /api/me` | Get or create the user and set the session cookie. Call once on app start. |
+| `GET /api/me` | `{ user, preferences, location }` |
+| `PATCH /api/me` | `{ displayName?, avatar? }` |
+| `DELETE /api/me` | Delete the user and **all** their data, and clear the cookie |
+| `GET` / `PATCH /api/me/preferences` | Tastes, avoid, dietary, default budget, max walk, home/usual stations, `shareLocation` |
+| `GET` / `PUT` / `DELETE /api/me/location` | Last known location + nearest station. `PUT` returns 403 unless `shareLocation` is on |
+
+Errors always look like `{ error: { code, message, issues? } }`.
+
+**Location privacy:** stored only after the user opts in (`shareLocation: true`). It's a
+single overwritten row (no movement history), rounded to about 11 m, and deleted when
+sharing is turned off or the account is deleted. The only location history is explicit
+check-ins.
+
+The full data model (check-ins, stamps, achievements, rooms, plans, ratings, wishlist) is in
+`prisma/schema.prisma`. After changing it, run `npm run db:push`.
+
+`SESSION_SECRET` must be set for `npm start` and any deploy (`openssl rand -base64 32`).
+
 ## Other scripts
 
 | Script | What it does |

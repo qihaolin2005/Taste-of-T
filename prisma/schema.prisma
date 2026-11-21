@@ -1,6 +1,12 @@
 // Owner: P2 - Data & Integrations (see TEAM.md)
-// Tables to add: Room, Member, Plan (JSON), User, CheckIn, Stamp, Rating, Wishlist
 // After editing: `npm run db:push` (updates dev.db and regenerates the client).
+//
+// Conventions
+// - SQLite has no scalar lists, so string arrays (tastes, tags) are stored as Json.
+// - Times of day are Int minutes after local midnight (may exceed 1440 past midnight),
+//   matching `Minutes` in src/types. Dates are "YYYY-MM-DD" strings in America/New_York.
+// - Station and place ids are string ids from data/stations.json and the places client.
+//   They are not foreign keys, because those live outside the DB.
 
 generator client {
   provider = "prisma-client"
@@ -11,8 +17,165 @@ datasource db {
   provider = "sqlite"
 }
 
-// TODO(P2): define models. Placeholder so the client generates:
-model AppMeta {
-  key   String @id
-  value String
+// ---------------------------------------------------------------- users
+
+/// An anonymous player identified by an httpOnly cookie (no login for the MVP).
+model User {
+  id          String   @id @default(cuid())
+  displayName String   @default("T Explorer")
+  avatar      String?  // emoji or short string
+  xp          Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  preferences  UserPreferences?
+  location     UserLocation?
+  checkIns     CheckIn[]
+  stamps       Stamp[]
+  achievements Achievement[]
+  ratings      Rating[]
+  wishlist     WishlistItem[]
+  hostedRooms  Room[]         @relation("RoomHost")
+  memberships  RoomMember[]
+  plans        Plan[]
+}
+
+/// Defaults that prefill the Spin form and room join form.
+model UserPreferences {
+  userId              String   @id
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tastes              Json     @default("[]") // string[]: matched against place tags
+  avoid               Json     @default("[]") // string[]: hard exclusions, e.g. "seafood"
+  dietary             Json     @default("[]") // string[]: e.g. "vegetarian", "halal"
+  defaultBudget       Int?     // USD per person per night
+  maxWalkMinutes      Int?
+  homeStationId       String?
+  usualStartStationId String?
+  /// Opt-in: only when true do we store the user's last known location.
+  shareLocation       Boolean  @default(false)
+  updatedAt           DateTime @updatedAt
+}
+
+/// Last known location only (one row per user, overwritten). We do not keep a
+/// movement history; the only location history is explicit check-ins.
+model UserLocation {
+  userId           String   @id
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lat              Float
+  lng              Float
+  accuracyM        Float?
+  nearestStationId String?
+  recordedAt       DateTime @default(now())
+}
+
+// ---------------------------------------------------------- game layer
+
+model CheckIn {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stationId String
+  placeId   String?
+  lat       Float?
+  lng       Float?
+  accuracyM Float?
+  method    String   // "gps" | "demo"
+  verified  Boolean  @default(false) // GPS fix was within the check-in radius
+  xpAwarded Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model Stamp {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stationId String
+  earnedAt  DateTime @default(now())
+
+  @@id([userId, stationId])
+}
+
+model Achievement {
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code       String   // e.g. "last-train", "night-owl", "new-line"
+  unlockedAt DateTime @default(now())
+
+  @@id([userId, code])
+}
+
+// ------------------------------------------------------- rooms & plans
+
+model Room {
+  id         String       @id // short shareable code
+  name       String
+  hostUserId String?
+  host       User?        @relation("RoomHost", fields: [hostUserId], references: [id], onDelete: SetNull)
+  date       String       // YYYY-MM-DD
+  startTime  Int          // Minutes
+  slots      Json         // StopCategory[]
+  status     String       @default("collecting") // "collecting" | "planned"
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  members    RoomMember[]
+  plans      Plan[]
+}
+
+/// A room member's inputs for one night (copied from preferences at join time, then editable).
+model RoomMember {
+  id             String   @id @default(cuid())
+  roomId         String
+  room           Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name           String
+  startStationId String
+  homeStationId  String
+  budget         Int
+  tastes         Json     @default("[]")
+  avoid          Json     @default("[]")
+  leaveBy        Int?     // Minutes
+  maxWalkMinutes Int?
+  joinedAt       DateTime @default(now())
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+}
+
+/// A generated plan. Group plans have roomId; solo quests have userId only.
+model Plan {
+  id        String   @id @default(cuid())
+  roomId    String?
+  room      Room?    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  request   Json     // PlanRequest
+  result    Json     // Plan (or Quest for solo)
+  createdAt DateTime @default(now())
+
+  @@index([roomId, createdAt])
+}
+
+// ---------------------------------------------------- ratings & wishlist
+
+model Rating {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  placeId   String
+  score     Float    // 0-10
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([userId, placeId])
+}
+
+model WishlistItem {
+  userId  String
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  placeId String
+  addedAt DateTime @default(now())
+
+  @@id([userId, placeId])
 }

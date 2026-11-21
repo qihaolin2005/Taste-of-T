@@ -8,6 +8,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    globalSetup: ["src/test/globalSetup.ts"],
     // Stub test files have no tests yet; don't fail CI/dev on that.
     passWithNoTests: true,
   },
