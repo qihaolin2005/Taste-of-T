@@ -180,6 +180,27 @@ positions, and which stations you've stamped.
   shared 10 s cache, so we stay under the 20 requests/min no-key limit. Set `MBTA_API_KEY`
   (free at api-v3.mbta.com) for 1000/min.
 
+## Bus/T rides (verified with live MBTA data)
+
+Reward points for getting to a restaurant by **bus (+10)** or **T (+5)** are only given for a
+ride the server checked against live MBTA vehicle positions, so nobody can just claim one.
+
+1. When the user is on board, the app calls `startRideTracking()` (`src/features/rides/client.ts`),
+   which sends the phone's location to `POST /api/rides/ping` every 30 s.
+2. Each ping is matched to a live MBTA vehicle right there (all buses, subway, light rail,
+   commuter rail, from the V3 `/vehicles` feed, shared 10 s cache).
+3. **Verified** = 2+ matches on the same vehicle, 60+ s and 300+ m apart, faster than walking.
+   Standing at a stop while a bus passes, or walking along a bus route, doesn't count.
+4. Send the ride's id with the reward claim: `travel: { rideId }` (see `docs/rewards.md`).
+
+Tested live: a ride on a real Bus 225 verified after 3 matches over 1.5 km.
+
+**Limits:** the app has to stay open during the ride (iOS web apps can't track location in the
+background). **Underground, phones often have no GPS fix**, so subway rides verify on the
+above-ground parts (Green Line surface, Red Line to Braintree/Ashmont, Orange Line ends). Buses
+and commuter rail work best. Raw pings aren't stored, only each ride's first and last matched
+points (rounded to ~11 m).
+
 ## Points and quests
 
 Every account has a points balance, shown on **Profile** (with a history) and **Home**.

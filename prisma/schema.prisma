@@ -51,6 +51,7 @@ model User {
   recommendationsShown RecommendationShown[]
   quests       Quest[]
   pointsEvents PointsEvent[]
+  rides        Ride[]
 }
 
 /// Defaults that prefill the Spin form and room join form.
@@ -227,8 +228,11 @@ model RewardVisit {
   receiptDate     String
   /// Same receipt can be claimed by at most `dinersOnReceipt` different people.
   receiptKey      String
-  /// "bus" | "t" | "none": only a verified ride counts.
+  /// "bus" | "t" | "none": only a ride verified against live MBTA data counts (see Ride).
   travelMode      String
+  /// The verified ride that earned the travel points. Unique: one ride pays out for one visit.
+  rideId          String?  @unique
+  ride            Ride?    @relation(fields: [rideId], references: [id], onDelete: SetNull)
   /// Points before the group multiplier, and what has actually been added to User.xp so far
   /// (it grows when more squad-mates check in at the same place).
   basePoints      Int
@@ -308,6 +312,41 @@ model PointsEvent {
   questId   String?  @unique
   quest     Quest?   @relation(fields: [questId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// ------------------------------------------------------------- rides
+
+/// A bus/T ride, verified against live MBTA vehicle positions (src/features/rides).
+/// The phone sends a location ping every ~30 s while riding; a ping "matches" when a live MBTA
+/// vehicle is right there. Verified = 2+ matches on the SAME vehicle, 60+ s and 300+ m apart,
+/// faster than walking. Raw pings are never stored: only the first and last matched positions,
+/// rounded to ~11 m.
+model Ride {
+  id           String       @id @default(cuid())
+  userId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// "tracking" (collecting pings) | "verified"
+  status       String       @default("tracking")
+  /// "bus" | "t" (subway, light rail, commuter rail)
+  mode         String?
+  routeId      String?
+  routeName    String?
+  vehicleId    String?
+  matchedPings Int          @default(0)
+  firstMatchAt DateTime?
+  lastMatchAt  DateTime?
+  startLat     Float?
+  startLng     Float?
+  endLat       Float?
+  endLng       Float?
+  /// Straight-line meters between the first and last match.
+  distanceM    Float        @default(0)
+  lastPingAt   DateTime     @default(now())
+  verifiedAt   DateTime?
+  createdAt    DateTime     @default(now())
+  rewardVisit  RewardVisit?
 
   @@index([userId, createdAt])
 }

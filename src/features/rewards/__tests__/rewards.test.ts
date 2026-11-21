@@ -3,7 +3,7 @@ import { createTestDb } from "@/test/db";
 import { getOrCreateUser } from "@/features/users";
 import { getRecommendations } from "@/features/ml";
 import { ALL_PLACES } from "@/features/ml/recommend/__tests__/fixtures";
-import { basePoints, claimVisit, getRewards, groupMultiplier, merchantMatches, REWARDS_CONFIG, RewardError, type ClaimVisitInput } from "@/features/rewards";
+import { basePoints, claimVisit, claimVisitSchema, getRewards, groupMultiplier, merchantMatches, REWARDS_CONFIG, RewardError, type ClaimVisitInput } from "@/features/rewards";
 
 const db = createTestDb();
 afterAll(() => db.$disconnect());
@@ -17,6 +17,18 @@ async function newUser() {
 }
 async function recommend(userId: string, placeId: string, at = NOW) {
   await db.recommendationShown.upsert({ where: { userId_placeId: { userId, placeId } }, create: { userId, placeId, shownAt: at }, update: { shownAt: at } });
+}
+/** A ride as the MBTA check (src/features/rides) leaves it once verified. */
+async function verifiedRide(userId: string, mode: "bus" | "t", opts: { minutesAgo?: number; status?: string } = {}) {
+  const at = new Date(NOW.getTime() - (opts.minutesAgo ?? 40) * 60_000);
+  const r = await db.ride.create({
+    data: {
+      userId, status: opts.status ?? "verified", mode, routeId: mode === "bus" ? "1" : "Red", routeName: mode === "bus" ? "Bus 1" : "Red Line",
+      vehicleId: "v1", matchedPings: 3, firstMatchAt: new Date(at.getTime() - 5 * 60_000), lastMatchAt: at, verifiedAt: at,
+      startLat: 42.37, startLng: -71.12, endLat: 42.3526, endLng: -71.0628, distanceM: 2500,
+    },
+  });
+  return r.id;
 }
 const claim = (placeId: string, total: number, extra: Partial<ClaimVisitInput["receipt"]> = {}, travel?: ClaimVisitInput["travel"]): ClaimVisitInput => ({
   placeId,
@@ -79,18 +91,50 @@ describe("claimVisit", () => {
   it("awards points for a recommended place and adds them to your XP", async () => {
     const u = await newUser();
     await recommend(u, "p-ramen");
-    const r = await claimVisit(db, u, claim("p-ramen", 24, {}, { mode: "bus", verified: true }), { now: NOW });
+    const r = await claimVisit(db, u, claim("p-ramen", 24, {}, { rideId: await verifiedRide(u, "bus") }), { now: NOW });
     expect(r).toMatchObject({ points: 52, groupMultiplier: 1, groupSize: 1, recommendedVia: "for-you", xp: 52 }); // 20 + 12 + 10 + 10
     expect(r.breakdown).toMatchObject({ meal: 20, spend: 12, travel: 10, firstVisit: 10 });
     expect(await getRewards(db, u)).toMatchObject({ xp: 52, visits: [{ placeId: "p-ramen", points: 52, travelMode: "bus" }] });
   });
 
-  it("gives no travel points for an unverified or non-transit trip", async () => {
+  it("gives no travel points for an unverified, someone else's, or too-old ride (but still pays the meal)", async () => {
     const u = await newUser();
-    await recommend(u, "p-a");
-    await recommend(u, "p-b");
-    expect((await claimVisit(db, u, claim("p-a", 10, {}, { mode: "bus", verified: false }), { now: NOW })).breakdown.travel).toBe(0);
-    expect((await claimVisit(db, u, claim("p-b", 10, {}, { mode: "other", verified: true }), { now: NOW })).breakdown.travel).toBe(0);
+    const other = await newUser();
+    for (const p of ["p-a", "p-b"]) await recommend(u, p);
+    const unverified = await claimVisit(db, u, claim("p-a", 10, {}, { rideId: await verifiedRide(u, "bus", { status: "tracking" }) }), { now: NOW });
+    expect(unverified.breakdown.travel).toBe(0);
+    expect(unverified.travelNote).toMatch(/wasn't verified/);
+    expect(unverified.points).toBeGreaterThan(0);
+    const notMine = await claimVisit(db, u, claim("p-b", 10, {}, { rideId: await verifiedRide(other, "bus") }), { now: NOW });
+    expect(notMine.travelNote).toMatch(/couldn't find/);
+    // (a third claim today would hit the 2-visits-per-day limit, so use a second person)
+    const u3 = await newUser();
+    await recommend(u3, "p-c");
+    const old = await claimVisit(db, u3, claim("p-c", 10, {}, { rideId: await verifiedRide(u3, "t", { minutesAgo: 5 * 60 }) }), { now: NOW });
+    expect(old.travelNote).toMatch(/too long ago/);
+  });
+
+  it("the client can't claim a mode: the old { mode, verified } shape is rejected", () => {
+    expect(() => claimVisitSchema.parse({ placeId: "p", receipt: { total: 10, date: minsAgo(5) }, travel: { mode: "bus", verified: true } })).toThrow();
+  });
+
+  it("a ride pays out travel points for one visit only, and must end near the place", async () => {
+    const u = await newUser();
+    await recommend(u, "p-x");
+    await recommend(u, "p-y");
+    const ride = await verifiedRide(u, "t");
+    const near = { lat: 42.3527, lng: -71.0626 }; // ~20 m from where the ride ended
+    const first = await claimVisit(db, u, claim("p-x", 10, {}, { rideId: ride }), { now: NOW, placeCoords: near });
+    expect(first.breakdown).toMatchObject({ travel: 5, travelMode: "t" });
+    const reused = await claimVisit(db, u, claim("p-y", 10, {}, { rideId: ride }), { now: NOW, placeCoords: near });
+    expect(reused.breakdown.travel).toBe(0);
+    expect(reused.travelNote).toMatch(/already earned/);
+
+    const u2 = await newUser();
+    await recommend(u2, "p-far");
+    const far = await claimVisit(db, u2, claim("p-far", 10, {}, { rideId: await verifiedRide(u2, "bus") }), { now: NOW, placeCoords: { lat: 42.39674, lng: -71.12181 } }); // Davis
+    expect(far.breakdown.travel).toBe(0);
+    expect(far.travelNote).toMatch(/km from this restaurant/);
   });
 
   it("only counts places recommended in the last 48 hours", async () => {
@@ -170,7 +214,7 @@ describe("squad visits", () => {
 
     const rb = await claimVisit(db, b, claim("sq-thai", 90, { receiptNumber: "T-1", diners: 3 }), { now: NOW });
     expect(rb).toMatchObject({ groupSize: 2, groupMultiplier: 1.05, points: 47 }); // 45 x 1.05 = 47.25
-    const rc = await claimVisit(db, c, claim("sq-thai", 90, { receiptNumber: "T-1", diners: 3 }, { mode: "t", verified: true }), { now: NOW });
+    const rc = await claimVisit(db, c, claim("sq-thai", 90, { receiptNumber: "T-1", diners: 3 }, { rideId: await verifiedRide(c, "t") }), { now: NOW });
     expect(rc).toMatchObject({ groupSize: 3, groupMultiplier: 1.1, points: 55 }); // (45 + 5) x 1.1
 
     // a was topped up twice: 45 -> 47 -> 50 (45 x 1.1 = 49.5)
