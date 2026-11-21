@@ -3,3 +3,4 @@
 // Import from "@/features/squads". Route contract: docs/squad-session-api.md
 export * from "./store";
 export * from "./service";
+export * from "./http";

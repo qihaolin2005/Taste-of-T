@@ -99,3 +99,12 @@ Tables (run `npm run db:push` after pulling):
 - **`RecommendationShown`:** the latest time each place was shown to each user in "for you".
 - **`PointsEvent.rewardVisitId`:** links a history entry to its visit. `RewardVisit.placeName`
   provides the title shown in the history.
+
+## Screens
+
+- **`/rewards/claim`** (`src/components/rewards/ClaimVisitScreen.tsx`): pick a place recommended in
+  the last 48 h (`GET /api/rewards/eligible`: squad top 5s first, then "for you" and Spin), type the
+  receipt total, time and people on it, optionally pick a verified ride and rate the meal (the
+  rating goes to `POST /api/ratings` and teaches the recommender). Shows the points breakdown.
+- Linked from the squad's top 5 (each pick), the plan page, and Profile → Food → "Claim points for a meal".
+- Receipts are typed in; photo reading (OCR) isn't built.

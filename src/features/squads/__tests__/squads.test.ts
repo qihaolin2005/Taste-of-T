@@ -329,3 +329,12 @@ describe("the shortlist follows the night's stops", () => {
     expect(deck.items.map((i) => i.place.id)).toEqual(["karaoke"]); // vegan member, no dietary info: still shown
   });
 });
+
+describe("route helpers", () => {
+  it("normalizes room codes from URLs and 404s anything that can't be one", async () => {
+    const { roomCodeOr404 } = await import("@/features/squads");
+    expect(roomCodeOr404(" bhsg ")).toEqual({ code: "BHSG" });
+    const bad = roomCodeOr404("nope!");
+    expect("response" in bad && bad.response.status).toBe(404);
+  });
+});
