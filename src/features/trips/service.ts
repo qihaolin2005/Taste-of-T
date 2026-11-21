@@ -11,6 +11,7 @@
 import type { PrismaClient, Trip } from "@/generated/prisma/client";
 import type { ApiErrorCode } from "@/lib/api";
 import { distanceMeters, type LatLng } from "@/lib/geo";
+import { completeQuest } from "@/features/gamification/quests";
 import { normalizeCode } from "@/features/rooms/code";
 import { appendFixes, hideStart, readPoints, splitLegs, TRIP_RULES, type Leg, type RawFix, type StoredPoint } from "./path";
 
@@ -54,6 +55,10 @@ export type TripView = {
   legs: Leg[];
   /** true when the start of the path is hidden from you (someone else's trip). */
   startHidden: boolean;
+  /** Spin the T quest this trip is for (yours only). */
+  questId: string | null;
+  /** Set on the response where arriving completed the quest: points added. */
+  questAwarded?: number;
 };
 
 type RideSummary = { mode: string | null; routeName: string | null; firstMatchAt: Date | null; lastMatchAt: Date | null; userId: string };
@@ -91,6 +96,7 @@ function toView(trip: Trip, opts: { viewerId: string; name?: string | null; ride
     rides: rides.map(({ mode, routeName }) => ({ mode, routeName })),
     legs,
     startHidden: !isYou && points.length < all.length,
+    questId: isYou ? trip.questId : null,
   };
 }
 
@@ -123,17 +129,28 @@ async function requireMembership(db: Db, rawCode: string, userId: string, now: D
   return member;
 }
 
-export type StartTripInput = { roomId?: string | null; place?: TripPlace | null };
+export type StartTripInput = { roomId?: string | null; place?: TripPlace | null; questId?: string | null };
 
 /** Start recording. Any other trip you're recording is finished first. */
 export async function startTrip(db: Db, userId: string, input: StartTripInput, now = new Date()): Promise<TripView> {
   const roomId = input.roomId ? (await requireMembership(db, input.roomId, userId, now)).roomId : null;
+  let questId: string | null = null;
+  let place = input.place ?? null;
+  if (input.questId) {
+    const q = await db.quest.findFirst({ where: { id: input.questId, userId, status: "active" }, select: { id: true, placeId: true, placeName: true, placeLat: true, placeLng: true } });
+    if (!q) throw new TripError("not_found", "That quest isn't active anymore. Spin again.");
+    // the trip goes to the quest's own place (saved when it was spun)
+    if (input.place && q.placeId && q.placeId !== input.place.id) throw new TripError("bad_request", "This trip doesn't go to the quest's restaurant.");
+    if (q.placeId && q.placeLat != null && q.placeLng != null) place = { id: q.placeId, name: q.placeName, lat: q.placeLat, lng: q.placeLng };
+    if (!place) throw new TripError("bad_request", "Couldn't find where this quest's restaurant is.");
+    questId = q.id;
+  }
   const trip = await db.$transaction(async (tx) => {
     const open = await tx.trip.findMany({ where: { userId, status: "recording" } });
     for (const t of open) await tx.trip.update({ where: { id: t.id }, data: { status: "finished", endedAt: t.lastPointAt ?? t.startedAt } });
-    const p = input.place;
+    const p = place;
     return tx.trip.create({
-      data: { userId, roomId, startedAt: now, placeId: p?.id ?? null, placeName: p?.name ?? null, placeLat: p?.lat ?? null, placeLng: p?.lng ?? null },
+      data: { userId, roomId, questId, startedAt: now, placeId: p?.id ?? null, placeName: p?.name ?? null, placeLat: p?.lat ?? null, placeLng: p?.lng ?? null },
     });
   });
   return toView(trip, { viewerId: userId, rides: [] });
@@ -175,13 +192,46 @@ export async function addPoints(db: Db, userId: string, tripId: string, fixes: r
       ...(arrived || full ? { status: "finished", endedAt: lastPointAt ?? now, arrived } : {}),
     },
   });
-  return toView(trip, { viewerId: userId, rides: await ridesFor(db, [userId], trip.startedAt) });
+  const view = toView(trip, { viewerId: userId, rides: await ridesFor(db, [userId], trip.startedAt) });
+  if (arrived && trip.questId) view.questAwarded = await completeTripQuest(db, userId, trip, points);
+  return view;
 }
+
+/** A Spin quest counts only if the trip actually went somewhere: started this far from the place... */
+export const QUEST_MIN_START_FROM_PLACE_M = 150;
+/** ...and took at least this long. */
+export const QUEST_MIN_TRIP_SEC = 60;
+
+/** Arrived on a quest trip: complete the quest (pays its points once). Returns points added now. */
+async function completeTripQuest(db: Db, userId: string, trip: Trip, points: StoredPoint[]): Promise<number> {
+  const first = points[0];
+  const last = points.at(-1)!;
+  const traveled =
+    distanceMeters({ lat: first[0], lng: first[1] }, { lat: trip.placeLat!, lng: trip.placeLng! }) >= QUEST_MIN_START_FROM_PLACE_M && last[2] >= QUEST_MIN_TRIP_SEC;
+  if (!traveled) return 0;
+  try {
+    return (await completeQuest(db, userId, trip.questId!)).awarded;
+  } catch {
+    return 0; // quest gone or abandoned (spun again): the trip still counts as a trip
+  }
+}
+
+/** Tapping "I'm here" this close to the destination counts as arriving (GPS indoors drifts). */
+export const MANUAL_ARRIVE_RADIUS_M = 150;
 
 export async function finishTrip(db: Db, userId: string, tripId: string, now = new Date()): Promise<TripView> {
   let trip = await settle(db, await ownTrip(db, userId, tripId), now);
-  if (trip.status === "recording") trip = await db.trip.update({ where: { id: trip.id }, data: { status: "finished", endedAt: now } });
-  return toView(trip, { viewerId: userId, rides: await ridesFor(db, [userId], trip.startedAt) });
+  let justArrived = false;
+  const points = readPoints(trip.points);
+  if (trip.status === "recording") {
+    const last = points.at(-1);
+    justArrived =
+      !!last && trip.placeLat != null && trip.placeLng != null && distanceMeters({ lat: last[0], lng: last[1] }, { lat: trip.placeLat, lng: trip.placeLng }) <= MANUAL_ARRIVE_RADIUS_M;
+    trip = await db.trip.update({ where: { id: trip.id }, data: { status: "finished", endedAt: now, arrived: justArrived } });
+  }
+  const view = toView(trip, { viewerId: userId, rides: await ridesFor(db, [userId], trip.startedAt) });
+  if (justArrived && trip.questId) view.questAwarded = await completeTripQuest(db, userId, trip, points);
+  return view;
 }
 
 export async function deleteTrip(db: Db, userId: string, tripId: string): Promise<void> {

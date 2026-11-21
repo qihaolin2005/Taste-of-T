@@ -21,7 +21,11 @@ export async function resolveDestination(db: PrismaClient, placeId: string | und
     const plan = code ? ((await latestRoomPlan(db, code))?.result as { recommended?: { place?: { id?: string } } | null } | undefined) : undefined;
     id = plan?.recommended?.place?.id;
   }
-  if (!id) return null;
+  return id ? findPlace(id) : null;
+}
+
+/** A restaurant's name and location by id (live source, then the demo seed list). Null if unknown or it has no location. */
+export async function findPlace(id: string): Promise<TripPlace | null> {
   const { places } = await loadRestaurants(googlePlacesEnabled() ? listRestaurants : null);
   // Demo seed places too, so seed ids work even when Google Places is on.
   const p = places.find((x) => x.id === id) ?? getSeedPlaces().find((x) => x.id === id);

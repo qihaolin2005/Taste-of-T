@@ -211,6 +211,21 @@ itself only reports a bus's position about once a minute. Buses on streets and c
 work best. Raw pings aren't stored, only each ride's first and last matched points (rounded to
 ~11 m) and a short list of nearby vehicle ids with match counts.
 
+## Spin the T
+
+Pick **how far** (0.5 / 1 / 2 / 5 mi), a **budget** ($ to $$$ or any) and a **craving**, tap
+**Spin**. It uses where your phone is right now (not saved; falls back to your saved location)
+and asks the ML recommender (`getRecommendations`, `src/features/ml`) for places within that
+distance, ranked for you (dietary needs are hard filters). The model works in miles, not travel
+time, so Spin asks "how far?". Budget and craving filter the ranking, then the spin is a
+weighted-random pick from your top 6. A specific craving also runs a Google search near you
+("dumplings" near me), because the general list only has ~20 places per area.
+
+The pick becomes a quest (+100 points). **Let's Go** records the trip there (bus/T rides get
+verified on the way); arriving (or tapping I'm Here within 150 m) completes the quest once.
+Starting at the door or a trip under a minute doesn't count. Code: `src/features/spin`,
+`POST /api/spin`, `src/components/solo/SpinScreen.tsx`.
+
 ## Trips (everyone's path to the restaurant, like Strava)
 
 Tap **Start Trip** (in a group: Group > Trip Map, or solo: Profile > My trips). The phone asks

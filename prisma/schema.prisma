@@ -297,6 +297,11 @@ model Quest {
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   title       String
   stationId   String?
+  /// Spin the T: the place this quest sends you to (null for other quests).
+  placeId     String?
+  placeName   String?
+  placeLat    Float?
+  placeLng    Float?
   /// Points awarded on completion. TODO(ML): set by the points model; today a fixed default.
   points      Int
   status      String       @default("active") // "active" | "completed" | "abandoned"
@@ -388,6 +393,8 @@ model Trip {
   endedAt     DateTime?
   /// true when it finished because you reached the destination.
   arrived     Boolean   @default(false)
+  /// Spin the T quest this trip is for: arriving completes it (and pays its points).
+  questId     String?
   createdAt   DateTime  @default(now())
 
   @@index([userId, startedAt])
