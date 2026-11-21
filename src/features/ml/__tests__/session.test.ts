@@ -136,3 +136,13 @@ describe("participants who left", () => {
     expect(sessionProgress(deck, votes, []).allDone).toBe(false);
   });
 });
+
+describe("squad shortlist uses members' onboarding cuisines", () => {
+  it("a squad of new members who picked a cuisine gets it ranked first", () => {
+    const fans = createSessionDeck([m("a", { tastes: ["korean"] }), m("b", { tastes: ["korean"] })], PLACES);
+    const plain = createSessionDeck([m("a"), m("b")], PLACES);
+    const rank = (d: typeof fans) => [...d.items, ...d.backups].sort((x, y) => y.groupScore - x.groupScore).findIndex((c) => c.place.cuisines?.includes("korean"));
+    expect(rank(fans)).toBe(0);
+    expect(rank(fans)).toBeLessThan(rank(plain) === -1 ? Infinity : rank(plain));
+  });
+});

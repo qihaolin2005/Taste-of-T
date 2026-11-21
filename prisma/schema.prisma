@@ -24,10 +24,10 @@ datasource db {
 model User {
   id           String    @id @default(cuid())
   email        String?   @unique // lowercased; null = guest
-  passwordHash String?   // scrypt, see src/lib/password.ts
+  passwordHash String? // scrypt, see src/lib/password.ts
   googleSub    String?   @unique // Google account id ("sub" claim) for Sign in with Google
   displayName  String    @default("T Explorer")
-  avatar       String?   // emoji or short string
+  avatar       String? // emoji or short string
   /// Points balance (shown as "points" in the app). Only changed by awardPoints() in
   /// src/features/gamification/points.ts, together with a PointsEvent row.
   xp           Int       @default(0)
@@ -36,22 +36,23 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  preferences  UserPreferences?
-  location     UserLocation?
-  checkIns     CheckIn[]
-  stamps       Stamp[]
-  achievements Achievement[]
-  ratings      Rating[]
-  wishlist     WishlistItem[]
-  hostedRooms  Room[]         @relation("RoomHost")
-  memberships  RoomMember[]
-  plans        Plan[]
-  swipes       Swipe[]
-  rewardVisits RewardVisit[]
+  preferences          UserPreferences?
+  location             UserLocation?
+  checkIns             CheckIn[]
+  stamps               Stamp[]
+  achievements         Achievement[]
+  ratings              Rating[]
+  wishlist             WishlistItem[]
+  hostedRooms          Room[]                @relation("RoomHost")
+  memberships          RoomMember[]
+  plans                Plan[]
+  swipes               Swipe[]
+  rewardVisits         RewardVisit[]
   recommendationsShown RecommendationShown[]
-  quests       Quest[]
-  pointsEvents PointsEvent[]
-  rides        Ride[]
+  quests               Quest[]
+  pointsEvents         PointsEvent[]
+  rides                Ride[]
+  trips                Trip[]
 }
 
 /// Defaults that prefill the Spin form and room join form.
@@ -61,7 +62,7 @@ model UserPreferences {
   tastes              Json     @default("[]") // string[]: matched against place tags
   avoid               Json     @default("[]") // string[]: hard exclusions, e.g. "seafood"
   dietary             Json     @default("[]") // string[]: e.g. "vegetarian", "halal"
-  defaultBudget       Int?     // USD per person per night
+  defaultBudget       Int? // USD per person per night
   maxWalkMinutes      Int?
   homeStationId       String?
   usualStartStationId String?
@@ -95,7 +96,7 @@ model CheckIn {
   lat       Float?
   lng       Float?
   accuracyM Float?
-  method    String   // "gps" | "demo"
+  method    String // "gps" | "demo"
   verified  Boolean  @default(false) // GPS fix was within the check-in radius
   xpAwarded Int      @default(0)
   createdAt DateTime @default(now())
@@ -115,7 +116,7 @@ model Stamp {
 model Achievement {
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  code       String   // e.g. "last-train", "night-owl", "new-line"
+  code       String // e.g. "last-train", "night-owl", "new-line"
   unlockedAt DateTime @default(now())
 
   @@id([userId, code])
@@ -128,9 +129,9 @@ model Room {
   name       String
   hostUserId String?
   host       User?        @relation("RoomHost", fields: [hostUserId], references: [id], onDelete: SetNull)
-  date       String       // YYYY-MM-DD
-  startTime  Int          // Minutes
-  slots      Json         // StopCategory[]
+  date       String // YYYY-MM-DD
+  startTime  Int // Minutes
+  slots      Json // StopCategory[]
   /// "collecting" (members joining) -> "swiping" (host started the adventure) -> "planned" (top 5 picked)
   status     String       @default("collecting")
   /// After this the room is gone and its code can be reused. Always set by createRoom().
@@ -144,6 +145,7 @@ model Room {
   members    RoomMember[]
   plans      Plan[]
   swipes     Swipe[]
+  trips      Trip[]
 }
 
 /// A room member's inputs for one night (copied from preferences at join time, then editable).
@@ -160,9 +162,9 @@ model RoomMember {
   tastes         Json     @default("[]")
   avoid          Json     @default("[]")
   dietary        Json     @default("[]") // string[]: e.g. "vegetarian"; hard constraint
-  leaveBy        Int?     // Minutes
+  leaveBy        Int? // Minutes
   maxWalkMinutes Int?
-  city           String?  // copied from preferences at join time
+  city           String? // copied from preferences at join time
   joinedAt       DateTime @default(now())
   swipes         Swipe[]
 
@@ -177,8 +179,8 @@ model Plan {
   room      Room?    @relation(fields: [roomId], references: [id], onDelete: Cascade)
   userId    String?
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  request   Json     // PlanRequest
-  result    Json     // Plan (or Quest for solo)
+  request   Json // PlanRequest
+  result    Json // Plan (or Quest for solo)
   createdAt DateTime @default(now())
 
   @@index([roomId, createdAt])
@@ -198,9 +200,9 @@ model Swipe {
   memberId  String?
   /// SetNull, not Cascade: if a member leaves the room, their swipes stay in their taste history.
   member    RoomMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
-  placeId   String      // places-client id (not a FK, like Rating.placeId)
+  placeId   String // places-client id (not a FK, like Rating.placeId)
   liked     Boolean
-  source    String      // "solo" | "group"
+  source    String // "solo" | "group"
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
@@ -214,9 +216,9 @@ model Swipe {
 /// One rewarded restaurant visit (a verified receipt at a place we recommended). Points are
 /// added to User.xp. Rules and numbers: src/features/rewards/config.ts.
 model RewardVisit {
-  id              String   @id @default(cuid())
+  id              String        @id @default(cuid())
   userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   placeId         String
   /// For the points history ("Lantern Dumpling House"); null if the place couldn't be looked up.
   placeName       String?
@@ -233,15 +235,15 @@ model RewardVisit {
   /// "bus" | "t" | "none": only a ride verified against live MBTA data counts (see Ride).
   travelMode      String
   /// The verified ride that earned the travel points. Unique: one ride pays out for one visit.
-  rideId          String?  @unique
-  ride            Ride?    @relation(fields: [rideId], references: [id], onDelete: SetNull)
+  rideId          String?       @unique
+  ride            Ride?         @relation(fields: [rideId], references: [id], onDelete: SetNull)
   /// Points before the group multiplier, and what has actually been added to User.xp so far
   /// (it grows when more squad-mates check in at the same place).
   basePoints      Int
-  groupMultiplier Float    @default(1)
+  groupMultiplier Float         @default(1)
   pointsAwarded   Int
   breakdown       Json
-  createdAt       DateTime @default(now())
+  createdAt       DateTime      @default(now())
   /// The points history rows for this visit: the visit itself, then any group-bonus top-ups.
   pointsEvents    PointsEvent[]
 
@@ -268,7 +270,7 @@ model Rating {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   placeId   String
-  score     Float    // 0-10
+  score     Float // 0-10
   note      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -295,6 +297,11 @@ model Quest {
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   title       String
   stationId   String?
+  /// Spin the T: the place this quest sends you to (null for other quests).
+  placeId     String?
+  placeName   String?
+  placeLat    Float?
+  placeLng    Float?
   /// Points awarded on completion. TODO(ML): set by the points model; today a fixed default.
   points      Int
   status      String       @default("active") // "active" | "completed" | "abandoned"
@@ -308,17 +315,17 @@ model Quest {
 /// Append-only log of every points change. User.xp is the running total of these.
 /// One event per quest at most (questId is unique), so a quest can never pay out twice.
 model PointsEvent {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount    Int
-  reason    String   // "quest_completed" | "restaurant_visit" | "group_bonus" (more later: check-ins, achievements...)
-  questId   String?  @unique
-  quest     Quest?   @relation(fields: [questId], references: [id], onDelete: SetNull)
+  id            String       @id @default(cuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount        Int
+  reason        String // "quest_completed" | "restaurant_visit" | "group_bonus" (more later: check-ins, achievements...)
+  questId       String?      @unique
+  quest         Quest?       @relation(fields: [questId], references: [id], onDelete: SetNull)
   /// For "restaurant_visit" and "group_bonus": the visit (src/features/rewards). Several rows per visit.
   rewardVisitId String?
   rewardVisit   RewardVisit? @relation(fields: [rewardVisitId], references: [id], onDelete: SetNull)
-  createdAt DateTime @default(now())
+  createdAt     DateTime     @default(now())
 
   @@index([userId, createdAt])
   @@index([rewardVisitId])
@@ -342,6 +349,9 @@ model Ride {
   routeId      String?
   routeName    String?
   vehicleId    String?
+  /// Vehicles near your pings and how often each matched ({ [vehicleId]: {...} }). The one you're
+  /// really on keeps matching; it becomes vehicleId. See src/features/rides/service.ts.
+  candidates   Json?
   matchedPings Int          @default(0)
   firstMatchAt DateTime?
   lastMatchAt  DateTime?
@@ -357,4 +367,36 @@ model Ride {
   rewardVisit  RewardVisit?
 
   @@index([userId, createdAt])
+}
+
+/// A recorded trip (Strava-style): the path someone took to a restaurant, solo or with a group.
+/// Recorded only after the user taps "Start trip". See src/features/trips.
+model Trip {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Group trip: room members can see it while the room exists. Null = only you can see it.
+  roomId      String?
+  room        Room?     @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  /// "recording" | "finished"
+  status      String    @default("recording")
+  /// Destination (optional for solo trips). Arriving within ~60 m finishes the trip.
+  placeId     String?
+  placeName   String?
+  placeLat    Float?
+  placeLng    Float?
+  /// [lat, lng, secondsSinceStart][] (cleaned: no jitter, glitches, or low-accuracy fixes).
+  points      Json      @default("[]")
+  distanceM   Float     @default(0)
+  startedAt   DateTime  @default(now())
+  lastPointAt DateTime?
+  endedAt     DateTime?
+  /// true when it finished because you reached the destination.
+  arrived     Boolean   @default(false)
+  /// Spin the T quest this trip is for: arriving completes it (and pays its points).
+  questId     String?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId, startedAt])
+  @@index([roomId])
 }

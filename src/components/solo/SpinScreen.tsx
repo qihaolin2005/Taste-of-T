@@ -1,0 +1,188 @@
+// Owner: P3 - Group Mode & App Shell (see TEAM.md)
+// Spin the T: how far, budget, craving -> Spin (uses where you are right now) -> a quest from
+// the ML recommender -> "Let's Go" records the trip, and arriving completes the quest.
+"use client";
+
+import { useEffect, useState } from "react";
+import { Button, DiceIcon, ListRow, ListSection, SegmentedControl, SelectRow } from "@/components/shared/ios";
+import TripRecorderCard from "@/components/trips/TripRecorderCard";
+import type { SpinRequest, SpinResult } from "@/features/spin/generateQuest";
+import { fetchMyTrips } from "@/features/trips/client";
+import type { TripView } from "@/features/trips/service";
+import QuestCard from "./QuestCard";
+
+// Same lists as src/features/spin/generateQuest.ts (kept here so the server module isn't bundled).
+const DISTANCES = ["0.5", "1", "2", "5"] as const;
+const BUDGETS = [
+  { value: "1", label: "$" },
+  { value: "2", label: "$$" },
+  { value: "3", label: "$$$" },
+  { value: "any", label: "Any" },
+] as const;
+const CUISINES = [
+  "pizza", "ramen", "sushi", "dumplings", "noodles", "thai", "chinese", "korean", "japanese", "vietnamese",
+  "indian", "mexican", "tacos", "italian", "mediterranean", "burgers", "bbq", "seafood", "boba", "ice-cream", "bakery",
+] as const;
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).replace(/-/g, " ");
+const CRAVINGS = [
+  { value: "anything", label: "Anything" },
+  { value: "dinner", label: "Dinner" },
+  { value: "dessert", label: "Dessert" },
+  ...CUISINES.map((c) => ({ value: c, label: cap(c) })),
+] as { value: SpinRequest["craving"]; label: string }[];
+
+const SAVED = "tot-spin"; // last spin, so leaving the page mid-trip doesn't lose the quest
+
+type Where = { lat: number; lng: number } | null;
+
+function hereNow(): Promise<Where> {
+  return new Promise((resolve) => {
+    if (!("geolocation" in navigator)) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 },
+    );
+  });
+}
+
+export default function SpinScreen() {
+  const [distance, setDistance] = useState<(typeof DISTANCES)[number]>("1");
+  const [budget, setBudget] = useState<(typeof BUDGETS)[number]["value"]>("2");
+  const [craving, setCraving] = useState<SpinRequest["craving"]>("anything");
+  const [spinning, setSpinning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [usedGps, setUsedGps] = useState<boolean | null>(null);
+  const [result, setResult] = useState<SpinResult | null>(null);
+  const [seen, setSeen] = useState<string[]>([]);
+  const [trip, setTrip] = useState<TripView | null>(null);
+  const [awarded, setAwarded] = useState<number | null>(null);
+
+  // Back on the page: restore the last quest and any trip still recording for it.
+  useEffect(() => {
+    let saved: SpinResult | null = null;
+    try {
+      const raw = sessionStorage.getItem(SAVED);
+      saved = raw ? (JSON.parse(raw) as SpinResult) : null;
+    } catch {
+      // storage blocked: start fresh
+    }
+    fetchMyTrips()
+      .then((trips) => {
+        const open = trips.find((t) => t.status === "recording" && t.questId);
+        if (saved && open && open.questId === saved.quest.id) {
+          setResult(saved);
+          setTrip(open);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  async function spin(again: boolean) {
+    setSpinning(true);
+    setError(null);
+    setAwarded(null);
+    const exclude = again && result ? [...seen, result.place.placeId] : seen;
+    const [origin] = await Promise.all([hereNow(), new Promise((r) => setTimeout(r, 700))]); // a moment of suspense
+    setUsedGps(origin !== null);
+    try {
+      const body: SpinRequest = {
+        radiusMiles: Number(distance),
+        craving,
+        exclude: exclude.slice(-50),
+        ...(budget !== "any" ? { budget: Number(budget) } : {}),
+        ...(origin ? { origin } : {}),
+      };
+      const res = await fetch("/api/spin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error?.message ?? "Spin failed");
+      const r = data as SpinResult;
+      setResult(r);
+      setSeen(exclude);
+      setTrip(null);
+      try {
+        sessionStorage.setItem(SAVED, JSON.stringify(r));
+      } catch {
+        // fine without it
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSpinning(false);
+    }
+  }
+
+  function onTrip(t: TripView) {
+    setTrip(t);
+    if (t.questAwarded) setAwarded(t.questAwarded);
+  }
+
+  const onTheWay = trip?.status === "recording";
+  // Arrived: the quest is done, so there's nothing left to start (Spin Again for a new one).
+  const questDone = awarded != null || (trip?.status === "finished" && trip.arrived);
+
+  return (
+    <>
+      {!onTheWay && (
+        <>
+          <ListSection header="How Far?" footer="From where you are right now. Your location is only used for this spin, never saved.">
+            <div className="p-3">
+              <SegmentedControl options={DISTANCES.map((d) => ({ value: d, label: `${d} mi` }))} value={distance} onChange={setDistance} />
+            </div>
+          </ListSection>
+
+          <ListSection header="Budget (per person)">
+            <div className="p-3">
+              <SegmentedControl options={BUDGETS.map((b) => ({ value: b.value, label: b.label }))} value={budget} onChange={setBudget} />
+            </div>
+          </ListSection>
+
+          <ListSection header="Craving">
+            <SelectRow label="I want" value={craving} options={CRAVINGS} onChange={setCraving} />
+          </ListSection>
+
+          <div className="mt-6">
+            <Button onClick={() => spin(!!result)} disabled={spinning}>
+              <span className={spinning ? "inline-block animate-spin" : "inline-block"}>
+                <DiceIcon size={20} />
+              </span>
+              {spinning ? "Spinning…" : result ? "Spin Again" : "Spin"}
+            </Button>
+          </div>
+          {error && <p className="mt-3 px-4 text-center text-[15px] text-[#ff3b30]">{error}</p>}
+          {usedGps === false && !error && (
+            <p className="mt-3 px-4 text-center text-[13px] text-label-2">Location is off, so this used your saved spot. Allow location for spots near you right now.</p>
+          )}
+          {!result && !error && (
+            <p className="mt-3 px-4 text-center text-[13px] text-label-2">We&apos;ll pick a spot the model thinks you&apos;ll love, then you go get it.</p>
+          )}
+        </>
+      )}
+
+      {questDone && (
+        <ListSection>
+          <ListRow
+            title={awarded ? `Quest complete! +${awarded} points` : "You made it!"}
+            subtitle="Enjoy your meal. Snap the receipt for reward points."
+          />
+        </ListSection>
+      )}
+
+      {result && (
+        <>
+          <QuestCard spin={result} />
+          {result.place.lat != null && !questDone && (
+            <TripRecorderCard
+              placeId={result.place.placeId}
+              questId={result.quest.id}
+              startLabel="Let's Go"
+              startFooter="Records your way there. Take the bus or T for travel points. Arriving completes the quest."
+              current={trip}
+              onChange={onTrip}
+            />
+          )}
+        </>
+      )}
+    </>
+  );
+}

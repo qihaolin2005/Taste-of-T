@@ -4,7 +4,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button, GroupIcon, ListRow, ListSection, Screen } from "@/components/shared/ios";
+import { Button, GroupIcon, ListRow, ListSection, MapIcon, Screen } from "@/components/shared/ios";
 import type { StationOption } from "@/components/shared/StationPicker";
 import { joinRoom, leaveRoom } from "@/features/rooms/client";
 import type { RoomView } from "@/features/rooms/roomStore";
@@ -124,6 +124,9 @@ export default function RoomScreen({ code, stations }: { code: string; stations:
             {/* TODO(P1): enable once generatePlan() lands; the plan page is still a placeholder. */}
             <Button href={`/room/${room.code}/plan`}>Plan the Night</Button>
           </div>
+          <ListSection footer="Record your way there and see everyone's paths on one map.">
+            <ListRow icon={<MapIcon size={16} />} iconBg="#ff375f" title="Trip Map" subtitle="Everyone's path to the restaurant" href={`/room/${room.code}/trips`} />
+          </ListSection>
           <ListSection>
             <ListRow title={leaving ? "Leaving…" : "Leave Group"} destructive onClick={leaving ? undefined : leave} />
           </ListSection>
