@@ -1,12 +1,13 @@
 // Owner: P3 - Group Mode & App Shell (see TEAM.md)
 // Sign in / create account / continue with Google / continue as guest.
-// Lavender login styling (from the Figma Make design) is local to this file;
-// src/app/login/page.tsx provides the fonts and page background.
+// Figma-styled building blocks live in ./authUi (shared with onboarding);
+// src/app/login/page.tsx provides the page background.
 "use client";
 
-import { useState, type FormEvent, type InputHTMLAttributes, type ReactNode } from "react";
+import { useState, type FormEvent } from "react";
 import { safeNextPath } from "@/features/auth/gate";
 import { continueAsGuest, logIn, logInWithGoogle, signUp } from "@/lib/identity";
+import { AuthField, Icon, Spinner, serif } from "./authUi";
 import GoogleButton from "./GoogleButton";
 import Wordmark from "./Wordmark";
 
@@ -20,97 +21,6 @@ function go(onboarded: boolean) {
   // Full navigation so the proxy sees the new session cookie.
   const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
   window.location.replace(onboarded ? next : "/onboarding");
-}
-
-const serif = "[font-family:var(--font-dm-serif),Georgia,serif]";
-
-/* ---------- small login-only building blocks ---------- */
-
-const iconPaths = {
-  mail: (
-    <>
-      <rect x="3" y="5" width="18" height="14" rx="2" />
-      <path d="m3 7 9 6 9-6" />
-    </>
-  ),
-  lock: (
-    <>
-      <rect x="5" y="10" width="14" height="11" rx="2" />
-      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-    </>
-  ),
-  user: (
-    <>
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 21a8 8 0 0 1 16 0" />
-    </>
-  ),
-  eye: (
-    <>
-      <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z" />
-      <circle cx="12" cy="12" r="3" />
-    </>
-  ),
-  eyeOff: (
-    <>
-      <path d="M2 12s4-7 10-7c2 0 3.8.7 5.3 1.7M22 12s-4 7-10 7c-2 0-3.8-.7-5.3-1.7" />
-      <path d="m3 3 18 18" />
-    </>
-  ),
-  check: <path d="m5 12 4 4L19 6" />,
-};
-
-function Icon({ name, size = 20 }: { name: keyof typeof iconPaths; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      {iconPaths[name]}
-    </svg>
-  );
-}
-
-function Spinner() {
-  return <span aria-hidden className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-current border-t-transparent opacity-80" />;
-}
-
-function AuthField({
-  icon,
-  label,
-  error,
-  action,
-  id,
-  ...input
-}: { icon: keyof typeof iconPaths; label: string; error?: string; action?: ReactNode; id: string } & InputHTMLAttributes<HTMLInputElement>) {
-  const errorId = `${id}-error`;
-  return (
-    <div>
-      <label
-        htmlFor={id}
-        className={`grid min-h-[56px] grid-cols-[24px_1fr_auto] items-center gap-2.5 rounded-[18px] border bg-white pl-4 pr-1 transition focus-within:ring-4 ${
-          error
-            ? "border-[#A86D93] focus-within:ring-[#A86D93]/15"
-            : "border-[#E2DBE9] focus-within:border-[#7954AC] focus-within:ring-[#7954AC]/15"
-        }`}
-      >
-        <span className="text-[#7954AC]">
-          <Icon name={icon} />
-        </span>
-        <input
-          id={id}
-          aria-label={label}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? errorId : undefined}
-          {...input}
-          className="h-[54px] w-full min-w-0 bg-transparent text-[16px] text-[#30203F] outline-none placeholder:text-[#9A93A3] disabled:opacity-60"
-        />
-        {action ?? <span className="w-3" />}
-      </label>
-      {error && (
-        <p id={errorId} className="mt-1.5 pl-4 text-[13px] text-[#8C456C]">
-          {error}
-        </p>
-      )}
-    </div>
-  );
 }
 
 /* ---------- the form ---------- */

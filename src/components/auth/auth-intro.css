@@ -178,3 +178,48 @@
     animation: none;
   }
 }
+
+/* "You're all set" Boston skyline line art (Figma BostonLineArt). */
+.tot-line-art {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2 / 1;
+  color: #7954ac;
+  overflow: visible;
+}
+.tot-line-art path,
+.tot-line-art rect,
+.tot-line-art circle {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.tot-line-art .building-details,
+.tot-line-art .river-lines {
+  color: #cdbbfa;
+}
+.tot-line-art .building-details path {
+  stroke-width: 1.4;
+}
+.tot-line-art .river-lines path {
+  stroke-width: 1.6;
+}
+.tot-line-art .tree path:first-child {
+  stroke-width: 1.5;
+}
+.tot-line-art .mbta-sign circle {
+  fill: #f8f5ff;
+  stroke: #30203f;
+  stroke-width: 3.5;
+}
+.tot-line-art text {
+  fill: #30203f;
+  stroke: none;
+  font-family: var(--font-dm-sans), sans-serif;
+  font-size: 17px;
+  font-weight: 800;
+}
