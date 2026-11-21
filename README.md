@@ -31,15 +31,22 @@ npm run dev        # http://localhost:3000
 iPhones need **HTTPS** to install the app and to use GPS check-ins, and they can't reach
 a WSL dev server directly. So we open a free temporary tunnel (no account needed).
 
-1. Terminal 1: `npm run dev`
-2. Terminal 2: `npm run phone`. It prints a URL like `https://something-random.trycloudflare.com`.
-3. On the iPhone, open that URL **in Safari** (other browsers can't install apps on iOS).
-4. Tap **Share**, then **Add to Home Screen**, then **Add**.
-5. Launch **Taste of T** from the home screen. It opens full-screen with no Safari bars.
+1. Run **`npm run dev:phone`**. It starts the app, waits until it's ready, opens the tunnel,
+   and prints a link plus a **QR code**.
+2. Scan the QR code with the iPhone camera and open the link **in Safari** (other browsers
+   can't install apps on iOS).
+3. Tap **Share**, then **Add to Home Screen**, then **Add**.
+4. Launch **Taste of T** from the home screen. It opens full-screen with no Safari bars.
+
+Ctrl+C stops the app and the tunnel together. If `npm run dev` is already running,
+`dev:phone` reuses it and only adds the tunnel. (`npm run phone` still exists if you
+only want the tunnel; it does nothing unless the app is also running on port 3000.)
 
 Notes:
-- The tunnel URL changes every time you rerun `npm run phone`, and the app must be re-added
-  from the new URL. For the demo, deploy once (see below) and install from the stable URL.
+- The tunnel URL changes every run, and the app must be re-added from the new URL.
+  For the demo, deploy once (see below) and install from the stable URL.
+- Google Maps on the phone: allow `*.trycloudflare.com/*` on your Maps API key,
+  otherwise the map falls back to the offline version.
 - The tunnel is public while it runs: anyone with the URL can reach your dev server.
   Stop it (Ctrl+C) when you're done.
 - Edits hot-reload on the phone too.
