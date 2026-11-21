@@ -134,6 +134,8 @@ model Room {
   deck       Json?
   startedAt  DateTime?
   finishedAt DateTime?
+  /// After this the room is gone and its code can be reused. Always set by createRoom().
+  expiresAt  DateTime     @default(now())
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
   members    RoomMember[]
