@@ -45,6 +45,8 @@ model User {
   memberships  RoomMember[]
   plans        Plan[]
   swipes       Swipe[]
+  rewardVisits RewardVisit[]
+  recommendationsShown RecommendationShown[]
 }
 
 /// Defaults that prefill the Spin form and room join form.
@@ -200,6 +202,52 @@ model Swipe {
   /// One vote per person per place per session; swiping again (even after leaving and rejoining) updates it.
   @@unique([roomId, userId, placeId])
   @@index([userId, updatedAt])
+}
+
+// ------------------------------------------------------------ rewards
+
+/// One rewarded restaurant visit (a verified receipt at a place we recommended). Points are
+/// added to User.xp. Rules and numbers: src/features/rewards/config.ts.
+model RewardVisit {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  placeId         String
+  /// Set when the place came from this squad's top 5; squad-mates eating there raise the group bonus.
+  roomId          String?
+  /// "YYYY-MM-DD" in Boston: limits are per day.
+  day             String
+  /// Receipt facts only; the photo is never stored.
+  receiptTotal    Float
+  dinersOnReceipt Int
+  receiptDate     String
+  /// Same receipt can be claimed by at most `dinersOnReceipt` different people.
+  receiptKey      String
+  /// "bus" | "t" | "none": only a verified ride counts.
+  travelMode      String
+  /// Points before the group multiplier, and what has actually been added to User.xp so far
+  /// (it grows when more squad-mates check in at the same place).
+  basePoints      Int
+  groupMultiplier Float    @default(1)
+  pointsAwarded   Int
+  breakdown       Json
+  createdAt       DateTime @default(now())
+
+  @@unique([receiptKey, userId])
+  @@index([userId, createdAt])
+  @@index([userId, placeId])
+  @@index([roomId, placeId, day])
+}
+
+/// Places shown to a user in their "for you" list (latest time only). A visit only earns points
+/// if the place was recommended recently: shown here, or in one of their squads' top 5.
+model RecommendationShown {
+  userId  String
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  placeId String
+  shownAt DateTime @default(now())
+
+  @@id([userId, placeId])
 }
 
 // ---------------------------------------------------- ratings & wishlist
