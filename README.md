@@ -201,6 +201,23 @@ above-ground parts (Green Line surface, Red Line to Braintree/Ashmont, Orange Li
 and commuter rail work best. Raw pings aren't stored, only each ride's first and last matched
 points (rounded to ~11 m).
 
+## Trips (everyone's path to the restaurant, like Strava)
+
+Tap **Start Trip** (in a group: Group > Trip Map, or solo: Profile > My trips). The phone asks
+for location only then, records your path until you reach the restaurant (within 60 m ends it
+automatically) or tap **I'm Here**, and the group's **Trip Map** shows everyone's path on one
+map: thick lines for bus/T, thin for walking, plus distance, time and which bus/T line they took.
+
+- While you're moving at vehicle speed, the recorder also sends ride pings, so bus/T legs get
+  verified for travel points along the way (see above). The screen stays on while recording,
+  because iPhone web apps can't track location in the background.
+- **Privacy:** solo trips are only visible to you. Group trips are visible to group members while
+  the group exists (2 days), and disappear for people who leave. Others never see the first
+  200 m of your path (it often starts at home). You can delete any of your trips.
+- Code: `src/features/trips` (path cleaning, walk/transit split, recorder in `client.ts`), API
+  `/api/trips`, `/api/trips/:id(/points|/finish)`, `/api/rooms/:code/trips`, pages `/trips`,
+  `/trips/:id`, `/room/:code/trips`.
+
 ## Points and quests
 
 Every account has a points balance, shown on **Profile** (with a history) and **Home**.
