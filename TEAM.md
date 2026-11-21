@@ -8,7 +8,7 @@ Every stub file starts with an `// Owner:` line.
 |-----|------|------|
 | **P1** | Planner & Quests | `src/features/planner/`, `src/features/spin/`, `src/types/index.ts`, `src/lib/time.ts`, `api/plan`, `api/spin` |
 | **P2** | Data & Integrations | `src/lib/mbta/`, `src/lib/places/`, `src/lib/geo.ts`, `src/lib/db.ts`, `prisma/`, `data/`, `scripts/`, `api/restaurants`, `api/stations` |
-| **P3** | Group Mode & App Shell | `src/app/page.tsx`, `spin/`, `room/**` pages, `src/features/rooms/`, `api/rooms/**`, `src/components/group/`, `solo/`, `shared/` |
+| **P3** | Group Mode & App Shell | `src/app/page.tsx`, `spin/`, `room/**` pages, `demo/`, `src/features/rooms/`, `api/rooms/**`, `src/components/group/`, `solo/`, `shared/` (incl. the iOS kit), `demo/` |
 | **P4** | Game Layer & Map | `src/app/map/`, `src/app/profile/`, `src/features/gamification/`, `src/features/ratings/`, `src/lib/identity.ts`, `api/checkin`, `api/ratings`, `api/wishlist`, `src/components/game/`, `public/stamps/` |
 
 ## Rules that keep us unblocked
@@ -17,7 +17,11 @@ Every stub file starts with an `// Owner:` line.
 2. **The planner does not know the mode.** `generatePlan()` takes a list of members. Solo passes one member, group passes all. No `mode` flag, no imports from `rooms/` or `spin/` inside `planner/`.
 3. **Import features only through their `index.ts`** (e.g. `@/features/planner`), never deep files from another owner's folder.
 4. **Offline first.** Everything must work with empty `.env` using `data/*.json`. Live MBTA/Places calls must fall back automatically.
-5. **Mock what you depend on.** P3 and P4 can build UI against a hardcoded `Plan`/`Quest` object until P1's planner lands.
+5. **Every screen uses the iOS kit** in `@/components/shared/ios`: wrap pages in
+   `<Screen title=... tab=...>`, use `ListSection`/`ListRow` for forms and lists and `Button`
+   for actions, and use the color tokens (`bg-cell`, `text-label-2`, `text-tint`, …) instead of raw
+   colors so light/dark mode and the iPhone look stay consistent.
+6. **Mock what you depend on.** P3 and P4 can build UI against a hardcoded `Plan`/`Quest` object until P1's planner lands.
 
 ## Dependency order (who waits on whom)
 

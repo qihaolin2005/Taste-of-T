@@ -44,6 +44,16 @@ Notes:
   Stop it (Ctrl+C) when you're done.
 - Edits hot-reload on the phone too.
 
+## Demo on the projector
+
+Open **`/demo`** on the presenting laptop (e.g. `http://localhost:3000/demo`). It shows the live
+app inside an iPhone frame. It's fully clickable, and the buttons on the left jump to each screen.
+If you open `/demo` through the `npm run phone` link, the panel also shows that link so judges can
+try it on their own phones.
+
+The UI is styled after native iOS / SwiftUI (large titles, inset-grouped lists, blurred tab bar,
+system colors, light and dark mode). Build new screens with `@/components/shared/ios`.
+
 ## Other scripts
 
 | Script | What it does |

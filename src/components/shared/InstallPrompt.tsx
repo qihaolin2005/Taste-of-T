@@ -40,13 +40,14 @@ export default function InstallPrompt() {
   }
 
   return (
-    <div className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-50 rounded-2xl bg-card p-4 text-sm shadow-lg ring-1 ring-white/10">
+    // Sits just above the tab bar.
+    <div className="fixed inset-x-3 bottom-[calc(var(--safe-bottom)+49px+12px)] z-50 rounded-[14px] bg-cell p-4 text-[15px] shadow-xl ring-[0.5px] ring-separator">
       <p className="font-semibold">Install Taste of T</p>
-      <p className="mt-1 text-muted">
+      <p className="mt-1 text-label-2">
         Tap the Share button <span aria-hidden>⬆︎</span> in Safari, then{" "}
-        <span className="font-medium text-foreground">Add to Home Screen</span>.
+        <span className="font-medium text-label">Add to Home Screen</span>.
       </p>
-      <button onClick={dismiss} className="mt-3 rounded-lg bg-white/10 px-3 py-2 font-medium">
+      <button onClick={dismiss} className="mt-3 rounded-[10px] bg-tint/15 px-4 py-2 font-semibold text-tint active:opacity-60">
         Got it
       </button>
     </div>

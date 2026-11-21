@@ -1,29 +1,75 @@
 @import "tailwindcss";
 
-/* Night-first palette: people use this on the T after dark. */
+/* ------------------------------------------------------------------
+   iOS-style design tokens (SwiftUI semantic colors).
+   Use the Tailwind names: bg-grouped, bg-cell, bg-cell-2, text-label,
+   text-label-2, text-label-3, border-separator, text-tint / bg-tint.
+   Light mode is default; dark follows the phone's system setting.
+   ------------------------------------------------------------------ */
 :root {
-  --background: #0b0f1a;
-  --foreground: #f1f3f8;
-  --muted: #8a93a8;
-  --card: #151b2b;
-  --accent: #ff8a3d;
+  --grouped: #f2f2f7;          /* systemGroupedBackground */
+  --cell: #ffffff;             /* secondarySystemGroupedBackground */
+  --cell-2: #e5e5ea;           /* tertiary / pressed */
+  --label: #000000;
+  --label-2: rgb(60 60 67 / 0.6);
+  --label-3: rgb(60 60 67 / 0.3);
+  --separator: rgb(60 60 67 / 0.29);
+  --bar: rgb(249 249 249 / 0.82); /* translucent nav/tab bar */
+  --tint: #ff9500;             /* systemOrange: app accent */
+  --tint-fg: #ffffff;
+
   --line-red: #da291c;
   --line-orange: #ed8b00;
   --line-blue: #003da5;
   --line-green: #00843d;
+
+  /* Safe areas. Inside the /demo iPhone frame (an iframe) env() is 0,
+     so html.in-frame supplies iPhone values instead. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --grouped: #000000;
+    --cell: #1c1c1e;
+    --cell-2: #2c2c2e;
+    --label: #ffffff;
+    --label-2: rgb(235 235 245 / 0.6);
+    --label-3: rgb(235 235 245 / 0.3);
+    --separator: rgb(84 84 88 / 0.65);
+    --bar: rgb(22 22 23 / 0.8);
+    --tint: #ff9f0a;
+    --tint-fg: #000000;
+  }
+}
+
+html.in-frame {
+  --safe-top: 54px;    /* status bar + Dynamic Island */
+  --safe-bottom: 34px; /* home indicator */
+  scrollbar-width: none;
+}
+html.in-frame ::-webkit-scrollbar {
+  display: none;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
-  --color-card: var(--card);
-  --color-accent: var(--accent);
+  --color-grouped: var(--grouped);
+  --color-cell: var(--cell);
+  --color-cell-2: var(--cell-2);
+  --color-label: var(--label);
+  --color-label-2: var(--label-2);
+  --color-label-3: var(--label-3);
+  --color-separator: var(--separator);
+  --color-bar: var(--bar);
+  --color-tint: var(--tint);
+  --color-tint-fg: var(--tint-fg);
   --color-line-red: var(--line-red);
   --color-line-orange: var(--line-orange);
   --color-line-blue: var(--line-blue);
   --color-line-green: var(--line-green);
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  /* SF Pro on Apple devices; Inter (closest open font) everywhere else, e.g. the demo laptop. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-inter), system-ui, sans-serif;
 }
 
 html {
@@ -31,21 +77,14 @@ html {
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
+  color-scheme: light dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--grouped);
+  color: var(--label);
   font-family: var(--font-sans);
-}
-
-/* Keep content clear of the notch / Dynamic Island and home indicator
-   (needed because of viewport-fit=cover + black-translucent status bar). */
-.app-safe-area {
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
+  letter-spacing: -0.01em;
 }
 
 /* iOS zooms in on inputs under 16px; keep form text at 16px. */
@@ -53,4 +92,10 @@ input,
 select,
 textarea {
   font-size: 16px;
+}
+
+/* Inset-grouped list rows: hairline separator under every row except the
+   last, inset from the leading edge like UITableView / SwiftUI List. */
+.ios-row:not(:last-child) > .ios-row-body {
+  box-shadow: inset 0 -0.5px 0 var(--separator);
 }
