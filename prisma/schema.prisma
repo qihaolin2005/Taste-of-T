@@ -38,6 +38,7 @@ model User {
   hostedRooms  Room[]         @relation("RoomHost")
   memberships  RoomMember[]
   plans        Plan[]
+  swipes       Swipe[]
 }
 
 /// Defaults that prefill the Spin form and room join form.
@@ -51,6 +52,8 @@ model UserPreferences {
   maxWalkMinutes      Int?
   homeStationId       String?
   usualStartStationId String?
+  /// City the user lives in (e.g. "Boston"); the group recommender draws candidates from it.
+  city                String?
   /// Opt-in: only when true do we store the user's last known location.
   shareLocation       Boolean  @default(false)
   updatedAt           DateTime @updatedAt
@@ -115,11 +118,17 @@ model Room {
   date       String       // YYYY-MM-DD
   startTime  Int          // Minutes
   slots      Json         // StopCategory[]
-  status     String       @default("collecting") // "collecting" | "planned"
+  /// "collecting" (members joining) -> "swiping" (host started the adventure) -> "planned" (top 5 picked)
+  status     String       @default("collecting")
+  /// Squad session: the shortlist everyone swipes on (SessionDeck from src/features/ml/session.ts).
+  deck       Json?
+  startedAt  DateTime?
+  finishedAt DateTime?
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
   members    RoomMember[]
   plans      Plan[]
+  swipes     Swipe[]
 }
 
 /// A room member's inputs for one night (copied from preferences at join time, then editable).
@@ -138,7 +147,9 @@ model RoomMember {
   dietary        Json     @default("[]") // string[]: e.g. "vegetarian"; hard constraint
   leaveBy        Int?     // Minutes
   maxWalkMinutes Int?
+  city           String?  // copied from preferences at join time
   joinedAt       DateTime @default(now())
+  swipes         Swipe[]
 
   @@unique([roomId, userId])
   @@index([roomId])
@@ -156,6 +167,30 @@ model Plan {
   createdAt DateTime @default(now())
 
   @@index([roomId, createdAt])
+}
+
+// ------------------------------------------------------------- swipes
+
+/// One right (like) / left (dislike) swipe on a place. Solo swipes have no room; squad
+/// swipes have roomId + memberId. Every swipe is also the user's taste history, so group
+/// sessions improve individual recommendations (and later collaborative filtering).
+model Swipe {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roomId    String?
+  room      Room?       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  memberId  String?
+  member    RoomMember? @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  placeId   String      // places-client id (not a FK, like Rating.placeId)
+  liked     Boolean
+  source    String      // "solo" | "group"
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  /// One vote per member per place per session; swiping again updates it.
+  @@unique([roomId, memberId, placeId])
+  @@index([userId, updatedAt])
 }
 
 // ---------------------------------------------------- ratings & wishlist

@@ -1,12 +1,18 @@
 # Proposal for P2: data the recommenders need
 
-**From:** P1 / ML. **Status:** proposal, nothing in `prisma/` or `data/` has been changed.
+**From:** P1 / ML. **Status:** sections 1, 2 and 4 are now **implemented** in `prisma/schema.prisma`
+(`Swipe`, `Room.deck/startedAt/finishedAt` + `"swiping"` status, `UserPreferences.city`,
+`RoomMember.city`), as part of the squad session work (`src/features/squads`). Section 3
+(restaurant fields in `data/seed-restaurants.json`) is still open.
 
 The individual and group recommenders (`src/features/ml/recommend/`) already work
 with what exists today, but several inputs are missing. Until they land, the recommenders
 treat each missing field as "unknown" (listed below for each field), so nothing breaks.
 
-## 1. `Swipe` (new table)
+## 1. `Swipe` (new table): implemented
+
+The implemented version requires `userId` (every member has at least a guest user) and adds
+`updatedAt`. See `prisma/schema.prisma`.
 
 There's no swipe data anywhere yet. Today preference is derived from ratings, wishlist and
 check-ins. Swipes are the main signal for both recommenders and should be stored as they happen.
@@ -55,7 +61,7 @@ model Room {
 }
 ```
 
-## 2. User city
+## 2. User city: implemented
 
 `buildGroupDeck` filters candidates by the members' city. Neither users nor room members
 have a city today. Proposal:
