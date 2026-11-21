@@ -62,6 +62,9 @@ export const RECOMMENDER_CONFIG = {
     minWeight: 0.4,
     /** A member score below this vetoes the place ("someone would hate it"). Scores are 0-1. */
     hateThreshold: 0.3,
+    /** ...or a confident member's taste similarity (0-1, 0.5 = neutral) is below this. 0.25 = cosine < -0.5. */
+    hateSimilarity: 0.25,
+    hateMinConfidence: 0.3,
     /** If the veto leaves fewer than this many places, drop the veto (and say so). */
     minAfterVeto: 5,
     deckSize: 18,

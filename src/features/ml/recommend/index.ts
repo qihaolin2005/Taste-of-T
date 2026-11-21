@@ -6,3 +6,4 @@ export * from "./config";
 export * from "./interactions";
 export * from "./vectors";
 export * from "./individual";
+export * from "./group";
