@@ -3,9 +3,16 @@
 // { error: { code, message, issues? } }
 import type { z } from "zod";
 
-export type ApiErrorCode = "bad_request" | "unauthorized" | "forbidden" | "not_found";
+export type ApiErrorCode = "bad_request" | "unauthorized" | "forbidden" | "not_found" | "conflict" | "too_many_requests";
 
-const STATUS: Record<ApiErrorCode, number> = { bad_request: 400, unauthorized: 401, forbidden: 403, not_found: 404 };
+const STATUS: Record<ApiErrorCode, number> = {
+  bad_request: 400,
+  unauthorized: 401,
+  forbidden: 403,
+  not_found: 404,
+  conflict: 409,
+  too_many_requests: 429,
+};
 
 export function apiError(code: ApiErrorCode, message: string, issues?: unknown): Response {
   return Response.json({ error: { code, message, ...(issues ? { issues } : {}) } }, { status: STATUS[code] });

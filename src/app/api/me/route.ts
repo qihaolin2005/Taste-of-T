@@ -1,6 +1,7 @@
 // Owner: P2 - Data & Integrations (see TEAM.md)
-// Current user's profile.
-//   POST   /api/me  -> get or create the anonymous user, sets the session cookie. Call on app start.
+// Current user's profile. Accounts are created via /api/auth/signup or /api/auth/guest.
+//   POST   /api/me  -> { user } for the signed-in user; refreshes the cookie and re-syncs the
+//                      onboarding flag. 401 if signed out. Safe to call on app start.
 //   GET    /api/me  -> { user, preferences, location }
 //   PATCH  /api/me  -> update { displayName?, avatar? }
 //   DELETE /api/me  -> delete the user and all their data, clear the cookie
@@ -8,12 +9,15 @@ import { apiError, parseBody } from "@/lib/api";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/requireUser";
 import { clearSession, getSessionUserId, setSession } from "@/lib/session";
-import { deleteUser, getLocation, getOrCreateUser, getPreferences, getUser, profileUpdateSchema, updateProfile } from "@/features/users";
+import { deleteUser, getLocation, getPreferences, getUser, profileUpdateSchema, updateProfile } from "@/features/users";
 
 export async function POST() {
-  const { user, created } = await getOrCreateUser(db, await getSessionUserId());
-  await setSession(user.id); // also refreshes the cookie's expiry
-  return Response.json({ user, created }, { status: created ? 201 : 200 });
+  const auth = await requireUser();
+  if ("response" in auth) return auth.response;
+  const user = await getUser(db, auth.userId);
+  if (!user) return apiError("unauthorized", "Signed out");
+  await setSession(user.id, user.onboarded);
+  return Response.json({ user });
 }
 
 export async function GET() {

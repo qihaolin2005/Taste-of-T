@@ -19,14 +19,20 @@ datasource db {
 
 // ---------------------------------------------------------------- users
 
-/// An anonymous player identified by an httpOnly cookie (no login for the MVP).
+/// A player. Signed in via email + password, or a guest (email null) who can sign up later
+/// and keep their progress. The session is a signed httpOnly cookie (see src/lib/session.ts).
 model User {
-  id          String   @id @default(cuid())
-  displayName String   @default("T Explorer")
-  avatar      String?  // emoji or short string
-  xp          Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String    @id @default(cuid())
+  email        String?   @unique // lowercased; null = guest
+  passwordHash String?   // scrypt, see src/lib/password.ts
+  googleSub    String?   @unique // Google account id ("sub" claim) for Sign in with Google
+  displayName  String    @default("T Explorer")
+  avatar       String?   // emoji or short string
+  xp           Int       @default(0)
+  /// Set when first-run onboarding (dietary restrictions) is done.
+  onboardedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   preferences  UserPreferences?
   location     UserLocation?
