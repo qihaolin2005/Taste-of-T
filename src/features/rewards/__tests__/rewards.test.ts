@@ -249,10 +249,10 @@ describe("rewards in the points history (PointsEvent)", () => {
   it("a visit is a 'restaurant_visit' history entry with the place's name, and the total equals the history", async () => {
     const u = await newUser();
     await recommend(u, "p-lantern");
-    await claimVisit(db, u, claim("p-lantern", 24, {}, { mode: "bus", verified: true }), { now: NOW, placeName: "Lantern Dumpling House" });
+    await claimVisit(db, u, claim("p-lantern", 24), { now: NOW, placeName: "Lantern Dumpling House" });
     const p = await getPoints(db, u);
-    expect(p.total).toBe(52);
-    expect(p.events).toEqual([expect.objectContaining({ amount: 52, reason: "restaurant_visit", title: "Lantern Dumpling House", placeName: "Lantern Dumpling House" })]);
+    expect(p.total).toBe(42); // 20 meal + 12 spend + 10 first visit (travel is covered by the ride tests)
+    expect(p.events).toEqual([expect.objectContaining({ amount: 42, reason: "restaurant_visit", title: "Lantern Dumpling House", placeName: "Lantern Dumpling House" })]);
     expect(await ledgerSum(u)).toBe(p.total);
   });
 
