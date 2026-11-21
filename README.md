@@ -61,15 +61,66 @@ try it on their own phones.
 The UI is styled after native iOS / SwiftUI (large titles, inset-grouped lists, blurred tab bar,
 system colors, light and dark mode). Build new screens with `@/components/shared/ios`.
 
-## Backend: users, preferences, location
+## Login and first-run onboarding
 
-There's no login. Each device gets an anonymous user, identified by a signed httpOnly cookie.
-From the browser, use the helpers in `src/lib/identity.ts` (`ensureUser`, `getMe`,
-`savePreferences`, `shareCurrentLocation`, …) instead of calling fetch by hand.
+Opening the app signed out takes you to **`/login`**: sign in, create an account (email +
+password), **Continue with Google**, or **Continue as Guest** (handy for judges). A new account, including a guest,
+is then sent to **`/onboarding`**, which asks for dietary restrictions (vegetarian, vegan,
+halal, kosher, gluten-free, dairy-free, nut allergy) and optional foods to skip. Those
+become hard constraints for planning and the ML model. Sign Out is on the Profile tab.
+
+- Passwords are hashed with scrypt; the hash never leaves the server.
+- Login is rate limited (10 tries per email / 30 per IP per 15 min).
+- `src/proxy.ts` does the redirects (signed out → `/login`, not onboarded → `/onboarding`).
+  It's a UX check on the signed cookie; every API route still verifies the session.
+- `/demo` stays open, and the app inside its iPhone frame shows the login flow.
+- A guest who signs up keeps their progress (the API upgrades the guest in place).
+  TODO(P3): add a "Create account" entry point for guests in Profile.
+
+### Sign in with Google
+
+1. Google Cloud Console → **APIs & Services → OAuth consent screen**: set it up (External,
+   app name "Taste of T"), and add your team's Google accounts as **test users** while the
+   app is in testing mode.
+2. **Credentials → Create credentials → OAuth client ID → Web application.** Under
+   **Authorized JavaScript origins**, add every address you open the app from:
+   `http://localhost:3000`, plus your deployed `https://` domain.
+3. Put the client ID in `.env` as `NEXT_PUBLIC_GOOGLE_CLIENT_ID=...` and restart. (It's not a
+   secret. There's no client secret to store.)
+
+How it works: Google's button returns a signed ID token, and `POST /api/auth/google` checks
+it against Google's keys (issuer, our client ID as audience, expiry, verified email). The first
+Google sign-in creates an account (or upgrades the current guest) and goes through dietary
+onboarding. If an email/password account already uses that email, Google is linked to it and
+the password is removed: Google proved who owns the email, and we never verified it.
+
+**Phone caveat:** Google only allows exact origins, so the random `*.trycloudflare.com` link from
+`npm run dev:phone` can't be authorized (it changes every run). On the phone, use email or guest
+login with the tunnel, or deploy to a fixed domain and add it as an origin. Without a client ID,
+the Google button is simply hidden.
+
+After pulling this change, update your local DB with `npx prisma db push --accept-data-loss`.
+The flag only acknowledges the new unique `email` and `googleSub` columns; existing local users
+have neither, so nothing is lost.
 
 | Endpoint | What it does |
 |---|---|
-| `POST /api/me` | Get or create the user and set the session cookie. Call once on app start. |
+| `POST /api/auth/signup` | `{ email, password, displayName? }` → 201 `{ user }` (409 if the email is taken) |
+| `POST /api/auth/login` | `{ email, password }` → `{ user }` or 401 |
+| `POST /api/auth/google` | `{ credential }` (Google ID token) → `{ user }` or 401 |
+| `POST /api/auth/guest` | Start as a guest → 201 `{ user }` |
+| `POST /api/auth/logout` | Sign out on this device |
+| `POST /api/me/onboarding` | `{ dietary, avoid?, displayName? }` → marks onboarding done |
+
+## Backend: users, preferences, location
+
+Each signed-in device holds a signed httpOnly session cookie. From the browser, use the helpers
+in `src/lib/identity.ts` (`logIn`, `signUp`, `continueAsGuest`, `logOut`, `completeOnboarding`,
+`getMe`, `savePreferences`, `shareCurrentLocation`, …) instead of calling fetch by hand.
+
+| Endpoint | What it does |
+|---|---|
+| `POST /api/me` | Refresh the session for the signed-in user → `{ user }`; 401 if signed out |
 | `GET /api/me` | `{ user, preferences, location }` |
 | `PATCH /api/me` | `{ displayName?, avatar? }` |
 | `DELETE /api/me` | Delete the user and **all** their data, and clear the cookie |

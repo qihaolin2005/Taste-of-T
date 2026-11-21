@@ -116,7 +116,13 @@ export const HeartIcon = ({ size = 18, className }: P) => (
   </svg>
 );
 
-export const ShareIcon = ({ size = 18, className }: P) => (
+export const CheckIcon = ({ size = 18, className }: P) => (
+  <svg {...svg(size, className)}>
+    <path d="m5 12.5 4.5 4.5L19 7.5" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+export const ShareIcon =({ size = 18, className }: P) => (
   <svg {...svg(size, className)}>
     <path d="M12 15V3.5M8 7l4-4 4 4M7 10.5H5.5v10h13v-10H17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
