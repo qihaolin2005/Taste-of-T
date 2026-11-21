@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { DiceIcon, GroupIcon, ListRow, ListSection, MapIcon, MoonIcon, Screen, StarIcon, TrainIcon } from "@/components/shared/ios";
+import { PointsValue } from "@/components/game/PointsCard";
 
 function HeroCard({ href, title, subtitle, gradient, icon }: { href: string; title: string; subtitle: string; gradient: string; icon: ReactNode }) {
   return (
@@ -38,7 +39,7 @@ export default function Page() {
 
       {/* TODO(P4): real stats from gamification once identity + check-ins exist. */}
       <ListSection header="Your Progress">
-        <ListRow icon={<StarIcon size={17} />} iconBg="#ffcc00" title="Level 1" value="0 XP" href="/profile" />
+        <ListRow icon={<StarIcon size={17} />} iconBg="#ffcc00" title="Points" value={<PointsValue />} href="/profile" />
         <ListRow icon={<TrainIcon size={17} />} iconBg="var(--line-red)" title="Stations stamped" value="0" href="/map" />
         <ListRow icon={<MapIcon size={17} />} iconBg="var(--line-green)" title="Lines unlocked" value="0 of 4" href="/map" />
       </ListSection>

@@ -180,6 +180,29 @@ positions, and which stations you've stamped.
   shared 10 s cache, so we stay under the 20 requests/min no-key limit. Set `MBTA_API_KEY`
   (free at api-v3.mbta.com) for 1000/min.
 
+## Points and quests
+
+Every account has a points balance, shown on **Profile** (with a history) and **Home**.
+Completing a quest adds that quest's points to the account.
+
+- A quest's point value is fixed **by the server when the quest is created** (`pointsForQuest`
+  in `src/features/gamification/points.ts`). Today every quest is worth 100. **TODO(ML):** swap
+  in the points model there; nothing else changes. The API never accepts a points value.
+- Points only change through `awardPoints`, which writes a `PointsEvent` log row and updates
+  `User.xp` (the balance) in one transaction, so the total always equals the log.
+- A quest pays out **once**: completing it again (double tap, retry, two phones) awards 0.
+- Completion isn't verified yet (no check-in required), so quest creation is capped at 20 per
+  user per day. TODO(P4): require a check-in at the quest's station before paying out.
+
+| Endpoint | What it does |
+|---|---|
+| `GET /api/me/points` | `{ total, events }` (newest first) |
+| `GET /api/me/quests?status=active` | Your quests |
+| `POST /api/me/quests` | `{ title, stationId? }` → 201 `{ quest }` (points set by the server) |
+| `POST /api/me/quests/:id/complete` | `{ quest, awarded, alreadyCompleted, total }` |
+
+Spin the T (P1) should create its quests with `createQuest()` so they can be completed for points.
+
 ## Restaurants (Google Places)
 
 Real restaurants, dessert spots, and activities come from **Google Places API (New)** when
