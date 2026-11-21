@@ -2,6 +2,7 @@
 // XP, stamps, achievements, ratings, wishlist.
 // TODO(P4): real user data from identity + gamification + ratings.
 import { HeartIcon, ListRow, ListSection, MoonIcon, PersonIcon, Screen, StarIcon, TrainIcon } from "@/components/shared/ios";
+import AccountSection from "@/components/auth/AccountSection";
 
 export default function Page() {
   return (
@@ -29,6 +30,8 @@ export default function Page() {
         <ListRow icon={<StarIcon size={17} />} iconBg="#ff9500" title="My ratings" value="0" href="/profile" />
         <ListRow icon={<HeartIcon size={16} />} iconBg="#ff2d55" title="Wishlist" value="0" href="/profile" />
       </ListSection>
+
+      <AccountSection />
     </Screen>
   );
 }
