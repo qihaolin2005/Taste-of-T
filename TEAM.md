@@ -6,7 +6,7 @@ Every stub file starts with an `// Owner:` line.
 
 | Who | Area | Owns |
 |-----|------|------|
-| **P1** | Planner & Quests | `src/features/planner/`, `src/features/spin/`, `src/features/ml/` (user context, features, model scoring, recommenders), `src/features/squads/` (squad session flow + swipe storage), `src/types/index.ts`, `src/lib/time.ts`, `api/plan`, `api/spin`, `api/me/context`, `api/me/recommendations` |
+| **P1** | Planner & Quests | `src/features/planner/`, `src/features/spin/`, `src/features/ml/` (user context, features, model scoring, recommenders), `src/features/squads/` (squad session flow + swipe storage), `src/features/rewards/` (reward points), `api/rewards/**`, `api/me/rewards`, `src/types/index.ts`, `src/lib/time.ts`, `api/plan`, `api/spin`, `api/me/context`, `api/me/recommendations` |
 | **P2** | Data & Integrations | `src/lib/mbta/`, `src/lib/places/`, `src/lib/geo.ts`, `src/lib/db.ts`, `src/lib/session*.ts`, `src/lib/password.ts`, `src/lib/rateLimit.ts`, `src/lib/api.ts`, `src/proxy.ts`, `src/features/users/`, `src/features/auth/`, `prisma/`, `data/`, `scripts/`, `api/me/**`, `api/auth/**`, `api/restaurants`, `api/stations` |
 | **P3** | Group Mode & App Shell | `src/app/page.tsx`, `spin/`, `room/**`, `login/`, `onboarding/` pages, `demo/`, `src/features/rooms/`, `api/rooms/**`, `src/components/group/`, `solo/`, `shared/` (incl. the iOS kit), `auth/`, `demo/` |
 | **P4** | Game Layer & Map | `src/app/map/`, `src/app/profile/`, `src/features/gamification/`, `src/features/ratings/`, `src/lib/identity.ts`, `api/checkin`, `api/ratings`, `api/wishlist`, `src/components/game/`, `public/stamps/` |

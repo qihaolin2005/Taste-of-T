@@ -101,6 +101,21 @@ export async function getRecommendations(
     swipes,
     categories: req.categories ?? RECOMMENDER_CONFIG.categories.soloDefault,
   });
+
+  // Remember what we showed, so the rewards system can check a visit was to a recommended place.
+  const shownAt = opts.now ?? new Date();
+  if (r.results.length) {
+    await db.$transaction(
+      r.results.map((x) =>
+        db.recommendationShown.upsert({
+          where: { userId_placeId: { userId, placeId: x.place.id } },
+          create: { userId, placeId: x.place.id, shownAt },
+          update: { shownAt },
+        }),
+      ),
+    );
+  }
+
   return {
     model: RECOMMENDER_MODEL_NAME,
     results: r.results.map((x) => ({
