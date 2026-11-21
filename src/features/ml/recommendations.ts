@@ -9,7 +9,7 @@ import { loadUserSwipes } from "./history";
 import { RECOMMENDER_CONFIG } from "./recommend/config";
 import { recommendForUser, type IndividualResult, type RecommendMode } from "./recommend/individual";
 import { restaurantSchema, type RestaurantCandidate } from "./recommend/restaurant";
-import { loadSeedRestaurants } from "./recommend/seedPlaces";
+import { loadRestaurants, type RestaurantSource } from "./recommend/source";
 
 export const RECOMMENDER_MODEL_NAME = "content-v1";
 
@@ -59,6 +59,8 @@ export type RecommendationsResponse = {
   counts: IndividualResult["counts"];
   /** How many swipes fed the profile (ratings/wishlist/check-ins come from the user's context). */
   swipesUsed: number;
+  /** Where the restaurants came from: the request body, the live source, or the offline seed list. */
+  restaurantsFrom: "candidates" | "source" | "seed";
   warnings: string[];
 };
 
@@ -67,7 +69,13 @@ export async function getRecommendations(
   db: PrismaClient,
   userId: string,
   req: RecommendationsRequest = {},
-  opts: { now?: Date; seed?: () => { places: RestaurantCandidate[]; skipped: number } } = {},
+  opts: {
+    now?: Date;
+    /** Live restaurant source (the places client). Without it, or if it fails, the seed list is used. */
+    source?: RestaurantSource | null;
+    /** Override the offline list (tests). */
+    seed?: () => { places: RestaurantCandidate[]; skipped: number };
+  } = {},
 ): Promise<RecommendationsResponse | null> {
   const ctx = await buildUserContext(db, userId, opts.now);
   if (!ctx) return null;
@@ -75,11 +83,12 @@ export async function getRecommendations(
 
   const warnings: string[] = [];
   let places = req.candidates;
+  let restaurantsFrom: RecommendationsResponse["restaurantsFrom"] = "candidates";
   if (!places) {
-    const seed = (opts.seed ?? loadSeedRestaurants)();
-    places = seed.places;
-    if (seed.skipped) warnings.push(`Skipped ${seed.skipped} seed restaurant${seed.skipped === 1 ? "" : "s"} with invalid data.`);
-    if (!places.length) warnings.push("No restaurants available yet: data/seed-restaurants.json is empty.");
+    const loaded = await loadRestaurants(opts.source, { seed: opts.seed });
+    places = loaded.places;
+    restaurantsFrom = loaded.from;
+    warnings.push(...loaded.warnings);
   }
 
   const r = recommendForUser(ctx, places, { mode: req.mode as RecommendMode | undefined, limit: req.limit, origin: req.origin, swipes });
@@ -102,6 +111,7 @@ export async function getRecommendations(
     origin: r.origin,
     counts: r.counts,
     swipesUsed: swipes.length,
+    restaurantsFrom,
     warnings: [...warnings, ...r.warnings],
   };
 }

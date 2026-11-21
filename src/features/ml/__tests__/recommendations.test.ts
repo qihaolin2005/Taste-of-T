@@ -59,6 +59,20 @@ describe("getRecommendations", () => {
     expect(here.results.some((x) => x.placeId.startsWith("hs"))).toBe(false);
   });
 
+  it("ranks restaurants from a live source, and says where they came from", async () => {
+    const id = await newUser();
+    const live = (await getRecommendations(db, id, {}, { source: async () => ALL_PLACES, seed: () => ({ places: [], skipped: 0 }) }))!;
+    expect(live.restaurantsFrom).toBe("source");
+    expect(live.results.length).toBeGreaterThan(0);
+    const down = (await getRecommendations(db, id, {}, { source: async () => { throw new Error("down"); }, seed: () => ({ places: ALL_PLACES, skipped: 0 }) }))!;
+    expect(down.restaurantsFrom).toBe("seed");
+    expect(down.results.length).toBeGreaterThan(0);
+    expect(down.warnings[0]).toMatch(/restaurant source failed \(down\)/);
+    const body = (await getRecommendations(db, id, { candidates: ALL_PLACES }, { source: async () => { throw new Error("unused"); } }))!;
+    expect(body.restaurantsFrom).toBe("candidates");
+    expect(body.warnings).toEqual([]);
+  });
+
   it("falls back to the seed list and warns when it's empty", async () => {
     const id = await newUser();
     const empty = (await getRecommendations(db, id, {}, { seed: () => ({ places: [], skipped: 0 }) }))!;

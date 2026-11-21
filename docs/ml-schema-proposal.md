@@ -83,6 +83,9 @@ recommender skips the filter and returns a warning.
 
 ## 3. Restaurant fields
 
+> The full contract for the places client (function signature, fallback, allowed values) is now
+> in [`docs/restaurant-source.md`](restaurant-source.md). The table below is the summary.
+
 Restaurants aren't in the DB (`data/seed-restaurants.json` plus the places client), so these
 belong in the seed JSON and the shared `Place` type in `src/types/index.ts`, not in Prisma. The
 recommenders read them through `RestaurantCandidate` (`recommend/restaurant.ts`), which extends

@@ -8,3 +8,4 @@ export * from "./vectors";
 export * from "./individual";
 export * from "./group";
 export * from "./seedPlaces";
+export * from "./source";

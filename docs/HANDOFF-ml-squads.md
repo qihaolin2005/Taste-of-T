@@ -148,8 +148,9 @@ The seed file is empty, and starting an adventure with no restaurants returns a
 - `dietary` and `dietStyle`: without them a place is never shown to anyone with a restriction
 - `cuisines`, `rating`, `reviewCount`, `priceLevel`, `lat`/`lng`, `neighborhood`
 
-`startAdventure` takes the places as an argument, so once the places client exists the
-`start` route does `places: await placesClient.search(...)` (or the seed list) and passes them in.
+What the places client must return, and how it plugs in, is spelled out in
+[`docs/restaurant-source.md`](restaurant-source.md). The `start` route gets its places with
+`loadRestaurants(listRestaurants)`, which falls back to the seed list if the source fails.
 
 ### d) Solo "for you" list: done, just call it
 
@@ -162,7 +163,9 @@ Optional body fields:
 - `origin`: `{ lat, lng }`, the phone's current position (used once, not stored)
 - `candidates`: restaurants to rank; defaults to the seed list
 
-Until the seed list has restaurants, `results` is empty and `warnings` says why. The old raw
+Until the seed list has restaurants, `results` is empty and `warnings` says why. The live
+restaurant source plugs in with one line; the contract for it is
+[`docs/restaurant-source.md`](restaurant-source.md). The old raw
 scoring endpoint moved to `POST /api/me/recommendations/score`.
 
 ## 6. Tuning
