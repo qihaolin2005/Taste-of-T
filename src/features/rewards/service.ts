@@ -19,7 +19,9 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { Prisma } from "@/generated/prisma/client";
+import type { LatLng } from "@/lib/geo";
 import { awardPointsTx } from "@/features/gamification";
+import { checkRideForReward } from "@/features/rides";
 import { REWARDS_CONFIG, type RewardsConfig } from "./config";
 import { basePoints, groupMultiplier, withGroup, type PointsBreakdown, type TravelMode } from "./points";
 
