@@ -81,9 +81,10 @@ Import only through `@/features/squads` and `@/features/ml`, not deep files (TEA
 
 ## 5. TODO for the team
 
-### a) Routes (P3): `src/app/api/rooms/**`
+### a) Routes: done
 
-Four thin handlers. Each one gets the user, calls one function, and maps errors. Full contract:
+Built in `src/app/api/rooms/[roomId]/` (start, swipes, session, end, plan). The original notes:
+four thin handlers. Each one gets the user, calls one function, and maps errors. Full contract:
 [`squad-session-api.md`](squad-session-api.md).
 
 | Route | Calls |
@@ -125,9 +126,11 @@ Errors come back as `SquadSessionError` with `code`: `not_found` (404), `forbidd
 
 When creating a room, set `hostUserId` to the creator's user id. Only that user can start or end.
 
-### b) Swipe UI (P3)
+### b) Swipe UI: done
 
-- Poll `GET /api/rooms/[roomId]` every ~2 s (the `useRoomPolling` stub). Re-render only when
+Built as `src/components/group/SquadSession.tsx` (on the room screen) and `/room/[code]/plan`. It does this:
+
+- Poll `GET /api/rooms/[roomId]/session` every ~2 s. Re-render only when
   `version` changes.
 - `status: "collecting"`: show members. If `isHost`, show the **Start adventure** button.
 - `status: "swiping"`:

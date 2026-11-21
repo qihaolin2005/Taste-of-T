@@ -1,9 +1,10 @@
 // Owner: P4 - Game Layer & Map (see TEAM.md)
 // Points, achievements, ratings, wishlist, account.
-// TODO(P4): real achievements, ratings, and wishlist counts.
-import { HeartIcon, ListRow, ListSection, MapIcon, MoonIcon, Screen, StarIcon, TrainIcon } from "@/components/shared/ios";
+// TODO(P4): real achievements.
+import { ListRow, ListSection, MapIcon, MoonIcon, Screen, StarIcon, TrainIcon } from "@/components/shared/ios";
 import AccountSection from "@/components/auth/AccountSection";
 import { PointsHistory, ProfileHeader } from "@/components/game/PointsCard";
+import FoodRows from "@/components/game/FoodRows";
 
 export default function Page() {
   return (
@@ -22,10 +23,7 @@ export default function Page() {
         <ListRow icon={<MapIcon size={16} />} iconBg="#ff375f" title="My trips" subtitle="Your paths to dinner, like Strava" href="/trips" />
       </ListSection>
 
-      <ListSection header="Food">
-        <ListRow icon={<StarIcon size={17} />} iconBg="#ff9500" title="My ratings" value="0" href="/profile" />
-        <ListRow icon={<HeartIcon size={16} />} iconBg="#ff2d55" title="Wishlist" value="0" href="/profile" />
-      </ListSection>
+      <FoodRows />
 
       <AccountSection />
     </Screen>

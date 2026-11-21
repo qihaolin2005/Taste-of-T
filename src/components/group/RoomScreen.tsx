@@ -12,6 +12,7 @@ import { useRoomPolling } from "@/features/rooms/useRoomPolling";
 import { formatMinutes } from "@/lib/time";
 import MemberForm from "./MemberForm";
 import ShareLink from "./ShareLink";
+import SquadSession from "./SquadSession";
 
 const STOP_LABEL = { dinner: "Dinner", dessert: "Dessert", activity: "Activity" } as const;
 const back = { href: "/room/new", label: "Night" };
@@ -120,10 +121,8 @@ export default function RoomScreen({ code, stations }: { code: string; stations:
 
       {you && !editing && (
         <>
-          <div className="mt-6">
-            {/* TODO(P1): enable once generatePlan() lands; the plan page is still a placeholder. */}
-            <Button href={`/room/${room.code}/plan`}>Plan the Night</Button>
-          </div>
+          {/* The swipe session: host starts, everyone swipes 10 places, top 5 (src/features/squads). */}
+          <SquadSession code={room.code} />
           <ListSection footer="Record your way there and see everyone's paths on one map.">
             <ListRow icon={<MapIcon size={16} />} iconBg="#ff375f" title="Trip Map" subtitle="Everyone's path to the restaurant" href={`/room/${room.code}/trips`} />
           </ListSection>

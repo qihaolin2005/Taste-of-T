@@ -122,6 +122,38 @@ async function findRecommendation(db: Db, userId: string, placeId: string, now: 
   return shown && shown.shownAt >= since ? { via: "for-you" } : null;
 }
 
+export type ClaimablePlace = { placeId: string; name: string | null; via: Recommended["via"]; at: string };
+
+/**
+ * Places the user could claim points for right now: recommended to them within the window, from
+ * a squad's top 5 (first, newest plan first) or their "for you" / Spin results. Names come from
+ * the squad plan; for "for you" places the caller looks them up (they're null here).
+ */
+export async function listClaimablePlaces(db: Db, userId: string, opts: { now?: Date; config?: RewardsConfig } = {}): Promise<ClaimablePlace[]> {
+  const cfg = opts.config ?? REWARDS_CONFIG;
+  const now = opts.now ?? new Date();
+  const since = new Date(now.getTime() - cfg.limits.recommendedWithinHours * HOUR);
+  const out = new Map<string, ClaimablePlace>();
+  const [memberships, swipedRooms] = await Promise.all([
+    db.roomMember.findMany({ where: { userId }, select: { roomId: true } }),
+    db.swipe.findMany({ where: { userId, roomId: { not: null } }, select: { roomId: true }, distinct: ["roomId"] }),
+  ]);
+  const roomIds = [...new Set([...memberships.map((m) => m.roomId), ...swipedRooms.map((x) => x.roomId!)])];
+  if (roomIds.length) {
+    const plans = await db.plan.findMany({ where: { roomId: { in: roomIds }, createdAt: { gte: since } }, orderBy: { createdAt: "desc" } });
+    for (const p of plans) {
+      const picks = (p.result as { picks?: { place?: { id?: string; name?: string } }[] } | null)?.picks ?? [];
+      for (const pick of picks) {
+        const id = pick.place?.id;
+        if (id && !out.has(id)) out.set(id, { placeId: id, name: pick.place?.name ?? null, via: "squad", at: p.createdAt.toISOString() });
+      }
+    }
+  }
+  const shown = await db.recommendationShown.findMany({ where: { userId, shownAt: { gte: since } }, orderBy: { shownAt: "desc" }, take: 30 });
+  for (const r of shown) if (!out.has(r.placeId)) out.set(r.placeId, { placeId: r.placeId, name: null, via: "for-you", at: r.shownAt.toISOString() });
+  return [...out.values()];
+}
+
 // ------------------------------------------------------------- claim
 
 export type ClaimResult = {

@@ -20,20 +20,22 @@ export default function MyTripsScreen() {
 
   const upsert = (t: TripView) => setTrips((list) => [t, ...(list ?? []).filter((x) => x.id !== t.id)]);
   const current = trips?.find((t) => t.status === "recording" && !t.roomId) ?? null;
+  // The trip shown in the recorder card above isn't "past" yet, so leave it out of the list.
+  const past = trips?.filter((t) => t.id !== current?.id) ?? null;
 
   return (
     <Screen title="My Trips" tab="profile" back={{ href: "/profile", label: "Profile" }}>
       <TripRecorderCard current={current} onChange={upsert} />
 
-      <ListSection header="Past Trips" footer={trips?.length ? "Group trips also show on that group's trip map." : undefined}>
+      <ListSection header="Past Trips" footer={past?.length ? "Group trips also show on that group's trip map." : undefined}>
         {error ? (
           <ListRow title="Couldn't load trips" subtitle={error} />
-        ) : !trips ? (
+        ) : !past ? (
           <ListRow title="Loading…" />
-        ) : trips.length === 0 ? (
-          <ListRow title="No trips yet" subtitle="Start one on your way to dinner" />
+        ) : past.length === 0 ? (
+          <ListRow title="No trips yet" subtitle={current ? "Your trip in progress shows up here when it ends" : "Start one on your way to dinner"} />
         ) : (
-          trips.map((t) => (
+          past.map((t) => (
             <ListRow
               key={t.id}
               href={`/trips/${t.id}`}

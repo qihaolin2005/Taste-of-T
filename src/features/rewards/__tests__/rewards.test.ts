@@ -4,7 +4,7 @@ import { getOrCreateUser } from "@/features/users";
 import { getRecommendations } from "@/features/ml";
 import { completeQuest, createQuest, getPoints } from "@/features/gamification";
 import { ALL_PLACES } from "@/features/ml/recommend/__tests__/fixtures";
-import { basePoints, claimVisit, claimVisitSchema, getRewards, groupMultiplier, merchantMatches, REWARDS_CONFIG, RewardError, type ClaimVisitInput } from "@/features/rewards";
+import { basePoints, claimVisit, claimVisitSchema, getRewards, groupMultiplier, listClaimablePlaces, merchantMatches, REWARDS_CONFIG, RewardError, type ClaimVisitInput } from "@/features/rewards";
 
 const db = createTestDb();
 afterAll(() => db.$disconnect());
@@ -301,5 +301,25 @@ describe("rewards in the points history (PointsEvent)", () => {
     const p = await getPoints(db, u);
     expect(p.total).toBe(140); // 100 + (20 + 10 + 10)
     expect(p.events.map((e) => e.title).sort()).toEqual(["Chinatown Food Quest", "Pearl Tea Bar"]);
+  });
+});
+
+describe("listClaimablePlaces", () => {
+  it("lists squad top-5 places first, then 'for you' places, within 48 hours, without duplicates", async () => {
+    const u = await newUser();
+    const roomId = "CLMB";
+    await db.room.create({ data: { id: roomId, name: "Night", hostUserId: u, date: "2026-11-21", startTime: 1080, slots: ["dinner"], expiresAt: daysLater(2), status: "planned" } });
+    await db.roomMember.create({ data: { roomId, userId: u, name: "Me", startStationId: "place-pktrm", homeStationId: "place-pktrm", budget: 40 } });
+    await db.plan.create({ data: { roomId, request: {}, result: { picks: [{ place: { id: "sq-a", name: "Squad A" } }, { place: { id: "both" } }] }, createdAt: NOW } });
+    await recommend(u, "both");
+    await recommend(u, "solo-b");
+    await recommend(u, "too-old", new Date(NOW.getTime() - 3 * 86_400_000));
+    const list = await listClaimablePlaces(db, u, { now: NOW });
+    expect(list.map((p) => [p.placeId, p.via])).toEqual([
+      ["sq-a", "squad"],
+      ["both", "squad"],
+      ["solo-b", "for-you"],
+    ]);
+    expect(list[0].name).toBe("Squad A");
   });
 });

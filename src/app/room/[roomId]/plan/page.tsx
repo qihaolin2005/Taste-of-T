@@ -1,19 +1,30 @@
 // Owner: P3 - Group Mode & App Shell (see TEAM.md)
-// Night timeline + per-member leave-by times.
-// TODO(P3): fetch the room's Plan and render NightTimeline + LeaveByList.
-import { ListRow, ListSection, MoonIcon, Screen } from "@/components/shared/ios";
+// /room/BHSG/plan: the squad's top 5 from the swipe session.
+// TODO(P3): add the timed night (NightTimeline + LeaveByList) once the planner lands.
+import { Suspense } from "react";
+import { Screen } from "@/components/shared/ios";
+import SquadPlanView from "@/components/group/SquadPlanView";
 
-export default function Page() {
+async function Plan({ params }: { params: PageProps<"/room/[roomId]/plan">["params"] }) {
+  const { roomId } = await params;
+  const code = roomId.toUpperCase();
   return (
-    <Screen title="Tonight's Plan" tab="night" back={{ href: "/", label: "Home" }}>
-      <div className="mt-3 rounded-[10px] bg-cell px-4 py-10 text-center">
-        <p className="text-[17px] font-semibold">No plan yet</p>
-        <p className="mt-1 text-[15px] text-label-2">Once everyone joins, generate the night here.</p>
-      </div>
-
-      <ListSection header="Leave By">
-        <ListRow icon={<MoonIcon size={16} />} iconBg="#5856d6" title="Each member's last train" subtitle="Shows up with the plan" />
-      </ListSection>
+    <Screen title="Tonight's Plan" tab="night" back={{ href: `/room/${code}`, label: "Group" }}>
+      <SquadPlanView code={code} />
     </Screen>
+  );
+}
+
+export default function Page({ params }: PageProps<"/room/[roomId]/plan">) {
+  return (
+    <Suspense
+      fallback={
+        <Screen title="Tonight's Plan" tab="night">
+          <p className="mt-6 text-center text-[15px] text-label-2">Loading…</p>
+        </Screen>
+      }
+    >
+      <Plan params={params} />
+    </Suspense>
   );
 }
