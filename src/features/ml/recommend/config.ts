@@ -16,6 +16,14 @@ export const RECOMMENDER_CONFIG = {
    */
   coldStartK: 4,
 
+  /**
+   * Cuisines a person picked in onboarding ("Thai, Korean") form a starting taste, so even a
+   * brand-new user gets personal picks. They act like `weight` worth of likes (split across the
+   * cuisines) in the preference vector, so real ratings and swipes gradually outweigh them, and
+   * add `evidence` toward confidence (6 => confidence 6 / (6 + coldStartK) = 0.6 on day one).
+   */
+  statedTastes: { weight: 1, evidence: 6 },
+
   /** How strongly each kind of interaction counts toward the preference vector. Signed. */
   signals: {
     swipeLike: 1,

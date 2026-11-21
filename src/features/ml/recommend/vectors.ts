@@ -62,14 +62,23 @@ export function cosine(a: readonly number[], b: readonly number[]): number {
   return na === 0 || nb === 0 ? 0 : dot / Math.sqrt(na * nb);
 }
 
+/** Stated tastes we can use: in TASTE_VOCAB, not a non-taste tag ("late-night"), lowercased, unique. */
+export function usableTastes(tastes: readonly string[] | null | undefined, cfg: RecommenderConfig = RECOMMENDER_CONFIG): string[] {
+  const skip = new Set(cfg.nonTasteTags);
+  return [...new Set((tastes ?? []).map((t) => t.trim().toLowerCase()))].filter((t) => cuisineIndex.has(t) && !skip.has(t));
+}
+
 export type UserProfile = {
   /** Preference vector; all zeros when there's nothing to learn from. */
   vector: number[];
-  /** Sum of |weight| over interactions that matched a known place. Drives cold-start blending. */
+  /** Sum of |weight| over interactions that matched a known place, plus config.statedTastes.evidence when
+   *  onboarding cuisines are set. Drives cold-start blending. */
   evidence: number;
   /** Ids of places with net positive / negative weight (for reasons and exclusion). */
   liked: Map<string, number>;
   disliked: Map<string, number>;
+  /** Usable cuisines from onboarding that seeded this profile. */
+  statedTastes: string[];
 };
 
 /**
@@ -80,11 +89,24 @@ export function buildUserProfile(
   interactions: readonly Interaction[],
   placesById: ReadonlyMap<string, RestaurantCandidate>,
   cfg: RecommenderConfig = RECOMMENDER_CONFIG,
+  /** Cuisines picked in onboarding: a starting taste (config.statedTastes). */
+  statedTastes: readonly string[] = [],
 ): UserProfile {
   const vector = new Array<number>(VECTOR_DIM).fill(0);
   const liked = new Map<string, number>();
   const disliked = new Map<string, number>();
   let evidence = 0;
+  // Total |weight| in the average: real interactions plus the stated-taste "likes".
+  let mass = 0;
+
+  const stated = usableTastes(statedTastes, cfg);
+  if (stated.length) {
+    const each = cfg.statedTastes.weight / stated.length;
+    for (const t of stated) vector[cuisineIndex.get(t)!] += each * cfg.vectorBlocks.cuisine;
+    mass += cfg.statedTastes.weight;
+    evidence += cfg.statedTastes.evidence;
+  }
+
   for (const it of interactions) {
     if (it.weight > 0) liked.set(it.placeId, it.weight);
     else if (it.weight < 0) disliked.set(it.placeId, it.weight);
@@ -93,7 +115,8 @@ export function buildUserProfile(
     const pv = restaurantVector(place, cfg);
     for (let i = 0; i < VECTOR_DIM; i++) vector[i] += it.weight * pv[i];
     evidence += Math.abs(it.weight);
+    mass += Math.abs(it.weight);
   }
-  if (evidence > 0) for (let i = 0; i < VECTOR_DIM; i++) vector[i] /= evidence;
-  return { vector, evidence, liked, disliked };
+  if (mass > 0) for (let i = 0; i < VECTOR_DIM; i++) vector[i] /= mass;
+  return { vector, evidence, liked, disliked, statedTastes: stated };
 }

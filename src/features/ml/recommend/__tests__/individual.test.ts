@@ -9,6 +9,7 @@ import {
   RECOMMENDER_CONFIG,
   recommendForUser,
   restaurantVector,
+  usableTastes,
   type RestaurantCandidate,
 } from "@/features/ml";
 import { ALL_PLACES, COPLEY, makeContext, makePlace } from "./fixtures";
@@ -203,5 +204,43 @@ describe("diversity and reasons", () => {
     const r = recommendForUser(ctx, ALL_PLACES, { limit: 50 });
     const thai = r.results.find((x) => x.place.id === "bbThai")!;
     expect(thai.reason).toMatch(/^on your wishlist, .*0\.\d mi away, 4\.5★ from 800 reviews, has vegan options$/);
+  });
+});
+
+describe("starting taste from onboarding cuisines", () => {
+  const near = (id: string, cuisines: string[], extra: Partial<RestaurantCandidate> = {}) =>
+    makePlace(id, { cuisines, lat: COPLEY.lat, lng: COPLEY.lng, rating: 4.4, reviewCount: 500, dietary: ["vegetarian"], ...extra });
+  const places = [near("thai", ["thai"]), near("italian", ["italian"]), near("mexican", ["mexican"]), near("korean", ["korean"])];
+
+  it("a brand-new user who picked cuisines gets them ranked first, with a reason", () => {
+    const r = recommendForUser(makeContext({ tastes: ["thai", "korean"] }), places, { limit: 4 });
+    expect(r.confidence).toBeCloseTo(RECOMMENDER_CONFIG.statedTastes.evidence / (RECOMMENDER_CONFIG.statedTastes.evidence + RECOMMENDER_CONFIG.coldStartK));
+    expect(ids(r).slice(0, 2).sort()).toEqual(["korean", "thai"]);
+    expect(r.results.find((x) => x.place.id === "thai")!.reasons).toContain("you said you like thai");
+    expect(r.results.find((x) => x.place.id === "italian")!.reason).not.toMatch(/you said|you liked|similar/);
+  });
+
+  it("no stated cuisines (or 'open to anything') is still a plain cold start", () => {
+    expect(recommendForUser(makeContext({ tastes: [] }), places).confidence).toBe(0);
+  });
+
+  it("ignores tags it can't use: unknown cuisines and non-taste tags like 'late-night'", () => {
+    expect(usableTastes([" Thai ", "THAI", "made-up", "late-night", "vegan-friendly", "ramen"])).toEqual(["thai", "ramen"]);
+    expect(recommendForUser(makeContext({ tastes: ["made-up", "late-night"] }), places).confidence).toBe(0);
+  });
+
+  it("real ratings outweigh what was picked in onboarding", () => {
+    const italians = ["it1", "it2", "it3", "it4"].map((id) => near(id, ["italian"]));
+    const ctx = makeContext({ tastes: ["thai"], ratings: italians.map((p) => ({ placeId: p.id, score: 10 })) });
+    const r = recommendForUser(ctx, [...places], { limit: 4, catalog: [...places, ...italians] });
+    const sim = (id: string) => r.results.find((x) => x.place.id === id)!.components.similarity;
+    expect(sim("italian")).toBeGreaterThan(sim("thai"));
+    expect(r.results.find((x) => x.place.id === "italian")!.reasons).toContain("you liked other italian places");
+  });
+
+  it("stated tastes never override the dietary filter", () => {
+    const steak = near("steak", ["american"], { dietStyle: "non-veg-only", dietary: undefined });
+    const r = recommendForUser(makeContext({ tastes: ["american"], dietary: ["vegetarian"] }), [...places, steak], { limit: 10 });
+    expect(ids(r)).not.toContain("steak");
   });
 });
