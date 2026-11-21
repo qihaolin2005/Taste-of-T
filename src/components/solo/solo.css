@@ -1,0 +1,56 @@
+/* Owner: P3 - Group Mode & App Shell (see TEAM.md)
+   Spin / Adventure screens (Figma "Plan an Adventure" + "Your Adventure").
+   Plain CSS scoped under "tot-spin" classes; colors come from the theme tokens. */
+
+/* Dice tumble while the adventure is being generated. */
+.tot-spin-dice {
+  display: inline-grid;
+  animation: tot-spin-roll 0.7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes tot-spin-roll {
+  0% {
+    transform: rotate(0) scale(1);
+  }
+  50% {
+    transform: rotate(200deg) scale(0.86);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+/* Route stops slide in one after another. */
+.tot-spin-stop {
+  animation: tot-spin-stop-in 0.36s ease-out both;
+}
+@keyframes tot-spin-stop-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Screen swap between the planner and the adventure. */
+.tot-spin-view {
+  animation: tot-spin-view-in 0.28s ease-out both;
+}
+@keyframes tot-spin-view-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tot-spin-dice,
+  .tot-spin-stop,
+  .tot-spin-view {
+    animation: none;
+  }
+}

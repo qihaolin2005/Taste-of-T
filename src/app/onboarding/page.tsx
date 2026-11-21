@@ -9,9 +9,10 @@ import { getStations } from "@/lib/mbta/stations";
 export const metadata: Metadata = { title: "Welcome · Taste of T" };
 
 // Station search options for step 3, sorted by name (static data, so this prerenders).
+// Plain code-point sort, not localeCompare: locale-dependent work breaks Next's prerender check.
 const stations = getStations()
   .map((s) => ({ id: s.id, name: s.name }))
-  .sort((a, b) => a.name.localeCompare(b.name));
+  .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
 export default function Page() {
   return (

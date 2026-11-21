@@ -1,24 +1,21 @@
 // Owner: P3 - Group Mode & App Shell (see TEAM.md)
-// Solo Spin form + QuestCard result (calls /api/spin).
-// TODO(P3): make rows editable (sheets/pickers) and wire the button to /api/spin.
-import { Button, ClockIcon, DiceIcon, DollarIcon, ForkKnifeIcon, ListRow, ListSection, Screen, TrainIcon } from "@/components/shared/ios";
+// Spin the T (Figma "Plan an Adventure" -> "Your Adventure"). The planner builds a route from
+// the recommender and turns it into quests; see components/solo/SpinPlanner for the details.
+// TODO(P1): when /api/spin + generatePlan() land, SpinPlanner can call them instead.
+import SpinPlanner, { type SpinStation } from "@/components/solo/SpinPlanner";
+import { Screen } from "@/components/shared/ios";
+import { getStations } from "@/lib/mbta/stations";
+
+// Static station data (prerendered) for the starting-station search and route colors.
+// Plain code-point sort, not localeCompare: locale-dependent work breaks Next's prerender check.
+const stations: SpinStation[] = getStations()
+  .map((s) => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, lines: [...s.lines] }))
+  .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
 export default function Page() {
   return (
-    <Screen title="Spin the T" tab="spin">
-      <ListSection header="Quest Settings">
-        <ListRow icon={<DollarIcon size={17} />} iconBg="#34c759" title="Budget" value="$25" />
-        <ListRow icon={<ClockIcon size={17} />} iconBg="#007aff" title="Time" value="2 hours" />
-        <ListRow icon={<TrainIcon size={17} />} iconBg="var(--line-orange)" title="Start station" value="Downtown Crossing" />
-        <ListRow icon={<ForkKnifeIcon size={17} />} iconBg="#ff2d55" title="Craving" value="Anything" />
-      </ListSection>
-
-      <div className="mt-6">
-        <Button>
-          <DiceIcon size={20} /> Spin
-        </Button>
-      </div>
-      <p className="mt-3 px-4 text-center text-[13px] text-label-2">We&apos;ll pick a station and a mission. Check in there to earn its stamp.</p>
+    <Screen title="Spin the T" tab="spin" hideHeader>
+      <SpinPlanner stations={stations} />
     </Screen>
   );
 }
