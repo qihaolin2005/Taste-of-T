@@ -217,6 +217,8 @@ model RewardVisit {
   userId          String
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   placeId         String
+  /// For the points history ("Lantern Dumpling House"); null if the place couldn't be looked up.
+  placeName       String?
   /// Set when the place came from this squad's top 5; squad-mates eating there raise the group bonus.
   roomId          String?
   /// "YYYY-MM-DD" in Boston: limits are per day.
@@ -236,6 +238,8 @@ model RewardVisit {
   pointsAwarded   Int
   breakdown       Json
   createdAt       DateTime @default(now())
+  /// The points history rows for this visit: the visit itself, then any group-bonus top-ups.
+  pointsEvents    PointsEvent[]
 
   @@unique([receiptKey, userId])
   @@index([userId, createdAt])
@@ -304,10 +308,14 @@ model PointsEvent {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   amount    Int
-  reason    String   // "quest_completed" (more later: check-ins, achievements...)
+  reason    String   // "quest_completed" | "restaurant_visit" | "group_bonus" (more later: check-ins, achievements...)
   questId   String?  @unique
   quest     Quest?   @relation(fields: [questId], references: [id], onDelete: SetNull)
+  /// For "restaurant_visit" and "group_bonus": the visit (src/features/rewards). Several rows per visit.
+  rewardVisitId String?
+  rewardVisit   RewardVisit? @relation(fields: [rewardVisitId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+  @@index([rewardVisitId])
 }

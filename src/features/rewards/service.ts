@@ -9,6 +9,9 @@
 //     5. squad visits: when more squad-mates eat at the same place, everyone's group bonus is
 //        topped up (the first person to claim isn't penalized for being first)
 //
+// Points go through awardPointsTx (src/features/gamification), so every award is a PointsEvent
+// row ("restaurant_visit", then "group_bonus" top-ups) and shows in the points history.
+//
 // The receipt is passed in already read (total, date, merchant name). Reading the photo (OCR) and
 // detecting bus vs T happen elsewhere; only their results reach this code, and no photo or GPS
 // trace is stored.
@@ -16,6 +19,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { Prisma } from "@/generated/prisma/client";
+import { awardPointsTx } from "@/features/gamification";
 import { REWARDS_CONFIG, type RewardsConfig } from "./config";
 import { basePoints, groupMultiplier, withGroup, type PointsBreakdown, type TravelMode } from "./points";
 
@@ -177,6 +181,7 @@ export async function claimVisit(
         data: {
           userId,
           placeId,
+          placeName: opts.placeName ?? null,
           roomId,
           day,
           receiptTotal: receipt.total,
@@ -188,6 +193,7 @@ export async function claimVisit(
           groupMultiplier: 1,
           pointsAwarded: 0,
           breakdown,
+          createdAt: now, // the claim time; the group window is measured from the same clock
         },
       });
 
@@ -202,12 +208,14 @@ export async function claimVisit(
 
       let mine = 0;
       for (const v of group) {
-        const target = withGroup(v.basePoints, multiplier);
+        // Points already earned never go down (the window can drop people who claimed long ago).
+        const m = Math.max(multiplier, v.groupMultiplier);
+        const target = Math.max(withGroup(v.basePoints, m), v.pointsAwarded);
         const delta = target - v.pointsAwarded;
         if (v.id === visit.id) mine = target;
-        if (delta === 0 && v.id !== visit.id) continue;
-        await tx.rewardVisit.update({ where: { id: v.id }, data: { pointsAwarded: target, groupMultiplier: multiplier } });
-        if (delta !== 0) await tx.user.update({ where: { id: v.userId }, data: { xp: { increment: delta } } });
+        if (delta <= 0) continue;
+        await tx.rewardVisit.update({ where: { id: v.id }, data: { pointsAwarded: target, groupMultiplier: m } });
+        await awardPointsTx(tx, v.userId, delta, v.id === visit.id ? "restaurant_visit" : "group_bonus", undefined, v.id);
       }
       const user = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { xp: true } });
       return { visitId: visit.id, points: mine, breakdown, groupMultiplier: multiplier, groupSize: people, recommendedVia: rec.via, xp: user.xp };
