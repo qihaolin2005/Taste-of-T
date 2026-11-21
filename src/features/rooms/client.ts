@@ -1,7 +1,7 @@
 // Owner: P3 - Group Mode & App Shell (see TEAM.md)
 // Browser helpers for the rooms API. Type-only imports, so no server code reaches the client.
 import type { CreateRoomInput, MemberInput } from "./schemas";
-import type { RoomView } from "./roomStore";
+import type { RoomSummary, RoomView } from "./roomStore";
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -21,5 +21,6 @@ const path = (code: string) => `/api/rooms/${encodeURIComponent(code)}`;
 
 export const createRoom = (input: CreateRoomInput) => call<{ code: string }>("/api/rooms", { method: "POST", body: JSON.stringify(input) });
 export const fetchRoom = (code: string) => call<RoomView>(path(code));
+export const listMyRooms = () => call<{ rooms: RoomSummary[] }>("/api/rooms").then((r) => r.rooms);
 export const joinRoom = (code: string, input: MemberInput) => call<RoomView>(`${path(code)}/members`, { method: "POST", body: JSON.stringify(input) });
 export const leaveRoom = (code: string) => call<void>(`${path(code)}/members`, { method: "DELETE" });

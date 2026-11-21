@@ -1,0 +1,64 @@
+/* Owner: P3 - Group Mode & App Shell (see TEAM.md)
+   Squads screens: screen fade + card rise (Figma Make transitions). Scoped "tot-squad" classes. */
+
+.tot-squad-view {
+  animation: tot-squad-fade 0.28s ease-out both;
+}
+.tot-squad-in {
+  animation: tot-squad-rise 0.36s ease-out both;
+}
+@keyframes tot-squad-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes tot-squad-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Group page cover: lavender band with a dashed route, like the Figma squad cover. */
+.tot-squad-cover {
+  position: relative;
+  height: calc(150px + var(--safe-top));
+  /* full-bleed: undo Screen's side padding and its top padding (safe area + 14px) */
+  margin: calc(-1 * (var(--safe-top) + 14px)) -20px 0;
+  border-radius: 0 0 26px 26px;
+  background: linear-gradient(145deg, var(--lavender) 0%, color-mix(in srgb, var(--lilac) 55%, var(--grouped)) 100%);
+  overflow: hidden;
+}
+.tot-squad-cover svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  color: var(--tint);
+  opacity: 0.25;
+}
+.tot-squad-cover path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-dasharray: 4 6;
+}
+.tot-squad-cover circle {
+  fill: var(--grouped);
+  stroke: currentColor;
+  stroke-width: 3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tot-squad-view,
+  .tot-squad-in {
+    animation: none;
+  }
+}

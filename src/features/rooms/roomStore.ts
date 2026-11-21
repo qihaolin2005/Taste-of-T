@@ -179,3 +179,42 @@ export async function leaveRoom(db: Db, rawCode: string, userId: string): Promis
   if (!code) return;
   await db.roomMember.deleteMany({ where: { roomId: code, userId } });
 }
+
+/** One of your groups on the Squads dashboard: public info only (names, never budgets/homes). */
+export type RoomSummary = {
+  code: string;
+  name: string;
+  date: string;
+  startTime: number;
+  slots: StopCategory[];
+  status: string;
+  expiresAt: string;
+  youAreHost: boolean;
+  youJoined: boolean;
+  members: { name: string; isYou: boolean; isHost: boolean }[];
+  maxMembers: number;
+};
+
+/** Live groups you host or have joined, newest first. Expired groups are left out. */
+export async function listMyRooms(db: Db, userId: string, now = new Date()): Promise<RoomSummary[]> {
+  const rooms = await db.room.findMany({
+    where: { expiresAt: { gt: now }, OR: [{ hostUserId: userId }, { members: { some: { userId } } }] },
+    include: { members: { orderBy: { joinedAt: "asc" } } },
+    // expiresAt = creation time + a fixed lifetime, so this is newest-first (and deterministic)
+    orderBy: { expiresAt: "desc" },
+    take: 20,
+  });
+  return rooms.map((room) => ({
+    code: room.id,
+    name: room.name,
+    date: room.date,
+    startTime: room.startTime,
+    slots: readTags(room.slots) as StopCategory[],
+    status: room.status,
+    expiresAt: room.expiresAt.toISOString(),
+    youAreHost: room.hostUserId === userId,
+    youJoined: room.members.some((m) => m.userId === userId),
+    members: room.members.map((m) => ({ name: m.name, isYou: m.userId === userId, isHost: m.userId !== null && m.userId === room.hostUserId })),
+    maxMembers: MAX_MEMBERS,
+  }));
+}

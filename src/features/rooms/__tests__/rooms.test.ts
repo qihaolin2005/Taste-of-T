@@ -11,6 +11,7 @@ import {
   getRoomView,
   joinRoom,
   leaveRoom,
+  listMyRooms,
   MAX_MEMBERS,
   memberInputSchema,
   normalizeCode,
@@ -142,5 +143,44 @@ describe("rooms", () => {
     expect(memberInputSchema.safeParse({ name: "A", startStationId: "place-nowhere", homeStationId: "place-harsq", budget: 20 }).success).toBe(false);
     expect(createRoomSchema.safeParse({ name: "x", day: "tonight", startTime: 1145, slots: ["dinner"] }).success).toBe(false);
     expect(createRoomSchema.safeParse({ name: "x", day: "tonight", startTime: 1140, slots: [] }).success).toBe(false);
+  });
+});
+
+describe("listMyRooms (Squads dashboard)", () => {
+  it("lists groups you host or joined, newest first, with public info only", async () => {
+    const host = await newUser();
+    const friend = await newUser();
+    const stranger = await newUser();
+    const t0 = new Date("2026-03-06T18:00:00Z");
+    const first = await createRoom(db, host, night, t0);
+    const second = await createRoom(db, host, { ...night, name: "Saturday" }, new Date(t0.getTime() + 60_000));
+    await joinRoom(db, first, host, me("Ana"), t0);
+    await joinRoom(db, first, friend, me("Ben", 45), t0);
+
+    const now = new Date(t0.getTime() + 2 * 60_000);
+    const hostRooms = await listMyRooms(db, host, now);
+    expect(hostRooms.map((r) => r.code)).toEqual([second, first]);
+    expect(hostRooms[1]).toMatchObject({ youAreHost: true, youJoined: true });
+    expect(hostRooms[1].members).toEqual([
+      { name: "Ana", isYou: true, isHost: true },
+      { name: "Ben", isYou: false, isHost: false },
+    ]);
+    // never budgets, home stations, or dietary needs
+    expect(JSON.stringify(hostRooms)).not.toMatch(/budget|homeStation|dietary/);
+
+    expect((await listMyRooms(db, friend, now)).map((r) => r.code)).toEqual([first]);
+    expect(await listMyRooms(db, stranger, now)).toEqual([]);
+  });
+
+  it("drops expired groups and groups you left", async () => {
+    const host = await newUser();
+    const friend = await newUser();
+    const t0 = new Date("2026-03-07T18:00:00Z");
+    const code = await createRoom(db, host, night, t0);
+    await joinRoom(db, code, friend, me("Cy"), t0);
+    await leaveRoom(db, code, friend);
+    expect(await listMyRooms(db, friend, t0)).toEqual([]);
+    const later = new Date(t0.getTime() + 7 * 24 * 60 * 60_000);
+    expect(await listMyRooms(db, host, later)).toEqual([]);
   });
 });

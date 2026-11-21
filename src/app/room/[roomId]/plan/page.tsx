@@ -1,19 +1,22 @@
 // Owner: P3 - Group Mode & App Shell (see TEAM.md)
-// Night timeline + per-member leave-by times.
-// TODO(P3): fetch the room's Plan and render NightTimeline + LeaveByList.
-import { ListRow, ListSection, MoonIcon, Screen } from "@/components/shared/ios";
+// /room/BHSG/plan: the group adventure (Figma layout). Shows the real room data; the route
+// itself waits for P1's group planner. See components/group/GroupPlanScreen.
+import { Suspense } from "react";
+import GroupPlanScreen from "@/components/group/GroupPlanScreen";
+import { Screen } from "@/components/shared/ios";
 
-export default function Page() {
+async function Plan({ params }: { params: PageProps<"/room/[roomId]/plan">["params"] }) {
+  const { roomId } = await params;
+  return <GroupPlanScreen code={roomId.toUpperCase()} />;
+}
+
+export default function Page({ params }: PageProps<"/room/[roomId]/plan">) {
+  // The code is only known at request time, so it streams in under Suspense.
   return (
-    <Screen title="Tonight's Plan" tab="night" back={{ href: "/", label: "Home" }}>
-      <div className="mt-3 rounded-[10px] bg-cell px-4 py-10 text-center">
-        <p className="text-[17px] font-semibold">No plan yet</p>
-        <p className="mt-1 text-[15px] text-label-2">Once everyone joins, generate the night here.</p>
-      </div>
-
-      <ListSection header="Leave By">
-        <ListRow icon={<MoonIcon size={16} />} iconBg="#5856d6" title="Each member's last train" subtitle="Shows up with the plan" />
-      </ListSection>
+    <Screen title="Group Adventure" tab="night" hideHeader>
+      <Suspense fallback={<div className="h-[320px] animate-pulse rounded-[20px] bg-cell-2" aria-label="Loading plan" />}>
+        <Plan params={params} />
+      </Suspense>
     </Screen>
   );
 }

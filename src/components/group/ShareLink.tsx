@@ -6,30 +6,34 @@ import { useState } from "react";
 import { ShareIcon } from "@/components/shared/ios";
 
 export default function ShareLink({ code, name }: { code: string; name: string }) {
-  const [copied, setCopied] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
 
   async function share() {
     const url = `${window.location.origin}/room/${code}`;
     const text = `Join "${name}" on Taste of T with code ${code}`;
-    try {
-      if (navigator.share) return await navigator.share({ title: "Taste of T", text, url });
+    const copy = async () => {
       await navigator.clipboard.writeText(`${text}: ${url}`);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // share sheet dismissed: nothing to do
+      setNote("Copied!");
+      setTimeout(() => setNote(null), 2000);
+    };
+    try {
+      if (navigator.share) await navigator.share({ title: "Taste of T", text, url });
+      else await copy();
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return; // share sheet dismissed
+      await copy().catch(() => setNote(`Code: ${code}`));
     }
   }
 
   return (
-    <div className="mt-3 rounded-[14px] bg-cell p-5 text-center">
-      <p className="text-[13px] uppercase tracking-wide text-label-2">Group code</p>
-      <p className="mt-1 font-mono text-[44px] font-bold leading-none tracking-[0.25em] text-tint" aria-label={code.split("").join(" ")}>
+    <section className="rounded-[20px] border border-separator bg-cell p-5 text-center">
+      <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-label-2">Invite code</p>
+      <p className="mt-1.5 font-mono text-[42px] font-bold leading-none tracking-[0.25em] text-tint" aria-label={code.split("").join(" ")}>
         {code}
       </p>
-      <button type="button" onClick={share} className="mt-4 inline-flex items-center gap-2 rounded-full bg-tint/15 px-5 py-2.5 text-[15px] font-semibold text-tint active:opacity-60">
-        <ShareIcon size={18} /> {copied ? "Copied!" : "Invite friends"}
+      <button type="button" onClick={share} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-full bg-lavender px-5 text-[15px] font-bold text-plum active:scale-[0.98]">
+        <ShareIcon size={17} /> {note ?? "Invite friends"}
       </button>
-    </div>
+    </section>
   );
 }
