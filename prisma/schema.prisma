@@ -135,6 +135,7 @@ model RoomMember {
   budget         Int
   tastes         Json     @default("[]")
   avoid          Json     @default("[]")
+  dietary        Json     @default("[]") // string[]: e.g. "vegetarian"; hard constraint
   leaveBy        Int?     // Minutes
   maxWalkMinutes Int?
   joinedAt       DateTime @default(now())
