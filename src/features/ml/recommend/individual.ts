@@ -138,7 +138,7 @@ export function profileUser(
   cfg: RecommenderConfig = RECOMMENDER_CONFIG,
 ): ProfiledUser {
   const interactions = deriveInteractions(ctx, swipes, cfg);
-  const profile = buildUserProfile(interactions, new Map(catalog.map((p) => [p.id, p])), cfg);
+  const profile = buildUserProfile(interactions, new Map(catalog.map((p) => [p.id, p])), cfg, ctx.preferences.tastes);
   return { ctx, interactions, profile, confidence: confidenceFrom(profile.evidence, cfg) };
 }
 
@@ -205,18 +205,21 @@ export function buildReasons(
   else if (h.wishlistPlaceIds.includes(place.id)) r.push("on your wishlist");
   else if (h.checkInPlaceIds.includes(place.id)) r.push("you've been here");
 
+  const mine = new Set(tasteTagsOf(place, cfg));
+  const shared = new Map<string, number>();
   if (c.confidence > 0 && c.similarity >= 0.5 + cfg.reasons.minSimilarity / 2) {
-    const mine = new Set(tasteTagsOf(place, cfg));
-    const shared = new Map<string, number>();
     for (const id of user.profile.liked.keys()) {
       if (id === place.id) continue;
       const lp = catalogById.get(id);
       if (!lp) continue;
       for (const cu of tasteTagsOf(lp, cfg)) if (mine.has(cu)) shared.set(cu, (shared.get(cu) ?? 0) + 1);
     }
-    const top = [...shared.entries()].sort((a, b) => b[1] - a[1])[0];
-    r.push(top ? `you liked other ${top[0]} places` : "similar to places you liked");
   }
+  const top = [...shared.entries()].sort((a, b) => b[1] - a[1])[0];
+  const statedMatch = user.profile.statedTastes.find((t) => mine.has(t));
+  if (top) r.push(`you liked other ${top[0]} places`);
+  else if (statedMatch) r.push(`you said you like ${statedMatch}`);
+  else if (user.profile.liked.size > 0 && c.confidence > 0 && c.similarity >= 0.5 + cfg.reasons.minSimilarity / 2) r.push("similar to places you liked");
 
   if (sp.distanceMiles != null) {
     if (where.kind === "destination") r.push(sameText(place.neighborhood, where.neighborhood) ? `in ${place.neighborhood}` : `${fmtMiles(sp.distanceMiles)} from ${where.neighborhood}`);

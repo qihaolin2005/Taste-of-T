@@ -123,8 +123,11 @@ listed explicitly. Unknown dietary info = not supported. Groups use the union of
 - Preference: ratings (signed), wishlist and check-ins (weak likes), optional swipes, with recent
   items weighted higher. The user vector is a weighted average of liked minus disliked restaurant
   vectors (cuisine, price level, Bayesian rating, dietary flags).
-- Score = similarity, quality and distance. The similarity weight ramps in with evidence, so cold
-  start is quality and distance only.
+- Starting taste: cuisines picked in onboarding (`preferences.tastes`) seed the vector like one like's
+  worth of weight, and give confidence 0.6 on day one (`statedTastes` in config). Real ratings and
+  swipes gradually outweigh them. Reason: "you said you like thai".
+- Score = similarity, quality and distance. The similarity weight ramps in with evidence, so with no
+  history and no stated cuisines it's quality and distance only.
 - Then MMR for cuisine variety, and a reason per result.
 
 **Group: `buildGroupDeck(members, places)` → `rankAfterSwipes(deck, votes, memberIds)`**
