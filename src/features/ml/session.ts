@@ -21,7 +21,11 @@ export const SQUAD_PLAN_VERSION = 1;
 export type SessionDeck = {
   version: typeof SESSION_DECK_VERSION;
   createdAt: string;
-  /** RoomMember ids taking part. Fixed at start: people who join later don't block completion. */
+  /**
+   * Participant ids, fixed at start: people who join later can't swipe and don't block completion.
+   * The squads service uses each member's user id here, so someone who leaves and rejoins (getting
+   * a new RoomMember row) is still the same participant.
+   */
   memberIds: string[];
   /** The shortlist everyone swipes on, in display order. */
   items: DeckItem[];
@@ -34,7 +38,25 @@ export type SessionDeck = {
 };
 
 export type MemberProgress = { memberId: string; swiped: number; liked: number; total: number; done: boolean };
-export type SessionProgress = { members: MemberProgress[]; swiped: number; total: number; allDone: boolean };
+export type SessionProgress = {
+  /** Participants still in the squad. */
+  members: MemberProgress[];
+  /** Participants who left mid-session: they no longer count toward finishing or the top 5. */
+  left: string[];
+  swiped: number;
+  total: number;
+  allDone: boolean;
+};
+
+/**
+ * Who is still taking part. `active` = ids currently in the squad (omit = everyone who started).
+ * Anyone not in the original deck is ignored, so late joiners never count.
+ */
+function activeIds(deck: SessionDeck, active?: readonly string[]): string[] {
+  if (!active) return deck.memberIds;
+  const now = new Set(active);
+  return deck.memberIds.filter((id) => now.has(id));
+}
 
 export type SquadPlanPick = GroupPick & { reason: string };
 
@@ -116,23 +138,25 @@ export function createSessionDeck(
 
 // ------------------------------------------------------------- 2. live
 
-/** Only votes from session members on deck places count. */
-function validVotes(deck: SessionDeck, votes: readonly GroupVote[]): GroupVote[] {
-  const members = new Set(deck.memberIds);
+/** Only votes from participants still in the squad, on deck places, count. */
+function validVotes(deck: SessionDeck, votes: readonly GroupVote[], members: ReadonlySet<string>): GroupVote[] {
   const places = new Set(deck.items.map((i) => i.place.id));
   return votes.filter((v) => members.has(v.memberId) && places.has(v.placeId));
 }
 
-export function sessionProgress(deck: SessionDeck, votes: readonly GroupVote[]): SessionProgress {
+export function sessionProgress(deck: SessionDeck, votes: readonly GroupVote[], active?: readonly string[]): SessionProgress {
   const total = deck.items.length;
-  const per = new Map(deck.memberIds.map((id) => [id, new Map<string, boolean>()]));
-  for (const v of validVotes(deck, votes)) per.get(v.memberId)!.set(v.placeId, v.liked);
-  const members = deck.memberIds.map((memberId) => {
+  const ids = activeIds(deck, active);
+  const per = new Map(ids.map((id) => [id, new Map<string, boolean>()]));
+  for (const v of validVotes(deck, votes, new Set(ids))) per.get(v.memberId)!.set(v.placeId, v.liked);
+  const members = ids.map((memberId) => {
     const seen = per.get(memberId)!;
     return { memberId, swiped: seen.size, liked: [...seen.values()].filter(Boolean).length, total, done: seen.size >= total };
   });
+  const still = new Set(ids);
   return {
     members,
+    left: deck.memberIds.filter((id) => !still.has(id)),
     swiped: members.reduce((s, m) => s + m.swiped, 0),
     total: total * members.length,
     allDone: members.length > 0 && total > 0 && members.every((m) => m.done),
@@ -148,18 +172,29 @@ function pickReason(p: GroupPick, memberCount: number): string {
   return "nobody liked it, but it was the best match left";
 }
 
-/** Current top 5 from the votes so far. Safe to call on every poll. */
-export function liveStandings(deck: SessionDeck, votes: readonly GroupVote[], config: RecommenderConfig = RECOMMENDER_CONFIG): { picks: SquadPlanPick[]; warnings: string[] } {
-  const r = rankAfterSwipes({ deck: deck.items, ranked: [...deck.items, ...deck.backups] }, validVotes(deck, votes), deck.memberIds, { config });
-  return { picks: r.picks.map((p) => ({ ...p, reason: pickReason(p, deck.memberIds.length) })), warnings: r.warnings };
+/** Current top 5 from the votes of participants still in the squad. Safe to call on every poll. */
+export function liveStandings(
+  deck: SessionDeck,
+  votes: readonly GroupVote[],
+  config: RecommenderConfig = RECOMMENDER_CONFIG,
+  active?: readonly string[],
+): { picks: SquadPlanPick[]; warnings: string[] } {
+  const ids = activeIds(deck, active);
+  const r = rankAfterSwipes({ deck: deck.items, ranked: [...deck.items, ...deck.backups] }, validVotes(deck, votes, new Set(ids)), ids, { config });
+  return { picks: r.picks.map((p) => ({ ...p, reason: pickReason(p, ids.length) })), warnings: r.warnings };
 }
 
 // ------------------------------------------------------------- 3. final plan
 
-export function buildSquadPlan(deck: SessionDeck, votes: readonly GroupVote[], opts: { now?: Date; config?: RecommenderConfig } = {}): SquadPlan {
-  const progress = sessionProgress(deck, votes);
-  const { picks, warnings } = liveStandings(deck, votes, opts.config);
+export function buildSquadPlan(
+  deck: SessionDeck,
+  votes: readonly GroupVote[],
+  opts: { now?: Date; config?: RecommenderConfig; active?: readonly string[] } = {},
+): SquadPlan {
+  const progress = sessionProgress(deck, votes, opts.active);
+  const { picks, warnings } = liveStandings(deck, votes, opts.config, opts.active);
   const w = [...warnings];
+  if (progress.left.length) w.unshift(`${progress.left.length} member${progress.left.length === 1 ? "" : "s"} left during swiping; their votes weren't counted.`);
   if (!progress.allDone) w.unshift(`Ended early: ${progress.swiped} of ${progress.total} swipes were in.`);
   return {
     kind: "squad-top5",

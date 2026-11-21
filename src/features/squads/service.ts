@@ -30,6 +30,7 @@ import {
   latestRoomPlan,
   listRoomVotes,
   loadUserSwipes,
+  participantKey,
   ROOM_STATUS,
   upsertSquadSwipe,
   type Db,
@@ -60,6 +61,11 @@ function deckOf(room: RoomWithMembers): SessionDeck {
   return readSessionDeck(room.deck) ?? fail("conflict", "This squad has no active deck.");
 }
 
+/** Participant keys of everyone currently in the room (members who left are no longer rows). */
+function activeKeys(room: RoomWithMembers): string[] {
+  return room.members.flatMap((m) => (m.userId ? [participantKey(m.userId)] : []));
+}
+
 // ------------------------------------------------------------- start
 
 export type StartOptions = {
@@ -79,16 +85,18 @@ export async function startAdventure(db: Db, roomId: string, userId: string, opt
   const room = await loadRoom(db, roomId);
   if (room.hostUserId !== userId) fail("forbidden", "Only the squad's host can start the adventure.");
   if (room.status !== ROOM_STATUS.collecting) fail("conflict", "This adventure has already started.");
-  if (room.members.length === 0) fail("bad_request", "Nobody has joined the squad yet.");
+  // Every member needs a user (guest or signed in) to swipe; a row whose user was deleted can't take part.
+  const people = room.members.flatMap((m) => (m.userId ? [{ ...m, userId: m.userId }] : []));
+  if (people.length === 0) fail("bad_request", "Nobody has joined the squad yet.");
 
   const members: SessionMember[] = await Promise.all(
-    room.members.map(async (m) => {
-      const userCtx = m.userId ? await buildUserContext(db, m.userId, now) : null;
-      const prefsCity = m.userId ? (await db.userPreferences.findUnique({ where: { userId: m.userId }, select: { city: true } }))?.city : null;
+    people.map(async (m) => {
+      const userCtx = await buildUserContext(db, m.userId, now);
+      const prefsCity = (await db.userPreferences.findUnique({ where: { userId: m.userId }, select: { city: true } }))?.city;
       return {
-        memberId: m.id,
+        memberId: participantKey(m.userId),
         ctx: squadMemberContext({ ...m, tastes: readTags(m.tastes), avoid: readTags(m.avoid), dietary: readTags(m.dietary) }, userCtx, now),
-        swipes: m.userId ? await loadUserSwipes(db, m.userId, cfg.session.historySwipes) : [],
+        swipes: await loadUserSwipes(db, m.userId, cfg.session.historySwipes),
         city: m.city ?? prefsCity ?? null,
       };
     }),
@@ -111,19 +119,29 @@ export async function submitSwipe(db: Db, roomId: string, userId: string, placeI
   if (room.status === ROOM_STATUS.planned) fail("conflict", "Swiping is over: the plan is ready.");
   const deck = deckOf(room);
   const member = room.members.find((m) => m.userId === userId) ?? fail("forbidden", "You're not in this squad.");
-  if (!deck.memberIds.includes(member.id)) fail("forbidden", "You joined after the adventure started, so you can't swipe on this one.");
+  // Matched by user, so someone who left and rejoined carries on with their earlier swipes.
+  if (!deck.memberIds.includes(participantKey(userId))) fail("forbidden", "You joined after the adventure started, so you can't swipe on this one.");
   if (!deck.items.some((i) => i.place.id === placeId)) fail("bad_request", "That restaurant isn't in this squad's shortlist.");
 
   await upsertSquadSwipe(db, { roomId, memberId: member.id, userId, placeId, liked });
 
-  const votes = await listRoomVotes(db, roomId);
-  if (!sessionProgress(deck, votes).allDone) return { finished: false, plan: null };
-  return { finished: true, plan: await finish(db, room, deck, now) };
+  const plan = await finishIfEveryoneDone(db, room, deck, now);
+  return { finished: plan !== null, plan };
+}
+
+/**
+ * Finish when everyone STILL in the squad has swiped all 10. Called after each swipe and on each
+ * poll, so the session also completes when the last unfinished member leaves (even the host).
+ */
+async function finishIfEveryoneDone(db: Db, room: RoomWithMembers, deck: SessionDeck, now: Date): Promise<SquadPlan | null> {
+  const votes = await listRoomVotes(db, room.id);
+  if (!sessionProgress(deck, votes, activeKeys(room)).allDone) return null;
+  return finish(db, room, deck, now);
 }
 
 async function finish(db: Db, room: RoomWithMembers, deck: SessionDeck, now: Date): Promise<SquadPlan> {
   const votes = await listRoomVotes(db, room.id);
-  const plan = buildSquadPlan(deck, votes, { now });
+  const plan = buildSquadPlan(deck, votes, { now, active: activeKeys(room) });
   const saved = await completeRoom(db, room.id, plan, { kind: "squad-session", roomId: room.id, memberIds: deck.memberIds }, room.hostUserId, now);
   return (saved?.result as SquadPlan | undefined) ?? plan;
 }
@@ -148,7 +166,10 @@ export type LiveState = {
   myMemberId: string | null;
   /** Shortlist to swipe on (null before the host starts). */
   deck: { placeId: string; name: string | null; cuisines: string[]; rating: number | null; priceLevel: number | null; neighborhood: string | null; reason: string }[] | null;
+  /** Members still in the squad. */
   progress: { memberId: string; name: string; swiped: number; total: number; done: boolean }[];
+  /** How many people left during swiping (their votes no longer count). */
+  leftCount: number;
   /** The viewer's own votes: placeId -> liked. */
   mySwipes: Record<string, boolean>;
   /** Live top 5 while swiping; the final picks once planned. */
@@ -157,8 +178,11 @@ export type LiveState = {
   warnings: string[];
 };
 
-export async function getLiveState(db: Db, roomId: string, viewerUserId: string | null): Promise<LiveState> {
-  const room = await loadRoom(db, roomId);
+export async function getLiveState(db: Db, roomId: string, viewerUserId: string | null, now = new Date()): Promise<LiveState> {
+  let room = await loadRoom(db, roomId);
+  // A member leaving can make "everyone left has finished" true without anyone swiping: finish here.
+  const pending = room.status === ROOM_STATUS.swiping ? readSessionDeck(room.deck) : null;
+  if (pending && (await finishIfEveryoneDone(db, room, pending, now))) room = await loadRoom(db, roomId);
   const me = viewerUserId ? room.members.find((m) => m.userId === viewerUserId) : undefined;
   const deck = readSessionDeck(room.deck);
   const base = { roomId, status: room.status, isHost: viewerUserId != null && room.hostUserId === viewerUserId, myMemberId: me?.id ?? null };
@@ -169,6 +193,7 @@ export async function getLiveState(db: Db, roomId: string, viewerUserId: string 
       version: `${room.status}:${room.members.length}`,
       deck: null,
       progress: room.members.map((m) => ({ memberId: m.id, name: m.name, swiped: 0, total: 0, done: false })),
+      leftCount: 0,
       mySwipes: {},
       standings: [],
       plan: null,
@@ -177,15 +202,17 @@ export async function getLiveState(db: Db, roomId: string, viewerUserId: string 
   }
 
   const votes = await listRoomVotes(db, roomId);
-  const progress = sessionProgress(deck, votes);
-  const names = new Map(room.members.map((m) => [m.id, m.name]));
+  const active = activeKeys(room);
+  const progress = sessionProgress(deck, votes, active);
+  const byKey = new Map(room.members.flatMap((m) => (m.userId ? [[participantKey(m.userId), m] as const] : [])));
+  const myKey = viewerUserId ? participantKey(viewerUserId) : null;
   const plan = room.status === ROOM_STATUS.planned ? ((await latestRoomPlan(db, roomId))?.result as SquadPlan | undefined) ?? null : null;
-  const live = plan ? { picks: plan.picks, warnings: plan.warnings } : liveStandings(deck, votes);
+  const live = plan ? { picks: plan.picks, warnings: plan.warnings } : liveStandings(deck, votes, undefined, active);
   const lastVote = votes.reduce((t, v) => Math.max(t, v.at ?? 0), 0);
 
   return {
     ...base,
-    version: `${room.status}:${votes.length}:${lastVote}`,
+    version: `${room.status}:${votes.length}:${lastVote}:${active.length}`,
     deck: deck.items.map((i) => ({
       placeId: i.place.id,
       name: i.place.name ?? null,
@@ -195,8 +222,12 @@ export async function getLiveState(db: Db, roomId: string, viewerUserId: string 
       neighborhood: i.place.neighborhood ?? null,
       reason: i.reason,
     })),
-    progress: progress.members.map((p) => ({ memberId: p.memberId, name: names.get(p.memberId) ?? "Former member", swiped: p.swiped, total: p.total, done: p.done })),
-    mySwipes: Object.fromEntries(votes.filter((v) => v.memberId === me?.id).map((v) => [v.placeId, v.liked])),
+    progress: progress.members.map((p) => {
+      const m = byKey.get(p.memberId)!;
+      return { memberId: m.id, name: m.name, swiped: p.swiped, total: p.total, done: p.done };
+    }),
+    leftCount: progress.left.length,
+    mySwipes: Object.fromEntries(votes.filter((v) => myKey !== null && v.memberId === myKey).map((v) => [v.placeId, v.liked])),
     standings: live.picks.map((p) => ({ rank: p.rank, placeId: p.place.id, name: p.place.name ?? null, likes: p.likes, swiped: p.swiped, status: p.status, reason: p.reason })),
     plan,
     warnings: [...deck.warnings, ...live.warnings],

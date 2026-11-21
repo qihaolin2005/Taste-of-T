@@ -57,7 +57,8 @@ something visible changed, so the client can skip re-rendering.
 - `status`: `"collecting"`, `"swiping"`, or `"planned"`
 - `isHost`, `myMemberId`
 - `deck`: the 10 cards (name, cuisines, rating, price level, neighborhood, reason), or `null` before start
-- `progress`: each member's swipe count, e.g. "Priya 7/10", and whether they're done
+- `progress`: each member still in the squad: swipe count, e.g. "Priya 7/10", and whether they're done
+- `leftCount`: how many people left during swiping
 - `mySwipes`: `{ placeId: liked }`, so a reloaded phone resumes where it left off
 - `standings`: the live top 5 while swiping, the final picks once planned
 - `plan`: the saved `SquadPlan` once planned
@@ -65,9 +66,22 @@ something visible changed, so the client can skip re-rendering.
 
 ## When does it finish?
 
-Automatically, on the swipe that completes everyone's 10. Or the host taps **End** early, and the
-plan is marked `complete: false`. Members who join after the start can't swipe and don't block
-the finish. Finishing is atomic, so two simultaneous "last swipes" create one plan.
+Automatically, once everyone **still in the squad** has swiped all 10. Or the host taps **End**
+early, and the plan is marked `complete: false`. Finishing is atomic, so two simultaneous "last
+swipes" create one plan.
+
+**People joining or leaving mid-session:**
+- **Joined after the start:** can't swipe this deck and don't block the finish.
+- **Left (the member row is deleted by `leaveRoom`):** no longer count toward finishing or the top 5.
+  Their swipes stay in their own taste history. If the people left have all finished, the next
+  poll of `GET /api/rooms/[code]` completes the session, even if the host was the one who left.
+  The plan carries a warning ("1 member left during swiping…") and `LiveState.leftCount` says
+  how many left.
+- **Left and rejoined:** they carry on with their earlier swipes. Participants are matched by user,
+  not member row.
+
+**Room codes:** these functions take the room id exactly as stored. Routes should normalize the
+code from the URL first (`normalizeCode` in `src/features/rooms/code.ts`: "bhsg" → "BHSG").
 
 ## The plan
 

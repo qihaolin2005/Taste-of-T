@@ -2,12 +2,21 @@
 // Database access for squad sessions and swipe history. Every function takes the Prisma
 // client so tests can pass their own. No business rules here: see service.ts.
 import type { PrismaClient } from "@/generated/prisma/client";
-import type { GroupVote, SessionDeck, SquadPlan } from "@/features/ml";
+import { pseudonymousId, type GroupVote, type SessionDeck, type SquadPlan } from "@/features/ml";
 
 export type Db = PrismaClient;
 
 export const ROOM_STATUS = { collecting: "collecting", swiping: "swiping", planned: "planned" } as const;
 export type RoomStatus = (typeof ROOM_STATUS)[keyof typeof ROOM_STATUS];
+
+/**
+ * How a person is identified inside a session (deck participants, votes, progress, saved plan).
+ * Based on the user, not the RoomMember row, so leaving and rejoining keeps you the same
+ * participant. Pseudonymous, so other squad members never see raw user ids.
+ */
+export function participantKey(userId: string): string {
+  return pseudonymousId("user", userId);
+}
 
 export async function getRoomWithMembers(db: Db, roomId: string) {
   return db.room.findUnique({ where: { id: roomId }, include: { members: { orderBy: { joinedAt: "asc" } } } });
@@ -26,18 +35,19 @@ export async function beginSwiping(db: Db, roomId: string, deck: SessionDeck, no
   return count === 1;
 }
 
-/** Record (or change) one member's vote on one place in a session. */
+/** Record (or change) one person's vote on one place in a session. One row per user per place. */
 export async function upsertSquadSwipe(db: Db, s: { roomId: string; memberId: string; userId: string; placeId: string; liked: boolean }) {
   return db.swipe.upsert({
-    where: { roomId_memberId_placeId: { roomId: s.roomId, memberId: s.memberId, placeId: s.placeId } },
+    where: { roomId_userId_placeId: { roomId: s.roomId, userId: s.userId, placeId: s.placeId } },
     create: { ...s, source: "group" },
-    update: { liked: s.liked },
+    update: { liked: s.liked, memberId: s.memberId },
   });
 }
 
+/** Every vote in the session, keyed by participantKey (including people who have since left). */
 export async function listRoomVotes(db: Db, roomId: string): Promise<GroupVote[]> {
   const rows = await db.swipe.findMany({ where: { roomId }, orderBy: { updatedAt: "asc" } });
-  return rows.map((r) => ({ memberId: r.memberId!, placeId: r.placeId, liked: r.liked, at: r.updatedAt.getTime() }));
+  return rows.map((r) => ({ memberId: participantKey(r.userId), placeId: r.placeId, liked: r.liked, at: r.updatedAt.getTime() }));
 }
 
 /**

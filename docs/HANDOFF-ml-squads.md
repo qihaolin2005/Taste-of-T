@@ -71,7 +71,7 @@ Import only through `@/features/squads` and `@/features/ml`, not deep files (TEA
 
 | Table | Change | Notes |
 |---|---|---|
-| `Swipe` | **new** | `userId`, `placeId`, `liked`, `source` (`"solo"` or `"group"`). Squad swipes also have `roomId` and `memberId`. One vote per member per place per session; swiping again updates it. |
+| `Swipe` | **new** | `userId`, `placeId`, `liked`, `source` (`"solo"` or `"group"`). Squad swipes also have `roomId` and `memberId`. One vote per person per place per session; swiping again updates it. If the member leaves the room, `memberId` is cleared but the swipe stays in their history. |
 | `Room` | `+ deck Json?` | The shortlist snapshot (places included), written at start |
 | `Room` | `+ startedAt`, `+ finishedAt` | |
 | `Room.status` | new value `"swiping"` | `"collecting"` → `"swiping"` → `"planned"` |
