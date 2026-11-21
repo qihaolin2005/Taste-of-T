@@ -9,7 +9,14 @@
 //  - anything else (halal, kosher, gluten-free, ...): dietary must list it explicitly.
 //  - Unknown dietary info (dietary undefined and no dietStyle that answers it) = NOT supported.
 // Groups use the union of every member's restrictions (one vegetarian + one vegan -> both).
+// Activities (config.categories.dietFree) skip the filter: nobody eats at a bowling alley.
+import { RECOMMENDER_CONFIG } from "./config";
 import type { RestaurantCandidate } from "./restaurant";
+
+/** True for kinds of place the dietary filter doesn't apply to (activities). */
+export function isDietFree(place: RestaurantCandidate): boolean {
+  return RECOMMENDER_CONFIG.categories.dietFree.includes(place.category);
+}
 
 export type DietaryCheck = { ok: true } | { ok: false; failed: string[] };
 
@@ -36,6 +43,7 @@ function supports(place: RestaurantCandidate, need: string): boolean {
 }
 
 export function checkDietary(place: RestaurantCandidate, needs: readonly string[]): DietaryCheck {
+  if (isDietFree(place)) return { ok: true };
   const failed = normalizeDietary(needs).filter((n) => !supports(place, n));
   return failed.length ? { ok: false, failed } : { ok: true };
 }
@@ -51,6 +59,7 @@ export function filterByDietary<T extends RestaurantCandidate>(places: readonly 
 
 /** Human labels for the needs a place satisfies, for result reasons. */
 export function dietaryHighlights(place: RestaurantCandidate, needs: readonly string[]): string[] {
+  if (isDietFree(place)) return [];
   return normalizeDietary(needs)
     .filter((n) => supports(place, n))
     .map((n) => (n === "vegetarian" || n === "vegan" ? `has ${n} options` : `${n}`));

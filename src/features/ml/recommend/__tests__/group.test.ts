@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  areaOf,
   buildGroupDeck,
   checkDietary,
   cuisinesOf,
@@ -23,12 +24,28 @@ const member = (id: string, o: Parameters<typeof makeContext>[0] = {}, cityName 
 // ------------------------------------------------------------- deck
 
 describe("buildGroupDeck: filters", () => {
-  it("only uses places in the members' city", () => {
+  it("uses places in the members' city area: Cambridge counts for a Boston squad, New York doesn't", () => {
     const r = buildGroupDeck([member("a"), member("b"), member("c", {}, "Cambridge")], PLACES);
     expect(r.city).toBe("Boston");
-    expect(r.deck.every((d) => d.place.city === "Boston")).toBe(true);
-    expect(r.counts.outOfCity).toBe(2);
-    expect(buildGroupDeck([member("a")], PLACES, { city: "cambridge" }).deck.map((d) => d.place.id)).toEqual(["cam-thai"]);
+    expect(r.ranked.some((c) => c.place.id === "cam-thai")).toBe(true);
+    expect(r.ranked.some((c) => c.place.id === "nyc-thai")).toBe(false);
+    expect(r.counts.outOfCity).toBe(1);
+    const cam = buildGroupDeck([member("a")], PLACES, { city: "CAMBRIDGE" });
+    expect(cam.ranked.some((c) => c.place.city === "Boston")).toBe(true);
+    expect(buildGroupDeck([member("a")], PLACES, { city: "new york" }).ranked.map((c) => c.place.id)).toEqual(["nyc-thai"]);
+  });
+
+  it("an unknown city only matches itself", () => {
+    expect(areaOf("Somerville")).toBe("Greater Boston");
+    expect(areaOf(" boston ")).toBe("Greater Boston");
+    expect(areaOf("Springfield")).toBe("springfield");
+  });
+
+  it("only uses the kinds of place asked for", () => {
+    const mixed = [...PLACES, makePlace("arcade", { category: "activity", cuisines: ["arcade"], city: "Boston" }), makePlace("boba", { category: "dessert", cuisines: ["boba"], city: "Boston", dietary: ["vegan"] })];
+    const r = buildGroupDeck([member("a")], mixed, { categories: ["dessert"] });
+    expect(r.ranked.map((c) => c.place.id)).toEqual(["boba"]);
+    expect(r.counts.otherCategory).toBe(mixed.length - 1);
   });
 
   it("applies the UNION of members' restrictions: vegetarian + vegan -> every place is vegan-safe", () => {

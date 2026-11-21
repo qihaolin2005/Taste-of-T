@@ -11,6 +11,7 @@ import {
   buildSquadPlan,
   buildUserContext,
   createSessionDeck,
+  deckCategoryForStops,
   liveStandings,
   readSessionDeck,
   RECOMMENDER_CONFIG,
@@ -102,7 +103,9 @@ export async function startAdventure(db: Db, roomId: string, userId: string, opt
     }),
   );
 
-  const deck = createSessionDeck(members, opts.places, { city: opts.city, catalog: opts.catalog, now, config: cfg });
+  // The shortlist is for the night's first stop the host picked (dinner, else dessert, else activity).
+  const category = deckCategoryForStops(room.slots);
+  const deck = createSessionDeck(members, opts.places, { city: opts.city, category, catalog: opts.catalog, now, config: cfg });
   if (deck.items.length === 0) fail("bad_request", deck.warnings.join(" ") || "No restaurants fit this squad.");
   if (!(await beginSwiping(db, roomId, deck, now))) fail("conflict", "This adventure has already started.");
   return deck;
@@ -164,6 +167,8 @@ export type LiveState = {
   version: string;
   /** The viewer's member id, if they're in the squad. */
   myMemberId: string | null;
+  /** Kind of place on the cards ("dinner", "dessert", "activity"); null before the host starts. */
+  category: string | null;
   /** Shortlist to swipe on (null before the host starts). */
   deck: { placeId: string; name: string | null; cuisines: string[]; rating: number | null; priceLevel: number | null; neighborhood: string | null; reason: string }[] | null;
   /** Members still in the squad. */
@@ -191,6 +196,7 @@ export async function getLiveState(db: Db, roomId: string, viewerUserId: string 
     return {
       ...base,
       version: `${room.status}:${room.members.length}`,
+      category: null,
       deck: null,
       progress: room.members.map((m) => ({ memberId: m.id, name: m.name, swiped: 0, total: 0, done: false })),
       leftCount: 0,
@@ -213,6 +219,7 @@ export async function getLiveState(db: Db, roomId: string, viewerUserId: string 
   return {
     ...base,
     version: `${room.status}:${votes.length}:${lastVote}:${active.length}`,
+    category: deck.category ?? "dinner",
     deck: deck.items.map((i) => ({
       placeId: i.place.id,
       name: i.place.name ?? null,

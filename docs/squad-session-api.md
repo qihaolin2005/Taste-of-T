@@ -64,6 +64,14 @@ something visible changed, so the client can skip re-rendering.
 - `plan`: the saved `SquadPlan` once planned
 - `warnings`: for example "Ended early" or "veto turned off"
 
+## What's on the cards
+
+The shortlist is for the night's **first stop** the host picked (`Room.slots`, in the order
+dinner → dessert → activity): a dinner night swipes restaurants, a "dessert or boba" night swipes
+dessert spots, an activity-only night swipes activities. `LiveState.category` says which.
+Candidates come from the squad's city **area**: Boston, Cambridge and Somerville count as one
+(`metroAreas` in `src/features/ml/recommend/config.ts`).
+
 ## When does it finish?
 
 Automatically, once everyone **still in the squad** has swiped all 10. Or the host taps **End**

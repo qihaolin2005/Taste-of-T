@@ -75,6 +75,33 @@ export const RECOMMENDER_CONFIG = {
     unanimousBonus: 0.25,
   },
 
+  /**
+   * Kinds of place, matching the room "stops" a host picks (dinner / dessert / activity,
+   * STOP_CATEGORIES in src/features/rooms/schemas.ts).
+   */
+  categories: {
+    /** What the solo "for you" list shows unless the request asks for something else. */
+    soloDefault: ["dinner", "dessert"] as string[],
+    /** No dietary filter for these: you don't eat at a karaoke bar or a museum. */
+    dietFree: ["activity"] as string[],
+  },
+
+  /**
+   * TASTE_VOCAB tags that say when or how, not what you eat. They stay on places (and in the
+   * vocab, whose order is fixed) but don't count toward taste matching, variety, or reasons.
+   * "vegan-friendly" is already covered by the dietary flags.
+   */
+  nonTasteTags: ["late-night", "vegan-friendly"] as string[],
+
+  /**
+   * Cities that count as one area for the squad city filter (lowercase). Covers the cities in
+   * the places hubs (src/lib/places/hubs.ts: Boston, Cambridge, Somerville) and their neighbors
+   * on the T. A city not listed here only matches itself.
+   */
+  metroAreas: {
+    "Greater Boston": ["boston", "cambridge", "somerville", "brookline", "medford", "malden", "everett", "chelsea", "quincy", "newton", "watertown", "arlington", "revere", "milton"],
+  } as Record<string, string[]>,
+
   /** Live squad session ("Start adventure"): everyone swipes the same shortlist, then top 5. */
   session: {
     /** Shortlist size: every member swipes on all of these. */

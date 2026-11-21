@@ -27,6 +27,8 @@ export const recommendationsRequestSchema = z
       ])
       .optional(),
     limit: z.number().int().min(1).max(50).optional(),
+    /** Kinds of place to recommend. Default: food (dinner + dessert). */
+    categories: z.array(z.enum(["dinner", "dessert", "activity"])).min(1).max(3).optional(),
     /** Use this point for "nearby" instead of the stored location (e.g. the phone's current GPS; not saved). */
     origin: latLng.optional(),
     /** Restaurants to choose from. Default: the seed list (data/seed-restaurants.json). */
@@ -38,6 +40,7 @@ export type RecommendationsRequest = z.infer<typeof recommendationsRequestSchema
 export type RecommendationItem = {
   placeId: string;
   name: string | null;
+  category: RestaurantCandidate["category"];
   score: number;
   /** e.g. "you liked other thai places, 0.4 mi away, has vegan options" */
   reason: string;
@@ -91,7 +94,28 @@ export async function getRecommendations(
     warnings.push(...loaded.warnings);
   }
 
-  const r = recommendForUser(ctx, places, { mode: req.mode as RecommendMode | undefined, limit: req.limit, origin: req.origin, swipes });
+  const r = recommendForUser(ctx, places, {
+    mode: req.mode as RecommendMode | undefined,
+    limit: req.limit,
+    origin: req.origin,
+    swipes,
+    categories: req.categories ?? RECOMMENDER_CONFIG.categories.soloDefault,
+  });
+
+  // Remember what we showed, so the rewards system can check a visit was to a recommended place.
+  const shownAt = opts.now ?? new Date();
+  if (r.results.length) {
+    await db.$transaction(
+      r.results.map((x) =>
+        db.recommendationShown.upsert({
+          where: { userId_placeId: { userId, placeId: x.place.id } },
+          create: { userId, placeId: x.place.id, shownAt },
+          update: { shownAt },
+        }),
+      ),
+    );
+  }
+
   return {
     model: RECOMMENDER_MODEL_NAME,
     results: r.results.map((x) => ({
@@ -101,6 +125,7 @@ export async function getRecommendations(
       reason: x.reason,
       reasons: x.reasons,
       distanceMiles: x.distanceMiles,
+      category: x.place.category,
       cuisines: x.place.cuisines ?? x.place.tags,
       rating: x.place.rating ?? null,
       priceLevel: x.place.priceLevel ?? null,

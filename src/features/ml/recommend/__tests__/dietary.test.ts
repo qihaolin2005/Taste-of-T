@@ -74,6 +74,18 @@ describe("dietary filter", () => {
     expect(ids(filterByDietary(all, needs))).toEqual(ids([mixedVegan, veganOnly]));
   });
 
+  it("activities skip the dietary filter; food with unknown info still fails", () => {
+    const karaoke = place("karaoke", { category: "activity", tags: ["karaoke"] });
+    const unknownDinner = place("unknown-dinner");
+    const unknownDessert = place("unknown-dessert", { category: "dessert" });
+    for (const needs of [["vegan"], ["halal", "kosher"], ["gluten-free"]]) {
+      expect(checkDietary(karaoke, needs).ok).toBe(true);
+      expect(checkDietary(unknownDinner, needs).ok).toBe(false);
+      expect(checkDietary(unknownDessert, needs).ok).toBe(false);
+    }
+    expect(filterByDietary([karaoke, unknownDinner], ["vegan"]).map((p) => p.id)).toEqual(["karaoke"]);
+  });
+
   it("never lets a bad match through (exhaustive over generated places)", () => {
     const styles = [undefined, "veg-only", "vegan-only", "non-veg-only", "mixed"] as const;
     const lists = [undefined, [], ["vegetarian"], ["vegan"], ["halal"], ["vegetarian", "vegan", "halal"]];
