@@ -117,7 +117,7 @@ model Achievement {
 // ------------------------------------------------------- rooms & plans
 
 model Room {
-  id         String       @id // short shareable code
+  id         String       @id // 4-letter join code, e.g. "BHSG" (see src/features/rooms/code.ts)
   name       String
   hostUserId String?
   host       User?        @relation("RoomHost", fields: [hostUserId], references: [id], onDelete: SetNull)
