@@ -81,6 +81,22 @@ The full data model (check-ins, stamps, achievements, rooms, plans, ratings, wis
 
 `SESSION_SECRET` must be set for `npm start` and any deploy (`openssl rand -base64 32`).
 
+## T map
+
+`/map` shows the real MBTA network (all subway lines and branches, 125 stations), live train
+positions, and which stations you've stamped.
+
+- **Google Maps**: set `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` in `.env` (create a key with the
+  "Maps JavaScript API" enabled in Google Cloud Console, and restrict it to your domains,
+  since it ships to browsers). Restart `npm run dev` after adding it.
+- **Offline map**: with no key, a bad key, or no internet, the map draws the same MBTA
+  geometry as an SVG automatically. The demo works either way.
+- **Station data** is a committed snapshot in `data/stations.json`. Refresh it with
+  `npm run stations`.
+- **Live trains** come from `GET /api/vehicles`, which proxies MBTA `/vehicles` with a
+  shared 10 s cache, so we stay under the 20 requests/min no-key limit. Set `MBTA_API_KEY`
+  (free at api-v3.mbta.com) for 1000/min.
+
 ## Other scripts
 
 | Script | What it does |
