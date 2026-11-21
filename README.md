@@ -139,6 +139,31 @@ The full data model (check-ins, stamps, achievements, rooms, plans, ratings, wis
 
 `SESSION_SECRET` must be set for `npm start` and any deploy (`openssl rand -base64 32`).
 
+## Groups (join with a code)
+
+On the **Night** tab, either type a 4-letter code (e.g. `BHSG`) and tap **Join Group**, or start
+a new group: it gets a fresh code that anyone can use to join. Codes:
+
+- 4 letters with no `I` or `O` (so nobody mixes them up with 1 and 0), not case-sensitive.
+- Unique while the group is alive. Groups expire after 2 days, then the code can be reused.
+- Max 12 people per group.
+
+The group page (`/room/BHSG`) shows the code with **Invite friends** (iOS share sheet), your
+info (start/home station, budget, leaving early), and **Who's Coming**, which updates every 4 s,
+so new people pop in without a refresh. Dietary needs and tastes are copied from each member's
+profile. Other members only see your name and starting station; budget, home station, and
+dietary needs stay private (the planner reads them on the server). Wrong-code lookups are rate
+limited per IP so nobody can scan for strangers' groups.
+
+| Endpoint | What it does |
+|---|---|
+| `POST /api/rooms` | `{ name, day: "tonight"\|"tomorrow", startTime, slots }` → 201 `{ code }` |
+| `GET /api/rooms/BHSG` | The group as you see it (polled). 404 if unknown/expired |
+| `POST /api/rooms/BHSG/members` | Join, or update your info. 409 if full |
+| `DELETE /api/rooms/BHSG/members` | Leave |
+
+"Plan the Night" opens the plan page, which is still a placeholder until `generatePlan()` (P1) lands.
+
 ## T map
 
 `/map` shows the real MBTA network (all subway lines and branches, 125 stations), live train
