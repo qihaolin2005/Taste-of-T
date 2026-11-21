@@ -2,6 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { createTestDb } from "@/test/db";
 import { getOrCreateUser } from "@/features/users";
 import { getRecommendations } from "@/features/ml";
+import { completeQuest, createQuest, getPoints } from "@/features/gamification";
 import { ALL_PLACES } from "@/features/ml/recommend/__tests__/fixtures";
 import { basePoints, claimVisit, getRewards, groupMultiplier, merchantMatches, REWARDS_CONFIG, RewardError, type ClaimVisitInput } from "@/features/rewards";
 
@@ -195,5 +196,66 @@ describe("the 'for you' list records what was recommended", () => {
     expect(shown.map((s) => s.placeId).sort()).toEqual(recs.results.map((r) => r.placeId).sort());
     const r = await claimVisit(db, u, claim(recs.results[0].placeId, 20), { now: NOW });
     expect(r.recommendedVia).toBe("for-you");
+  });
+});
+
+describe("rewards in the points history (PointsEvent)", () => {
+  const ledgerSum = async (userId: string) => (await db.pointsEvent.aggregate({ where: { userId }, _sum: { amount: true } }))._sum.amount ?? 0;
+
+  it("a visit is a 'restaurant_visit' history entry with the place's name, and the total equals the history", async () => {
+    const u = await newUser();
+    await recommend(u, "p-lantern");
+    await claimVisit(db, u, claim("p-lantern", 24, {}, { mode: "bus", verified: true }), { now: NOW, placeName: "Lantern Dumpling House" });
+    const p = await getPoints(db, u);
+    expect(p.total).toBe(52);
+    expect(p.events).toEqual([expect.objectContaining({ amount: 52, reason: "restaurant_visit", title: "Lantern Dumpling House", placeName: "Lantern Dumpling House" })]);
+    expect(await ledgerSum(u)).toBe(p.total);
+  });
+
+  it("group top-ups are 'group_bonus' entries, and everyone's total still equals their history", async () => {
+    const users = await Promise.all([newUser(), newUser(), newUser()]);
+    const roomId = "LEDG";
+    await db.room.create({ data: { id: roomId, name: "Night", hostUserId: users[0], date: "2026-11-21", startTime: 1080, slots: ["dinner"], expiresAt: daysLater(2), status: "planned" } });
+    for (const [i, userId] of users.entries()) await db.roomMember.create({ data: { roomId, userId, name: `M${i}`, startStationId: "place-pktrm", homeStationId: "place-pktrm", budget: 40 } });
+    await db.plan.create({ data: { roomId, request: {}, result: { picks: [{ place: { id: "sq-ledger" } }] }, createdAt: NOW } });
+    for (const u of users) await claimVisit(db, u, claim("sq-ledger", 90, { receiptNumber: "L-1", diners: 3 }), { now: NOW, placeName: "Siam Garden" });
+
+    const first = await getPoints(db, users[0]);
+    expect(first.events.map((e) => [e.reason, e.amount, e.title]).reverse()).toEqual([
+      ["restaurant_visit", 45, "Siam Garden"],
+      ["group_bonus", 2, "Group bonus · Siam Garden"], // 45 -> 47 (x1.05)
+      ["group_bonus", 3, "Group bonus · Siam Garden"], // 47 -> 50 (x1.1)
+    ]);
+    for (const u of users) expect(await ledgerSum(u)).toBe((await getPoints(db, u)).total);
+  });
+
+  it("earned points never go down when early claimers drop out of the group window", async () => {
+    const users = await Promise.all(Array.from({ length: 4 }, () => newUser()));
+    const roomId = "WNDW";
+    await db.room.create({ data: { id: roomId, name: "Night", hostUserId: users[0], date: "2026-11-21", startTime: 1080, slots: ["dinner"], expiresAt: daysLater(3), status: "planned" } });
+    for (const [i, userId] of users.entries()) await db.roomMember.create({ data: { roomId, userId, name: `M${i}`, startStationId: "place-pktrm", homeStationId: "place-pktrm", budget: 40 } });
+    await db.plan.create({ data: { roomId, request: {}, result: { picks: [{ place: { id: "sq-window" } }] }, createdAt: NOW } });
+    const at = (h: number) => new Date(NOW.getTime() + h * 3_600_000);
+    const go = (u: string, h: number, n: string) => claimVisit(db, u, { placeId: "sq-window", receipt: { total: 20, date: minsAgo(10, at(h)), receiptNumber: n } }, { now: at(h) });
+    await go(users[0], 0, "w0");
+    await go(users[1], 1, "w1");
+    const third = await go(users[2], 2, "w2"); // 3 people -> x1.1
+    expect(third.groupMultiplier).toBe(1.1);
+    const late = await go(users[3], 13.5, "w3"); // 12 h window now only holds users[2] and users[3]
+    expect(late.groupSize).toBe(2);
+    const r2 = await getRewards(db, users[2]);
+    expect(r2!.visits[0]).toMatchObject({ points: 44, groupMultiplier: 1.1 }); // 40 x 1.1, not lowered to x1.05
+    for (const u of users) expect(await ledgerSum(u)).toBe((await getPoints(db, u)).total);
+  });
+
+  it("quests and restaurant rewards add up in one balance", async () => {
+    const u = await newUser();
+    const q = await createQuest(db, u, { title: "Chinatown Food Quest", points: 100 });
+    await completeQuest(db, u, q.id);
+    await recommend(u, "p-combo");
+    await claimVisit(db, u, claim("p-combo", 20), { now: NOW, placeName: "Pearl Tea Bar" });
+    const p = await getPoints(db, u);
+    expect(p.total).toBe(140); // 100 + (20 + 10 + 10)
+    expect(p.events.map((e) => e.title).sort()).toEqual(["Chinatown Food Quest", "Pearl Tea Bar"]);
   });
 });
