@@ -103,3 +103,36 @@ describe("progress, live standings, final plan", () => {
     expect(plan.warnings[0]).toMatch(/Ended early: 1 of 20 swipes/);
   });
 });
+
+describe("participants who left", () => {
+  const deck = createSessionDeck([m("a"), m("b"), m("c")], PLACES);
+  const ids = deck.items.map((i) => i.place.id);
+  const votes: GroupVote[] = [
+    ...ids.map((placeId) => ({ memberId: "a", placeId, liked: placeId === ids[1] })),
+    ...ids.map((placeId) => ({ memberId: "b", placeId, liked: placeId === ids[1] })),
+    { memberId: "c", placeId: ids[0], liked: true },
+  ];
+
+  it("counts only people still in the squad toward finishing", () => {
+    expect(sessionProgress(deck, votes).allDone).toBe(false); // c hasn't finished
+    const pr = sessionProgress(deck, votes, ["a", "b"]);
+    expect(pr).toMatchObject({ allDone: true, left: ["c"], swiped: 20, total: 20 });
+    expect(pr.members.map((x) => x.memberId)).toEqual(["a", "b"]);
+  });
+
+  it("ignores a leaver's votes in the top 5, and late joiners never count", () => {
+    const top = liveStandings(deck, votes, undefined, ["a", "b", "late"]).picks;
+    expect(top[0]).toMatchObject({ place: { id: ids[1] }, unanimous: true, reason: "everyone liked it (2/2)" });
+    expect(top.find((p) => p.place.id === ids[0])?.status).not.toBe("liked");
+  });
+
+  it("says in the plan that someone left", () => {
+    const plan = buildSquadPlan(deck, votes, { active: ["a", "b"] });
+    expect(plan.complete).toBe(true);
+    expect(plan.warnings[0]).toBe("1 member left during swiping; their votes weren't counted.");
+  });
+
+  it("an empty squad is never 'done'", () => {
+    expect(sessionProgress(deck, votes, []).allDone).toBe(false);
+  });
+});

@@ -187,15 +187,16 @@ model Swipe {
   roomId    String?
   room      Room?       @relation(fields: [roomId], references: [id], onDelete: Cascade)
   memberId  String?
-  member    RoomMember? @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  /// SetNull, not Cascade: if a member leaves the room, their swipes stay in their taste history.
+  member    RoomMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
   placeId   String      // places-client id (not a FK, like Rating.placeId)
   liked     Boolean
   source    String      // "solo" | "group"
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
-  /// One vote per member per place per session; swiping again updates it.
-  @@unique([roomId, memberId, placeId])
+  /// One vote per person per place per session; swiping again (even after leaving and rejoining) updates it.
+  @@unique([roomId, userId, placeId])
   @@index([userId, updatedAt])
 }
 

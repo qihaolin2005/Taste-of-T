@@ -202,3 +202,95 @@ describe("swipe history", () => {
     ]);
   });
 });
+
+describe("members leaving mid-session", () => {
+  // Mirrors leaveRoom() in src/features/rooms: the member row is deleted.
+  const leave = (roomId: string, userId: string) => db.roomMember.deleteMany({ where: { roomId, userId } });
+  const swipeAll = async (roomId: string, userId: string, ids: string[], liked: (id: string) => boolean) => {
+    let last;
+    for (const id of ids) last = await submitSwipe(db, roomId, userId, id, liked(id));
+    return last!;
+  };
+
+  it("a leaver doesn't block finishing, their votes stop counting, and their swipes stay in their history", async () => {
+    const s = await squad(3);
+    const deck = await startAdventure(db, s.id, s.host, { places: PLACES });
+    const ids = deck.items.map((i) => i.place.id);
+
+    for (const id of ids.slice(0, 4)) await submitSwipe(db, s.id, s.users[2], id, true);
+    await leave(s.id, s.users[2]);
+
+    await swipeAll(s.id, s.host, ids, (id) => id === ids[5]);
+    const r = await swipeAll(s.id, s.users[1], ids, (id) => id === ids[5]);
+    expect(r.finished).toBe(true);
+    expect(r.plan!.complete).toBe(true);
+    expect(r.plan!.recommended!.place.id).toBe(ids[5]);
+    expect(r.plan!.recommended!.unanimous).toBe(true); // 2 of 2 remaining members
+    expect(r.plan!.picks.filter((p) => p.status === "liked").map((p) => p.place.id)).toEqual([ids[5]]); // leaver's likes don't count
+    expect(r.plan!.warnings[0]).toMatch(/1 member left during swiping/);
+
+    const history = await loadUserSwipes(db, s.users[2]);
+    expect(history).toHaveLength(4);
+    expect(await db.swipe.count({ where: { userId: s.users[2], roomId: s.id, memberId: null } })).toBe(4);
+  });
+
+  it("finishes on the next poll when the last unfinished member leaves, even if it's the host", async () => {
+    const s = await squad(3);
+    const deck = await startAdventure(db, s.id, s.host, { places: PLACES });
+    const ids = deck.items.map((i) => i.place.id);
+    await swipeAll(s.id, s.users[1], ids, () => true);
+    await swipeAll(s.id, s.users[2], ids, (id) => id !== ids[0]);
+    for (const id of ids.slice(0, 3)) await submitSwipe(db, s.id, s.host, id, false);
+    expect((await getLiveState(db, s.id, s.users[1])).status).toBe("swiping");
+
+    await leave(s.id, s.host);
+    const live = await getLiveState(db, s.id, s.users[1]);
+    expect(live.status).toBe("planned");
+    expect(live.plan?.complete).toBe(true);
+    expect(live.leftCount).toBe(1);
+    expect(live.progress).toHaveLength(2);
+    expect(await db.plan.count({ where: { roomId: s.id } })).toBe(1);
+    await getLiveState(db, s.id, s.users[2]); // polling again doesn't make a second plan
+    expect(await db.plan.count({ where: { roomId: s.id } })).toBe(1);
+  });
+
+  it("someone who leaves and rejoins carries on with their earlier swipes, without duplicates", async () => {
+    const s = await squad(2);
+    const deck = await startAdventure(db, s.id, s.host, { places: PLACES });
+    const ids = deck.items.map((i) => i.place.id);
+    for (const id of ids.slice(0, 3)) await submitSwipe(db, s.id, s.users[1], id, true);
+
+    await leave(s.id, s.users[1]);
+    let live = await getLiveState(db, s.id, s.host);
+    expect(live.progress).toHaveLength(1);
+    expect(live.leftCount).toBe(1);
+
+    await db.roomMember.create({ data: { roomId: s.id, userId: s.users[1], name: "M1 again", startStationId: "place-pktrm", homeStationId: "place-harsq", budget: 40 } });
+    await submitSwipe(db, s.id, s.users[1], ids[0], false); // changes an earlier vote
+    await submitSwipe(db, s.id, s.users[1], ids[3], true); // and continues
+    live = await getLiveState(db, s.id, s.users[1]);
+    expect(live.leftCount).toBe(0);
+    expect(live.progress.find((p) => p.name === "M1 again")).toMatchObject({ swiped: 4 });
+    expect(live.mySwipes).toEqual({ [ids[0]]: false, [ids[1]]: true, [ids[2]]: true, [ids[3]]: true });
+    expect(await db.swipe.count({ where: { roomId: s.id, userId: s.users[1] } })).toBe(4);
+  });
+
+  it("if everyone leaves, the session stays open and live state still works", async () => {
+    const s = await squad(2);
+    await startAdventure(db, s.id, s.host, { places: PLACES });
+    await leave(s.id, s.host);
+    await leave(s.id, s.users[1]);
+    const live = await getLiveState(db, s.id, null);
+    expect(live).toMatchObject({ status: "swiping", progress: [], leftCount: 2, plan: null });
+  });
+
+  it("never exposes raw user ids to other squad members", async () => {
+    const s = await squad(2);
+    const deck = await startAdventure(db, s.id, s.host, { places: PLACES });
+    const ids = deck.items.map((i) => i.place.id);
+    await swipeAll(s.id, s.host, ids, () => true);
+    await swipeAll(s.id, s.users[1], ids, () => false);
+    const json = JSON.stringify(await getLiveState(db, s.id, s.users[1]));
+    for (const u of s.users) expect(json).not.toContain(u);
+  });
+});
