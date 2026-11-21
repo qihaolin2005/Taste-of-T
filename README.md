@@ -180,6 +180,16 @@ positions, and which stations you've stamped.
   shared 10 s cache, so we stay under the 20 requests/min no-key limit. Set `MBTA_API_KEY`
   (free at api-v3.mbta.com) for 1000/min.
 
+## Restaurants (Google Places)
+
+Real restaurants, dessert spots, and activities come from **Google Places API (New)** when
+`PLACES_API_KEY` is set (a server-only key; setup in [src/lib/places/README.md](src/lib/places/README.md)).
+Without it, the app uses 32 fictional demo places in `data/seed-restaurants.json`, so everything
+works offline. The ML recommendations (`POST /api/me/recommendations`) use the same source.
+
+- `GET /api/restaurants?station=place-chncl&category=dinner&q=dumplings` → `{ places, from, warning? }`
+- Google data is cached **in memory only** (default 60 min); Google's terms don't allow saving it.
+
 ## ML recommendations and squad sessions
 
 Solo recommendations, group recommendations, and the live squad flow (host starts → everyone

@@ -5,17 +5,16 @@
 // needs (hard filter), ratings, wishlist, check-ins, and solo + squad swipes.
 //   mode: { kind: "nearby", radiusMiles? } (default) | { kind: "destination", neighborhood, center?, radiusMiles? }
 //   origin: { lat, lng } to search near the phone's current position without storing it
-//   candidates: restaurants to rank; defaults to RESTAURANT_SOURCE below, else data/seed-restaurants.json
+//   candidates: restaurants to rank; defaults to restaurantSource() below, else data/seed-restaurants.json
 import { apiError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/requireUser";
 import { getRecommendations, recommendationsRequestSchema, type RestaurantSource } from "@/features/ml";
+import { googlePlacesEnabled, listRestaurants } from "@/lib/places";
 
-// TODO(P2): when the places client lands, set this to its list function, e.g.
-//   import { listRestaurants } from "@/lib/places";
-//   const RESTAURANT_SOURCE: RestaurantSource | null = listRestaurants;
+// Google Places when PLACES_API_KEY is set; otherwise null = the offline seed list (no warning).
 // Contract: docs/restaurant-source.md. If it fails or times out, the seed list is used.
-const RESTAURANT_SOURCE: RestaurantSource | null = null;
+const restaurantSource = (): RestaurantSource | null => (googlePlacesEnabled() ? listRestaurants : null);
 
 export async function POST(req: Request) {
   const auth = await requireUser();
@@ -36,7 +35,7 @@ export async function POST(req: Request) {
     return apiError("bad_request", "Invalid request body", issues);
   }
 
-  const result = await getRecommendations(db, auth.userId, parsed.data, { source: RESTAURANT_SOURCE });
+  const result = await getRecommendations(db, auth.userId, parsed.data, { source: restaurantSource() });
   if (!result) return apiError("not_found", "User not found");
   return Response.json(result);
 }
