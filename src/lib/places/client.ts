@@ -97,6 +97,21 @@ export async function searchPlaces(q: PlaceQuery): Promise<PlaceResults> {
   }
 }
 
+/**
+ * Text search around any point (e.g. the phone's position for Spin the T: "dumplings" near me).
+ * Cached ~by area (rounded to ~100 m). Throws if Google isn't set up or fails; callers fall back.
+ */
+export async function searchTextNear(center: { lat: number; lng: number }, text: string, radiusM = 1600): Promise<Place[]> {
+  if (!googlePlacesEnabled()) throw new PlacesUnavailableError("PLACES_API_KEY isn't set");
+  const round3 = (n: number) => Math.round(n * 1e3) / 1e3;
+  const key = JSON.stringify(["near", round3(center.lat), round3(center.lng), text.trim().toLowerCase(), Math.round(radiusM)]);
+  return cache.get(key, async () => {
+    const stations = getStations();
+    const raw = await searchText({ center, radiusM, query: text.trim() });
+    return raw.map((g) => mapGooglePlace(g, { stations })).filter((p): p is Place => p !== null);
+  });
+}
+
 /** For tests. */
 export function clearPlacesCache() {
   cache.clear();

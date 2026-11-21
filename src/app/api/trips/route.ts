@@ -1,6 +1,6 @@
 // Owner: P2 - Data & Integrations (see TEAM.md)
 //   GET  /api/trips                         -> { trips } (yours, newest first)
-//   POST /api/trips { roomId?, placeId? }   -> 201 TripView (starts recording)
+//   POST /api/trips { roomId?, placeId?, questId? } -> 201 TripView (starts recording)
 // A trip records your path to a restaurant (Strava-style). With `roomId`, your group can see it
 // on the group trip map. Destination = `placeId`, or the group plan's #1 pick; arriving there
 // finishes the trip. Send points with POST /api/trips/:id/points (src/features/trips/client.ts).
@@ -15,6 +15,8 @@ const startSchema = z
   .object({
     roomId: z.string().min(1).max(10).optional(),
     placeId: z.string().min(1).max(200).optional(),
+    /** A Spin the T quest (POST /api/spin): arriving at its place completes it. */
+    questId: z.string().min(1).max(40).optional(),
   })
   .strict();
 
@@ -30,8 +32,9 @@ export async function POST(req: Request) {
   const body = await parseBody(req, startSchema);
   if ("response" in body) return body.response;
   try {
-    const place = await resolveDestination(db, body.data.placeId, body.data.roomId);
-    return Response.json(await startTrip(db, auth.userId, { roomId: body.data.roomId, place }), { status: 201 });
+    // A quest trip takes its destination from the quest (startTrip), so no lookup is needed.
+    const place = body.data.questId ? null : await resolveDestination(db, body.data.placeId, body.data.roomId);
+    return Response.json(await startTrip(db, auth.userId, { roomId: body.data.roomId, place, questId: body.data.questId }), { status: 201 });
   } catch (err) {
     return tripErrorResponse(err);
   }

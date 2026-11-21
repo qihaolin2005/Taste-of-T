@@ -29,7 +29,7 @@ async function call<T>(url: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
-export const createTrip = (input: { roomId?: string; placeId?: string } = {}) => call<TripView>("/api/trips", { method: "POST", body: JSON.stringify(input) });
+export const createTrip = (input: { roomId?: string; placeId?: string; questId?: string } = {}) => call<TripView>("/api/trips", { method: "POST", body: JSON.stringify(input) });
 export const fetchMyTrips = () => call<{ trips: TripView[] }>("/api/trips").then((r) => r.trips);
 export const fetchTrip = (id: string) => call<TripView>(`/api/trips/${encodeURIComponent(id)}`);
 export const fetchRoomTrips = (code: string) =>

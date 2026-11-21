@@ -13,6 +13,11 @@ type Props = {
   /** Group code: your group sees this trip on the group trip map. */
   roomId?: string;
   placeId?: string;
+  /** Spin the T quest: arriving at `placeId` completes it. */
+  questId?: string;
+  /** Start button text and the note under it (defaults: "Start Trip" + a privacy note). */
+  startLabel?: string;
+  startFooter?: string;
   /** Your current recording trip from the server (e.g. after reopening the app), if any. */
   current: TripView | null;
   onChange: (trip: TripView) => void;
@@ -24,7 +29,7 @@ function rideText(ride: RideView | null): string | null {
   return ride.routeName ? `On ${ride.routeName}? ${ride.message}` : null;
 }
 
-export default function TripRecorderCard({ roomId, placeId, current, onChange }: Props) {
+export default function TripRecorderCard({ roomId, placeId, questId, startLabel = "Start Trip", startFooter, current, onChange }: Props) {
   const recorder = useRef<TripRecorder | null>(null);
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -66,7 +71,7 @@ export default function TripRecorderCard({ roomId, placeId, current, onChange }:
     if (!("geolocation" in navigator)) return setError("This browser can't share location.");
     setBusy(true);
     try {
-      const trip = await createTrip({ roomId, placeId });
+      const trip = await createTrip({ roomId, placeId, questId });
       onChange(trip);
       begin(trip);
     } catch (err) {
@@ -95,14 +100,15 @@ export default function TripRecorderCard({ roomId, placeId, current, onChange }:
       <ListSection
         header="Record Your Trip"
         footer={
-          roomId
+          startFooter ??
+          (roomId
             ? "Records your path until you get there, like Strava. Your group sees everyone's paths here. The first 200 m near where you start stays hidden from them."
-            : "Records your path until you get there, like Strava. Only you can see solo trips."
+            : "Records your path until you get there, like Strava. Only you can see solo trips.")
         }
       >
         <div className="p-4">
           <Button onClick={start} disabled={busy}>
-            {busy ? "Starting…" : "Start Trip"}
+            {busy ? "Starting…" : startLabel}
           </Button>
           {error && <p className="mt-2 text-center text-[13px] text-[#ff3b30]">{error}</p>}
         </div>
