@@ -1,0 +1,180 @@
+/* Owner: P3 - Group Mode & App Shell (see TEAM.md)
+   Loading/welcome styles ported from the Figma Make export: the animated purple line-art
+   Boston skyline + MBTA train, and the screen fade-in. Plain CSS (not a CSS module) so the
+   SVG markup keeps its original class names; every selector is scoped under a "tot-" class
+   and keyframes are "tot-" prefixed, so nothing leaks into other screens. */
+
+
+.tot-scene {
+  width: 100%;
+  overflow: hidden;
+  margin: 38px auto 24px;
+}
+.tot-scene svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: hidden;
+}
+
+.tot-scene .loading-skyline,
+.tot-scene .moving-train {
+  color: #7954ac;
+}
+.tot-scene .loading-tracks {
+  color: #a88bd4;
+}
+
+.tot-scene .loading-skyline path,
+.tot-scene .loading-skyline rect,
+.tot-scene .loading-skyline circle,
+.tot-scene .loading-tracks path,
+.tot-scene .moving-train path,
+.tot-scene .moving-train circle {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Skyline */
+.tot-scene .loading-skyline .loading-windows,
+.tot-scene .loading-tracks .track-ties {
+  color: #cdbbfa;
+  stroke-width: 1.4;
+}
+.tot-scene .loading-skyline .loading-bush {
+  fill: #eee7fc;
+}
+.tot-scene .loading-skyline circle {
+  fill: #f8f5ff;
+  stroke: #30203f;
+  stroke-width: 3;
+}
+.tot-scene .loading-skyline text {
+  fill: #30203f;
+  font-family: var(--font-dm-sans), sans-serif;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+/* Train */
+.tot-scene .moving-train {
+  animation: tot-train-crossing 3s linear infinite;
+  will-change: transform;
+}
+.tot-scene .moving-train .train-body {
+  fill: #f8f5ff;
+  stroke: #7954ac;
+  stroke-width: 2;
+}
+.tot-scene .moving-train .train-stripe {
+  fill: #7954ac;
+  stroke: #7954ac;
+}
+.tot-scene .moving-train .train-window {
+  fill: #cdbbfa;
+  stroke: #7954ac;
+  stroke-width: 1.7;
+}
+.tot-scene .moving-train .train-door {
+  fill: #f8f5ff;
+  stroke: #7954ac;
+  stroke-width: 1.6;
+}
+.tot-scene .moving-train .train-detail {
+  stroke: #7954ac;
+  stroke-width: 1.25;
+}
+.tot-scene .moving-train .route-display {
+  fill: #30203f;
+  stroke: #7954ac;
+  stroke-width: 1;
+}
+.tot-scene .moving-train .train-light {
+  fill: #cdbbfa;
+  stroke: #f8f5ff;
+  stroke-width: 1.4;
+}
+.tot-scene .moving-train .train-t-symbol {
+  fill: #f8f5ff;
+  stroke: #30203f;
+  stroke-width: 2.5;
+}
+.tot-scene .moving-train .train-t-letter {
+  fill: #30203f;
+  stroke: none;
+  font-family: var(--font-dm-sans), sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+}
+.tot-scene .moving-train .train-coupler {
+  stroke: #30203f;
+  stroke-width: 3;
+}
+.tot-scene .motion-lines {
+  color: #cdbbfa;
+}
+
+/* Wheels spin in place while the whole train crosses. */
+.tot-scene .moving-train .train-wheel {
+  animation: tot-wheel-spin 0.55s linear infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+  will-change: transform;
+}
+.tot-scene .moving-train .train-wheel circle {
+  fill: #30203f;
+  stroke: #7954ac;
+  stroke-width: 2;
+}
+.tot-scene .moving-train .train-wheel path {
+  stroke: #cdbbfa;
+  stroke-width: 1.3;
+}
+
+/* The train starts fully off the left edge and ends fully off the right, so each loop is
+   one train leaving and the next entering. */
+@keyframes tot-train-crossing {
+  from {
+    transform: translateX(-500px);
+  }
+  to {
+    transform: translateX(430px);
+  }
+}
+@keyframes tot-wheel-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tot-scene .moving-train {
+    animation: none;
+    transform: translateX(-50px);
+  }
+  .tot-scene .moving-train .train-wheel {
+    animation: none;
+  }
+}
+
+/* Screen entrance used by the welcome and account screens (Figma's tot-screen-in). */
+.tot-fade-in {
+  animation: tot-screen-in 0.28s ease-out;
+}
+@keyframes tot-screen-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tot-fade-in {
+    animation: none;
+  }
+}
