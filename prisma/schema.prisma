@@ -1,0 +1,18 @@
+// Owner: P2 - Data & Integrations (see TEAM.md)
+// Tables to add: Room, Member, Plan (JSON), User, CheckIn, Stamp, Rating, Wishlist
+// After editing: `npm run db:push` (updates dev.db and regenerates the client).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// TODO(P2): define models. Placeholder so the client generates:
+model AppMeta {
+  key   String @id
+  value String
+}
