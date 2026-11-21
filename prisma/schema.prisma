@@ -126,6 +126,8 @@ model Room {
   slots      Json         // StopCategory[]
   /// "collecting" (members joining) -> "swiping" (host started the adventure) -> "planned" (top 5 picked)
   status     String       @default("collecting")
+  /// After this the room is gone and its code can be reused. Always set by createRoom().
+  expiresAt  DateTime     @default(now())
   /// Squad session: the shortlist everyone swipes on (SessionDeck from src/features/ml/session.ts).
   deck       Json?
   startedAt  DateTime?
