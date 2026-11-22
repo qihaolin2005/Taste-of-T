@@ -127,7 +127,8 @@ describe("resolveClaim", () => {
   it("uses the scanned facts, with the diners the user picked", () => {
     const { token } = signReceipt("u1", { ...FACTS, diners: 2 }, SECRET, NOW);
     const r = resolveClaim("u1", base({ receiptToken: token, diners: 3 }), ctx());
-    expect(r.input).toEqual({ placeId: "p1", receipt: { ...FACTS, diners: 3 } });
+    // The location goes on to claimVisit's presence check.
+    expect(r.input).toEqual({ placeId: "p1", receipt: { ...FACTS, diners: 3 }, presence: { ...NEARBY, accuracyM: 15 } });
     expect(r.checkInDistanceM).toBeGreaterThan(50);
   });
 
@@ -137,9 +138,12 @@ describe("resolveClaim", () => {
     expect(r.input.receipt.total).toBe(48.2);
   });
 
-  it("refuses a claim from away from the restaurant", () => {
+  it("passes the location on (the at-the-restaurant check runs in claimVisit), and allows none", () => {
     const { token } = signReceipt("u1", FACTS, SECRET, NOW);
-    expectReward(() => resolveClaim("u1", base({ receiptToken: token, location: FAR }), ctx()), "forbidden", /at the restaurant/);
+    expect(resolveClaim("u1", base({ receiptToken: token, location: FAR }), ctx()).input.presence).toEqual(FAR);
+    const noFix = resolveClaim("u1", { placeId: "p1", receiptToken: token }, ctx());
+    expect(noFix.input.presence).toBeUndefined();
+    expect(noFix.checkInDistanceM).toBeUndefined();
   });
 
   it("refuses when the place can't be located", () => {
@@ -176,7 +180,22 @@ describe("a scanned claim end to end", () => {
     const wrongPlace = claimVisit(db, u, resolveClaim(u, req, c).input, { now: NOW, placeName: "Golden Garden" });
     await expect(wrongPlace).rejects.toThrow(/doesn't look like it's from Golden Garden/);
 
-    const ok = await claimVisit(db, u, resolveClaim(u, req, c).input, { now: NOW, placeName: "Lantern Dumpling House" });
+    const ok = await claimVisit(db, u, resolveClaim(u, req, c).input, { now: NOW, placeName: "Lantern Dumpling House", placeCoords: PLACE });
     expect(ok.breakdown.spend).toBe(24.1); // $48.20 scanned, 1 point per $2
+    expect(ok.verifiedBy).toBe("here");
+  });
+
+  it("refuses a scanned claim from away from the restaurant, or with no location and no trip", async () => {
+    const u = (await getOrCreateUser(db, null)).user.id;
+    await db.recommendationShown.create({ data: { userId: u, placeId: "p-lantern", shownAt: NOW } });
+    const { token } = signReceipt(u, { ...FACTS, receiptNumber: "CHK-2001" }, SECRET, NOW);
+    const c = { placeCoords: PLACE, secret: SECRET, requireReceiptScan: true, now: NOW };
+    const opts = { now: NOW, placeName: "Lantern Dumpling House", placeCoords: PLACE };
+
+    const far = claimVisit(db, u, resolveClaim(u, { placeId: "p-lantern", location: FAR, receiptToken: token }, c).input, opts);
+    await expect(far).rejects.toThrow(/at the restaurant/);
+    const none = claimVisit(db, u, resolveClaim(u, { placeId: "p-lantern", receiptToken: token }, c).input, opts);
+    await expect(none).rejects.toThrow(/Turn on location/);
+    expect(await db.rewardVisit.count({ where: { userId: u } })).toBe(0);
   });
 });

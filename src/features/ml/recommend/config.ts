@@ -110,6 +110,23 @@ export const RECOMMENDER_CONFIG = {
     "Greater Boston": ["boston", "cambridge", "somerville", "brookline", "medford", "malden", "everett", "chelsea", "quincy", "newton", "watertown", "arlington", "revere", "milton"],
   } as Record<string, string[]>,
 
+  /**
+   * Dietary fits (src/features/ml/recommend/dietary.ts). Vegetarian / vegan are soft because our
+   * data rarely says "vegan": ordinary places that probably have options stay in, ranked a little
+   * lower, with a "check the menu" reason. Other restrictions are religious or allergies: strict.
+   */
+  dietary: {
+    softNeeds: ["vegetarian", "vegan"] as string[],
+    /** Below this many "yes"/"likely" places, "maybe" places are let in too. Deck 10 + backups 10. */
+    minPool: 20,
+    /** Score multiplier by fit. */
+    fitWeight: { yes: 1, likely: 0.9, maybe: 0.75 },
+    /** Cuisines with many plant-based dishes: vegetarian options there are likely vegan too. */
+    plantForward: ["indian", "thai", "mediterranean", "vietnamese", "chinese", "japanese", "sushi", "korean", "mexican", "tacos", "noodles", "dim-sum", "dumplings", "hot-pot", "boba"] as string[],
+    /** A place tagged only with these is a "maybe" for vegetarians, not "likely". */
+    meatCentric: ["bbq", "seafood"] as string[],
+  },
+
   /** Live squad session ("Start adventure"): everyone swipes the same shortlist, then top 5. */
   session: {
     /** Shortlist size: every member swipes on all of these. */

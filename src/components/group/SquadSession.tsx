@@ -12,8 +12,14 @@ import { endSession, fetchSession, sendSwipe, startSession, type LiveState } fro
 
 const POLL_MS = 2000;
 const SWIPE_PX = 90;
+const FLY_PX = 520;
+const FLY_MS = 180;
 const STOP_LABEL: Record<string, string> = { dinner: "restaurants", dessert: "dessert spots", activity: "activities" };
 const price = (level: number | null) => (level ? "$".repeat(level) : null);
+/** Reasons come lowercase from the recommender: "a good fit for everyone" -> "A good fit for everyone". */
+const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+/** ...and as a full sentence, for a card. */
+const sentence = (s: string) => (s ? cap(s) + (/[.!?]$/.test(s) ? "" : ".") : s);
 
 type Card = NonNullable<LiveState["deck"]>[number];
 
@@ -45,37 +51,73 @@ function useSession(code: string) {
   return { live, setLive, error, refresh };
 }
 
-function SwipeCard({ card, onSwipe, busy }: { card: Card; onSwipe: (liked: boolean) => void; busy: boolean }) {
+/**
+ * One card. Drag it past SWIPE_PX (or tap a button, or press the arrow keys) and it flies off,
+ * then reports the swipe; anything shorter springs back. Never blocked by a swipe still sending.
+ */
+function SwipeCard({ card, onSwipe }: { card: Card; onSwipe: (liked: boolean) => void }) {
   const [dx, setDx] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const start = useRef<number | null>(null);
   const meta = [card.neighborhood, price(card.priceLevel), card.rating != null ? `★ ${card.rating.toFixed(1)}` : null].filter(Boolean).join(" · ");
+
+  const fly = (liked: boolean) => {
+    if (leaving) return;
+    start.current = null;
+    setLeaving(true);
+    setDragging(false);
+    setDx(liked ? FLY_PX : -FLY_PX);
+    setTimeout(() => onSwipe(liked), FLY_MS);
+  };
   const end = () => {
     if (start.current == null) return;
     start.current = null;
     setDragging(false);
-    if (Math.abs(dx) >= SWIPE_PX && !busy) onSwipe(dx > 0);
-    setDx(0);
+    if (Math.abs(dx) >= SWIPE_PX) fly(dx > 0);
+    else setDx(0);
   };
+  const hint = Math.min(1, Math.abs(dx) / SWIPE_PX);
+
   return (
     <div className="mt-3">
       <div
         role="group"
-        aria-label={`${card.name ?? "Place"}. Swipe right to like, left to pass.`}
-        className="relative touch-pan-y select-none rounded-[22px] bg-cell p-5 shadow-[0_12px_30px_rgb(48_32_63/0.12)] transition-transform"
-        style={{ transform: `translateX(${dx}px) rotate(${dx / 20}deg)`, transitionDuration: dragging ? "0ms" : "200ms" }}
+        tabIndex={0}
+        aria-label={`${card.name ?? "Place"}. Swipe right or press the right arrow to like, left to pass.`}
+        className="relative cursor-grab touch-pan-y select-none rounded-[22px] bg-cell p-5 shadow-[0_12px_30px_rgb(48_32_63/0.12)] outline-none transition-[transform,opacity] ease-out focus-visible:ring-2 focus-visible:ring-tint active:cursor-grabbing"
+        style={{
+          transform: `translateX(${dx}px) rotate(${dx / 18}deg)`,
+          opacity: leaving ? 0 : 1,
+          transitionDuration: dragging ? "0ms" : `${FLY_MS}ms`,
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowRight") fly(true);
+          else if (e.key === "ArrowLeft") fly(false);
+        }}
         onPointerDown={(e) => {
+          if (leaving) return;
           start.current = e.clientX;
           setDragging(true);
-          (e.target as Element).setPointerCapture?.(e.pointerId);
+          e.currentTarget.setPointerCapture?.(e.pointerId);
         }}
         onPointerMove={(e) => start.current != null && setDx(e.clientX - start.current)}
         onPointerUp={end}
         onPointerCancel={end}
       >
-        {dx > 30 && <span className="absolute right-4 top-4 rounded-full bg-tint px-3 py-1 text-[13px] font-bold text-tint-fg">LIKE</span>}
-        {dx < -30 && <span className="absolute left-4 top-4 rounded-full bg-cell-2 px-3 py-1 text-[13px] font-bold text-label-2">NOPE</span>}
-        <p className="font-serif text-[26px] leading-tight text-label">{card.name ?? "A place nearby"}</p>
+        <span
+          className="pointer-events-none absolute right-4 top-4 rounded-full bg-tint px-3 py-1 text-[13px] font-bold tracking-wide text-tint-fg"
+          style={{ opacity: dx > 0 ? hint : 0 }}
+        >
+          LIKE
+        </span>
+        <span
+          className="pointer-events-none absolute left-4 top-4 rounded-full bg-cell-2 px-3 py-1 text-[13px] font-bold tracking-wide text-label-2"
+          style={{ opacity: dx < 0 ? hint : 0 }}
+        >
+          PASS
+        </span>
+        <p className="pr-16 font-serif text-[26px] leading-tight text-label">{card.name ?? "A place nearby"}</p>
         {meta && <p className="mt-1 text-[15px] text-label-2">{meta}</p>}
         {card.cuisines.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">
@@ -86,13 +128,13 @@ function SwipeCard({ card, onSwipe, busy }: { card: Card; onSwipe: (liked: boole
             ))}
           </div>
         )}
-        <p className="mt-3 text-[14px] text-label-2">{card.reason}</p>
+        {card.reason && <p className="mt-3 text-[14px] leading-snug text-label-2">{sentence(card.reason)}</p>}
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3">
-        <Button variant="tinted" onClick={() => onSwipe(false)} disabled={busy}>
+        <Button variant="tinted" onClick={() => fly(false)} disabled={leaving}>
           ✕ Pass
         </Button>
-        <Button onClick={() => onSwipe(true)} disabled={busy}>
+        <Button onClick={() => fly(true)} disabled={leaving}>
           <HeartIcon size={18} /> Like
         </Button>
       </div>
@@ -124,7 +166,7 @@ function Standings({ live, header, final }: { live: LiveState; header: string; f
           key={s.placeId}
           icon={s.rank === 1 ? <StarIcon size={16} /> : <span className="text-[14px] font-bold">{s.rank}</span>}
           title={s.name ?? s.placeId}
-          subtitle={s.reason}
+          subtitle={cap(s.reason)}
           href={final && s.status !== "not-voted" ? `/rewards/claim?placeId=${encodeURIComponent(s.placeId)}` : undefined}
         />
       ))}
@@ -133,9 +175,12 @@ function Standings({ live, header, final }: { live: LiveState; header: string; f
 }
 
 export default function SquadSession({ code }: { code: string }) {
-  const { live, setLive, error, refresh } = useSession(code);
+  const { live, error, refresh } = useSession(code);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  // Swipes this phone made that a poll may not show yet. Merged over the server's list so a poll
+  // that started before a swipe landed can't bring the card back.
+  const [pending, setPending] = useState<Record<string, boolean>>({});
 
   async function act(fn: () => Promise<unknown>) {
     setBusy(true);
@@ -175,24 +220,42 @@ export default function SquadSession({ code }: { code: string }) {
   }
 
   if (live.status === "swiping" && live.deck) {
-    const next = live.deck.find((c) => !(c.placeId in live.mySwipes));
+    const mine = { ...live.mySwipes, ...pending };
+    const done = live.deck.filter((c) => c.placeId in mine).length;
+    const next = live.deck.find((c) => !(c.placeId in mine));
     const canSwipe = live.myMemberId != null;
-    const swipe = (liked: boolean) =>
-      next &&
-      act(async () => {
-        // Show the next card right away; the poll confirms.
-        setLive({ ...live, mySwipes: { ...live.mySwipes, [next.placeId]: liked } });
-        await sendSwipe(code, next.placeId, liked);
-      });
+    const swipe = (placeId: string, liked: boolean) => {
+      setActionError(null);
+      setPending((p) => ({ ...p, [placeId]: liked }));
+      sendSwipe(code, placeId, liked)
+        .then(() => refresh())
+        .catch((err: Error) => {
+          // Put the card back so they can try again.
+          setPending((p) => {
+            const rest = { ...p };
+            delete rest[placeId];
+            return rest;
+          });
+          setActionError(err.message);
+        });
+    };
     return (
       <div className="mt-6">
-        <p className="text-[15px] text-label-2">
-          Swipe on {live.deck.length} {STOP_LABEL[live.category ?? "dinner"] ?? "places"} · {Object.keys(live.mySwipes).length}/{live.deck.length} done
-        </p>
+        <div className="flex items-baseline justify-between">
+          <p className="text-[15px] text-label-2">
+            {live.deck.length} {STOP_LABEL[live.category ?? "dinner"] ?? "places"} to swipe
+          </p>
+          <p className="text-[15px] font-semibold tabular-nums text-label">
+            {done}/{live.deck.length}
+          </p>
+        </div>
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-cell-2" aria-hidden>
+          <div className="h-full rounded-full bg-tint transition-[width] duration-300" style={{ width: `${(done / live.deck.length) * 100}%` }} />
+        </div>
         {!canSwipe ? (
           <p className="mt-3 rounded-[14px] bg-cell px-4 py-4 text-[15px] text-label-2">You&apos;re not part of this round. Join before the next one.</p>
         ) : next ? (
-          <SwipeCard key={next.placeId} card={next} onSwipe={swipe} busy={busy} />
+          <SwipeCard key={next.placeId} card={next} onSwipe={(liked) => swipe(next.placeId, liked)} />
         ) : (
           <p className="mt-3 rounded-[14px] bg-cell px-4 py-4 text-center text-[15px] text-label-2">You&apos;re done! Waiting for the others…</p>
         )}
@@ -218,7 +281,7 @@ export default function SquadSession({ code }: { code: string }) {
           <div className="rounded-[22px] bg-tint p-5 text-tint-fg">
             <p className="text-[13px] font-semibold uppercase tracking-wide opacity-80">Tonight&apos;s pick</p>
             <p className="mt-1 font-serif text-[26px] leading-tight">{top.place.name ?? top.place.id}</p>
-            <p className="mt-1 text-[14px] opacity-90">{top.reason}</p>
+            <p className="mt-1 text-[14px] opacity-90">{sentence(top.reason)}</p>
           </div>
         )}
         <Standings live={live} header="Your Top 5" final />

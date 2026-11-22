@@ -1,12 +1,14 @@
 // Owner: P1 - Planner & Quests (ML, rewards) (see TEAM.md)
-//   POST /api/rewards/visits  { placeId, location: { lat, lng, accuracyM? }, receiptToken?, receipt?, diners?, travel?: { rideId } }
-//     -> 201 ClaimResult { visitId, points, breakdown, groupMultiplier, groupSize, recommendedVia, xp, travelNote?, checkInDistanceM }
-// Claim points for eating at a recommended place, while you're there:
-//   - `location` must be at the restaurant (GPS check-in)
+//   POST /api/rewards/visits  { placeId, location?: { lat, lng, accuracyM? }, receiptToken?, receipt?, diners?, travel?: { rideId } }
+//     -> 201 ClaimResult { visitId, points, breakdown, groupMultiplier, groupSize, recommendedVia, xp, travelNote?, verifiedBy, checkInDistanceM? }
+// Claim points for eating at a recommended place:
+//   - proof you were there (src/features/rewards/presence.ts): `location` at the restaurant
+//     (GPS check-in), or a trip you recorded past it, or a verified ride that ended near it
 //   - `receiptToken` comes from scanning the receipt (POST /api/rewards/receipt); a typed
 //     `receipt` is only accepted when scanning isn't configured (no GEMINI_API_KEY)
-//   - `travel.rideId` is a ride verified against live MBTA data (POST /api/rides/ping)
-// Proof: src/features/rewards/proof.ts. Rules: src/features/rewards/config.ts.
+//   - travel points: the verified bus/T ride that ended near the place is found automatically
+//     (`travel.rideId` can still name one)
+// Proof: src/features/rewards/proof.ts + presence.ts. Rules: src/features/rewards/config.ts.
 import { apiError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/requireUser";
@@ -36,7 +38,7 @@ export async function POST(req: Request) {
   const { places } = await loadRestaurants(googlePlacesEnabled() ? listRestaurants : null);
   const place = places.find((p) => p.id === parsed.data.placeId);
   const placeName = place?.name ?? null;
-  // Where the place is: you must be there to claim, and a ride must have ended near it.
+  // Where the place is: to confirm you were there, and that a ride actually ended near it.
   const placeCoords = place && typeof place.lat === "number" && typeof place.lng === "number" ? { lat: place.lat, lng: place.lng } : null;
 
   try {

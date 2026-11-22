@@ -4,7 +4,7 @@ import { getOrCreateUser } from "@/features/users";
 import { getRecommendations } from "@/features/ml";
 import { completeQuest, createQuest, getPoints } from "@/features/gamification";
 import { ALL_PLACES } from "@/features/ml/recommend/__tests__/fixtures";
-import { basePoints, claimVisit, claimVisitSchema, getRewards, groupMultiplier, listClaimablePlaces, visitsLeftToday, merchantMatches, REWARDS_CONFIG, RewardError, type ClaimVisitInput } from "@/features/rewards";
+import { basePoints, claimVisit, fixIsNear, claimVisitSchema, getRewards, groupMultiplier, listClaimablePlaces, visitsLeftToday, merchantMatches, REWARDS_CONFIG, RewardError, type ClaimVisitInput } from "@/features/rewards";
 
 const db = createTestDb();
 afterAll(() => db.$disconnect());
@@ -133,7 +133,9 @@ describe("claimVisit", () => {
 
     const u2 = await newUser();
     await recommend(u2, "p-far");
-    const far = await claimVisit(db, u2, claim("p-far", 10, {}, { rideId: await verifiedRide(u2, "bus") }), { now: NOW, placeCoords: { lat: 42.39674, lng: -71.12181 } }); // Davis
+    const davis = { lat: 42.39674, lng: -71.12181 };
+    const farClaim = { ...claim("p-far", 10, {}, { rideId: await verifiedRide(u2, "bus") }), presence: { ...davis, accuracyM: 15 } }; // they're at the place now
+    const far = await claimVisit(db, u2, farClaim, { now: NOW, placeCoords: davis });
     expect(far.breakdown.travel).toBe(0);
     expect(far.travelNote).toMatch(/km from this restaurant/);
   });
@@ -334,5 +336,112 @@ describe("listClaimablePlaces", () => {
     expect(await visitsLeftToday(db, u, { now: NOW })).toBe(1);
     await claimVisit(db, u, claim("c2", 20), { now: NOW });
     expect(await visitsLeftToday(db, u, { now: NOW })).toBe(0);
+  });
+});
+
+// ------------------------------------------------------------- were you there?
+
+describe("proof you were at the restaurant", () => {
+  const PLACE = { lat: 42.3601, lng: -71.0589 }; // near City Hall
+  const at = (dLatM: number) => ({ lat: PLACE.lat + dLatM / 111_320, lng: PLACE.lng }); // dLatM meters north
+  const withFix = (placeId: string, fix: { lat: number; lng: number; accuracyM: number }) => ({ ...claim(placeId, 30), presence: fix });
+
+  it("a phone fix near the place (with GPS error allowed) passes; far or too rough fails", () => {
+    // The shared GPS check-in (CHECKIN_CONFIG): 150 m + up to 75 m of reported error, fixes up to 500 m.
+    expect(fixIsNear({ ...at(100), accuracyM: 10 }, PLACE).ok).toBe(true);
+    expect(fixIsNear({ ...at(210), accuracyM: 75 }, PLACE).ok).toBe(true);
+    expect(fixIsNear({ ...at(400), accuracyM: 10 }, PLACE)).toMatchObject({ ok: false, reason: expect.stringMatching(/about 400 m away/) });
+    expect(fixIsNear({ ...at(10), accuracyM: 800 }, PLACE)).toMatchObject({ ok: false, reason: expect.stringMatching(/too rough/) });
+  });
+
+  it("claiming at the restaurant works and records how it was confirmed (not where)", async () => {
+    const u = await newUser();
+    await recommend(u, "p-here");
+    const r = await claimVisit(db, u, withFix("p-here", { ...at(40), accuracyM: 12 }), { now: NOW, placeCoords: PLACE });
+    expect(r.verifiedBy).toBe("here");
+    const stored = await db.rewardVisit.findUniqueOrThrow({ where: { id: r.visitId } });
+    expect(stored.breakdown).toMatchObject({ verifiedBy: "here" });
+    expect(JSON.stringify(stored)).not.toContain(String(at(40).lat));
+  });
+
+  it("typing a receipt from home is refused", async () => {
+    const u = await newUser();
+    await recommend(u, "p-home");
+    await expectReward(claimVisit(db, u, withFix("p-home", { ...at(3000), accuracyM: 10 }), { now: NOW, placeCoords: PLACE }), "forbidden", /couldn't confirm.*about 1\.9 mi away/);
+    await expectReward(claimVisit(db, u, claim("p-home", 30), { now: NOW, placeCoords: PLACE }), "forbidden", /Turn on location/);
+    expect(await db.rewardVisit.count({ where: { userId: u } })).toBe(0);
+  });
+
+  it("being at the place hours after the receipt isn't proof for that receipt", async () => {
+    const u = await newUser();
+    await recommend(u, "p-late");
+    const old = { ...claim("p-late", 30, { date: minsAgo(5 * 60) }), presence: { ...at(10), accuracyM: 10 } };
+    await expectReward(claimVisit(db, u, old, { now: NOW, placeCoords: PLACE }), "forbidden", /more than 3 hours/);
+  });
+
+  it("claiming later from home works if a recorded trip passed the place around the receipt time", async () => {
+    const u = await newUser();
+    await recommend(u, "p-trip");
+    const start = new Date(NOW.getTime() - 3 * 3_600_000); // trip started 3 h ago, arrived 20 min later
+    await db.trip.create({ data: { userId: u, startedAt: start, lastPointAt: new Date(start.getTime() + 1200_000), points: [[42.35, -71.06, 0], [at(30).lat, at(30).lng, 1200]] } });
+    const later = { ...claim("p-trip", 30, { date: minsAgo(150) }), presence: { ...at(5000), accuracyM: 10 } }; // now at home
+    const r = await claimVisit(db, u, later, { now: NOW, placeCoords: PLACE });
+    expect(r.verifiedBy).toBe("trip");
+  });
+
+  it("a verified ride that ended near the place counts; one that ended far away doesn't", async () => {
+    const u = await newUser();
+    await recommend(u, "p-ride");
+    await recommend(u, "p-ride-far");
+    await verifiedRide(u, "bus"); // ends at 42.3526, -71.0628: ~950 m from PLACE
+    await expectReward(claimVisit(db, u, claim("p-ride-far", 30), { now: NOW, placeCoords: PLACE }), "forbidden");
+    const nearStop = { lat: 42.3555, lng: -71.0605 }; // ~170 m from where the ride ended
+    const r = await claimVisit(db, u, claim("p-ride", 30), { now: NOW, placeCoords: nearStop });
+    expect(r.verifiedBy).toBe("ride");
+  });
+
+  it("a place we can't locate isn't checked, and says so", async () => {
+    const u = await newUser();
+    await recommend(u, "p-unknown");
+    expect((await claimVisit(db, u, claim("p-unknown", 30), { now: NOW, placeCoords: null })).verifiedBy).toBe("unchecked");
+  });
+
+  it("the location in the request must be a real fix", () => {
+    expect(() => claimVisitSchema.parse({ placeId: "p", receipt: { total: 10, date: minsAgo(5) }, presence: { lat: 99, lng: 0, accuracyM: 5 } })).toThrow();
+  });
+});
+
+// ------------------------------------------------------------- travel points without picking a ride
+
+describe("travel points find your verified ride by themselves", () => {
+  const nearStop = { lat: 42.3540, lng: -71.0620 }; // ~170 m from where verifiedRide() ends
+
+  it("a claim that names no ride still gets bus points from the verified ride that ended nearby", async () => {
+    const u = await newUser();
+    await recommend(u, "p-auto");
+    const ride = await verifiedRide(u, "bus");
+    const r = await claimVisit(db, u, claim("p-auto", 30), { now: NOW, placeCoords: nearStop });
+    expect(r.breakdown).toMatchObject({ travel: REWARDS_CONFIG.travel.bus, travelMode: "bus" });
+    expect((await db.rewardVisit.findUniqueOrThrow({ where: { id: r.visitId } })).rideId).toBe(ride);
+  });
+
+  it("the same ride isn't picked up again for another visit", async () => {
+    const u = await newUser();
+    await recommend(u, "p-auto1");
+    await recommend(u, "p-auto2");
+    await verifiedRide(u, "t");
+    expect((await claimVisit(db, u, claim("p-auto1", 30), { now: NOW, placeCoords: nearStop })).breakdown.travel).toBe(REWARDS_CONFIG.travel.t);
+    const second = { ...claim("p-auto2", 31), presence: { ...nearStop, accuracyM: 10 } };
+    expect((await claimVisit(db, u, second, { now: NOW, placeCoords: nearStop })).breakdown.travel).toBe(0);
+  });
+
+  it("a ride that ended far away, or wasn't verified, earns nothing", async () => {
+    const u = await newUser();
+    await recommend(u, "p-auto-far");
+    await verifiedRide(u, "bus");
+    await verifiedRide(u, "t", { status: "tracking" });
+    const davis = { lat: 42.39674, lng: -71.12181 };
+    const r = await claimVisit(db, u, { ...claim("p-auto-far", 30), presence: { ...davis, accuracyM: 10 } }, { now: NOW, placeCoords: davis });
+    expect(r.breakdown).toMatchObject({ travel: 0, travelMode: "none" });
   });
 });

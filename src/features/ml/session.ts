@@ -188,8 +188,8 @@ function pickReason(p: GroupPick, memberCount: number): string {
     if (p.unanimous) return memberCount > 1 ? `everyone liked it (${p.likes}/${memberCount})` : "you liked it";
     return `${p.likes} of ${p.swiped} liked it`;
   }
-  if (p.status === "not-voted") return "not voted on: a top match for the group's taste";
-  return "nobody liked it, but it was the best match left";
+  if (p.status === "not-voted") return "no votes yet, a top match for the group";
+  return "no likes, but the best match left";
 }
 
 /** Current top 5 from the votes of participants still in the squad. Safe to call on every poll. */

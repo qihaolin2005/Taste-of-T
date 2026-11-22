@@ -33,6 +33,19 @@ export const REWARDS_CONFIG = {
     windowHours: 12,
   },
 
+  /**
+   * Proof you were there (src/features/rewards/presence.ts): your phone near the place when you
+   * claim, a recorded trip that passed it, or a verified bus/T ride that ended near it, within
+   * windowHours of the receipt time.
+   */
+  presence: {
+    // How close counts as "at the place" (and how much GPS error is allowed) is the shared GPS
+    // check-in's CHECKIN_CONFIG (src/features/gamification/checkin.ts); trips use its radius too.
+    /** Stops can be a few blocks away, so a ride may end this far from the place. */
+    rideEndRadiusM: 400,
+    windowHours: 3,
+  },
+
   limits: {
     /** One reward per place per day (Boston date). */
     perPlacePerDay: 1,

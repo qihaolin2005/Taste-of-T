@@ -39,10 +39,15 @@ reason `restaurant_visit`, and each top-up a `group_bonus`, linked to the `Rewar
 1. **Recommended:** the place was in the user's "for you" results (`POST /api/me/recommendations`
    now logs these in `RecommendationShown`) or in one of their squads' top 5, within **48 h**.
    A squad top 5 also unlocks the group bonus.
-2. **At the restaurant (GPS check-in):** the claim carries the phone's location, which must be
-   within **150 m** of the place, plus up to 75 m of the phone's reported GPS error. Fixes rougher
-   than 500 m are refused. So you claim while you're there. The location is checked, not stored.
-   (`checkIn()` in `src/features/gamification/checkin.ts`.)
+2. **You were there** (`src/features/rewards/presence.ts`), within **3 h** of the receipt time, by
+   any one of:
+   - **here (GPS check-in):** the claim's `location` is within **150 m** of the place, plus up to
+     75 m of the phone's reported GPS error; fixes rougher than 500 m are refused
+     (`checkIn()` in `src/features/gamification/checkin.ts`)
+   - **trip:** a trip you recorded (`src/features/trips`) passed within 150 m of the place
+   - **ride:** a verified bus/T ride ended within **400 m** of it
+   Otherwise the claim is refused (403) with what to do. The location is checked, not stored; only
+   which proof was used is (`breakdown.verifiedBy`). A place we can't locate can't be claimed.
 3. **Receipt, scanned:** the user photographs the receipt; Gemini reads the restaurant name,
    total, date/time and receipt number (`src/features/rewards/receiptOcr.ts`). The server signs
    those facts into a 30-minute token tied to the user, and the claim uses the token's facts,
@@ -51,10 +56,14 @@ reason `restaurant_visit`, and each top-up a `group_bonus`, linked to the `Rewar
    - the scanned name must share a real word with the place's name
      ("LANTERN DUMPLING HSE" matches "Lantern Dumpling House")
    - typed receipts are only accepted when scanning isn't configured (no `GEMINI_API_KEY`), so
-     the app still runs offline in dev; then only the GPS check-in proves the visit
+     the app still runs offline in dev; then only the presence check (rule 2) proves the visit
 4. **No reuse:** each person can claim a receipt once, and at most as many people as the
    `diners` on it.
 5. **Limits:** one reward **per place per day** (Boston date), **2 rewarded visits per day**.
+
+**Travel points** need a ride verified against live MBTA data (tap Start Trip before boarding;
+`src/features/rides`). Nobody picks "bus" or "T": if the claim doesn't name a ride, the server uses
+the verified, unused ride that ended within 400 m of the place around the receipt time.
 
 Known limits: a determined user can fake browser GPS (developer tools), and a photo of someone
 else's real receipt from that restaurant would still read fine. Each of the other rules (one claim
@@ -82,15 +91,18 @@ per receipt, recent receipt, 2 claims a day) caps what that's worth.
 ```
 
 Without scanning configured, send `"receipt": { "total", "date", "merchantName"?, "receiptNumber"? }`
-instead of `receiptToken`. `diners` overrides the guest count read off the receipt.
+instead of `receiptToken`. `diners` overrides the guest count read off the receipt. `location`
+is optional (a recorded trip or verified ride can prove the visit instead) and `travel` too (the
+verified ride that ended near the place is found automatically).
 
-→ `201 { visitId, points, breakdown, groupMultiplier, groupSize, recommendedVia, xp, travelNote?, checkInDistanceM }`
+→ `201 { visitId, points, breakdown, groupMultiplier, groupSize, recommendedVia, xp, travelNote?, verifiedBy, checkInDistanceM? }`
+(`verifiedBy`: `"here"` / `"trip"` / `"ride"`: how we confirmed you were there)
 
 Errors come back as `{ error: { code, message } }`:
 
 | Code | When |
 |---|---|
-| `forbidden` (403) | not recommended in the last 48 h, or not at the restaurant (GPS check-in) |
+| `forbidden` (403) | not recommended in the last 48 h, or nothing proves you were there (rule 2) |
 | `bad_request` (400) | receipt in the future, too old, or from a different restaurant; no scan (when scanning is on); scan expired or not yours; place location unknown |
 | `conflict` (409) | receipt already claimed, or already rewarded at this place today |
 | `too_many_requests` (429) | 2 rewarded visits already today |

@@ -1,20 +1,26 @@
 // Owner: P1 - Planner & Quests (ML, rewards) (see TEAM.md)
 // /rewards/claim: claim points for eating at a recommended place (src/features/rewards).
 //   pick the place (recommended in the last 48 h) -> scan the receipt (Gemini reads the
-//   restaurant, total and time) -> people on the bill -> optional verified bus/T ride
-//   -> optional rating -> Claim: GPS check-in at the restaurant + POST /api/rewards/visits
+//   restaurant, total and time) -> people on the bill -> optional rating
+//   -> Claim: phone location + POST /api/rewards/visits
 // The photo is read once and discarded; only the facts are kept. If receipt scanning isn't set
 // up on the server (no GEMINI_API_KEY), the receipt is typed in instead.
+// Proof you were there (src/features/rewards/presence.ts): the phone's location at the place, or
+// if it's off / you already left, a trip you recorded there or a verified ride that ended nearby.
+// Travel points: nobody picks "bus" or "T". The server finds your ride verified against live MBTA
+// data (recorded with "Start Trip"); this screen shows whether you have one.
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, ListRow, ListSection, SegmentedControl, SelectRow, StarIcon, TextFieldRow } from "@/components/shared/ios";
+import { Button, ListRow, ListSection, SegmentedControl, SelectRow, StarIcon, TextFieldRow, TrainIcon } from "@/components/shared/ios";
 import { currentFix, scanReceiptPhoto, type ScannedReceipt } from "@/features/rewards/client";
 
 type Claimable = { placeId: string; name: string | null; via: "squad" | "for-you"; at: string };
 type Ride = { id: string | null; status: string; mode: "bus" | "t" | null; routeName: string | null; usedForReward: boolean; verifiedAt: string | null };
 type Breakdown = { meal: number; spend: number; travel: number; travelMode: string; firstVisit: number; repeatFactor: number; base: number };
-type Result = { points: number; xp: number; groupMultiplier: number; groupSize: number; breakdown: Breakdown; travelNote?: string };
+type Result = { points: number; xp: number; groupMultiplier: number; groupSize: number; breakdown: Breakdown; travelNote?: string; verifiedBy?: string };
+
+const VERIFIED: Record<string, string> = { here: "Your location", trip: "Your recorded trip", ride: "Your verified ride" };
 
 /** "2026-11-21T19:40" in the phone's local time, for <input type="datetime-local">. */
 function localNow(minutesAgo = 0): string {
@@ -47,9 +53,8 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
   const [diners, setDiners] = useState(1);
   const [when, setWhen] = useState(() => localNow(5));
   const [merchant, setMerchant] = useState("");
-  const [rideId, setRideId] = useState("");
   const [stars, setStars] = useState(0);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<false | "locating" | "claiming">(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   // Receipt scanning (when the server has it): the read facts and the signed token for the claim.
@@ -95,19 +100,20 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
 
   async function submit() {
     if (!valid || !place) return;
-    setBusy(true);
+    setBusy("locating");
     setError(null);
     try {
-      // Check-in: you claim while you're at the restaurant.
-      const location = await currentFix();
+      // Location at the restaurant. If it's off or fails, still claim: a recorded trip or a
+      // verified ride can confirm the visit, and the server says what's missing if nothing does.
+      const location = await currentFix().catch(() => null);
+      setBusy("claiming");
       const res = await postJson<Result>("/api/rewards/visits", {
         placeId: place.placeId,
-        location,
+        ...(location ? { location } : {}),
         diners,
         ...(canScan && scan
           ? { receiptToken: scan.receiptToken }
           : { receipt: { total: Math.round(amount * 100) / 100, date: new Date(when).toISOString(), ...(merchant.trim() ? { merchantName: merchant.trim() } : {}) } }),
-        ...(rideId ? { travel: { rideId } } : {}),
       });
       // A rating also teaches the recommender (8-10 = like, 0-3 = dislike).
       if (stars > 0) await postJson("/api/ratings", { placeId: place.placeId, score: stars * 2 }).catch(() => {});
@@ -124,7 +130,7 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
 
   if (result) {
     const b = result.breakdown;
-    const parts = [`${b.meal} meal`, `${b.spend} spend`, b.travel ? `${b.travel} ${b.travelMode === "bus" ? "bus" : "T"} ride` : null, b.firstVisit ? `${b.firstVisit} first visit` : null].filter(Boolean);
+    const parts = [`${b.meal} meal`, `${Math.round(b.spend)} spend`, b.travel ? `${b.travel} ${b.travelMode === "bus" ? "bus" : "T"} ride` : null, b.firstVisit ? `${b.firstVisit} first visit` : null].filter(Boolean);
     return (
       <>
         <div className="mt-3 rounded-[22px] bg-tint p-6 text-center text-tint-fg">
@@ -135,6 +141,7 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
         <ListSection header="How you earned it" footer={result.travelNote}>
           <ListRow title={parts.join(" + ")} />
           {b.repeatFactor < 1 && <ListRow title={`Repeat visit ×${b.repeatFactor}`} />}
+          {result.verifiedBy && VERIFIED[result.verifiedBy] && <ListRow title="Visit confirmed by" value={VERIFIED[result.verifiedBy]} />}
           {result.groupSize > 1 && <ListRow title={`Group bonus ×${result.groupMultiplier}`} subtitle={`${result.groupSize} of your squad ate here. More squad-mates claiming raises everyone's bonus.`} />}
         </ListSection>
         <div className="mt-6">
@@ -147,8 +154,8 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
   if (left === 0) {
     return (
       <div className="mt-3 rounded-[14px] bg-cell px-4 py-10 text-center">
-        <p className="text-[17px] font-semibold">That&apos;s 2 rewarded meals today</p>
-        <p className="mt-1 text-[15px] text-label-2">You can claim points for up to 2 visits a day. Come back tomorrow!</p>
+        <p className="text-[17px] font-semibold">You&apos;ve claimed 2 meals today</p>
+        <p className="mt-1 text-[15px] text-label-2">Points are limited to 2 meals a day. Come back tomorrow!</p>
         <div className="mt-5">
           <Button href="/profile" variant="tinted">
             See My Points
@@ -194,7 +201,7 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
               <ListRow title="Time" value={new Date(scan.receipt.date).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} />
             </>
           )}
-          <SelectRow label="People on it" value={diners} options={Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: String(i + 1) }))} onChange={setDiners} />
+          <SelectRow label="People on bill" value={diners} options={Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: String(i + 1) }))} onChange={setDiners} />
           <div className="px-4 py-3">
             <input ref={photoInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onPhoto(e.target.files?.[0])} />
             <Button variant={scan ? "tinted" : undefined} onClick={() => photoInput.current?.click()} disabled={scanning}>
@@ -204,21 +211,35 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
           </div>
         </ListSection>
       ) : (
-        <ListSection header="Receipt" footer="Type the total from your receipt. Only the amount, time and restaurant name are kept, never a photo.">
+        <ListSection header="Receipt" footer="Type the total from your receipt. We only keep the amount, time and restaurant name.">
           <TextFieldRow label="Total ($)" inputMode="decimal" placeholder="42.50" value={total} onChange={(e) => setTotal(e.target.value.replace(/[^\d.]/g, ""))} />
           <TextFieldRow label="Time" type="datetime-local" value={when} max={localNow()} onChange={(e) => setWhen(e.target.value)} />
-          <SelectRow label="People on it" value={diners} options={Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: String(i + 1) }))} onChange={setDiners} />
-          <TextFieldRow label="Name on it" placeholder="Optional" value={merchant} onChange={(e) => setMerchant(e.target.value)} />
+          <SelectRow label="People on bill" value={diners} options={Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: String(i + 1) }))} onChange={setDiners} />
+          <TextFieldRow label="Restaurant" placeholder="As on receipt (optional)" value={merchant} onChange={(e) => setMerchant(e.target.value)} />
         </ListSection>
       )}
 
-      <ListSection header="How did you get there?" footer={rides.length ? "Verified bus rides earn 10, T rides 5." : "Record your trip by bus or T next time for travel points."}>
-        <SelectRow
-          label="Ride"
-          value={rideId}
-          options={[{ value: "", label: "No ride" }, ...rides.map((r) => ({ value: r.id!, label: `${r.mode === "bus" ? "Bus" : "T"}${r.routeName ? ` · ${r.routeName}` : ""}` }))]}
-          onChange={setRideId}
-        />
+      <ListSection
+        header="How Did You Get There?"
+        footer={
+          rides.length
+            ? "A verified ride counts automatically if it ended near this place. Bus earns 10 points, T earns 5."
+            : "Travel points need a ride we can verify. Before you board, tap Start Trip in My Trips (or on your Spin quest). We match your phone to the live bus or train, so there's nothing to pick here."
+        }
+      >
+        {rides.length ? (
+          rides.map((r) => (
+            <ListRow
+              key={r.id}
+              icon={<TrainIcon size={16} />}
+              title={r.routeName ?? (r.mode === "bus" ? "Bus" : "T")}
+              subtitle={r.mode === "bus" ? "Bus ride" : "T ride"}
+              value="Verified ✓"
+            />
+          ))
+        ) : (
+          <ListRow icon={<TrainIcon size={16} />} title="No verified ride yet" subtitle="Tap to record your next trip" href="/trips" />
+        )}
       </ListSection>
 
       <ListSection header="How was it? (optional)" footer="Ratings make your recommendations better.">
@@ -233,10 +254,12 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
 
       {error && <p className="mt-3 rounded-[14px] bg-cell px-4 py-3 text-[14px] text-danger">{error}</p>}
       <div className="mt-6">
-        <Button onClick={submit} disabled={!valid || busy}>
-          <StarIcon size={18} /> {busy ? "Checking you in…" : "Claim Points"}
+        <Button onClick={submit} disabled={!valid || busy !== false}>
+          <StarIcon size={18} /> {busy === "locating" ? "Checking your location…" : busy ? "Claiming…" : "Claim Points"}
         </Button>
-        <p className="mt-2 px-4 text-center text-[13px] text-label-2">Claim while you&apos;re at the restaurant: we check your location once to confirm you&apos;re there. It isn&apos;t stored.</p>
+        <p className="mt-2 px-4 text-center text-[13px] text-label-2">
+          Claim at {place?.name ?? "the restaurant"}: we check your location once to confirm you&apos;re there. It&apos;s never saved. Already left? A trip you recorded there works too.
+        </p>
       </div>
     </>
   );

@@ -6,3 +6,4 @@ export * from "./service";
 export * from "./proof";
 export * from "./receiptToken";
 // receiptOcr.ts (the Gemini call) is imported directly by its route, so the SDK only loads there.
+export * from "./presence";

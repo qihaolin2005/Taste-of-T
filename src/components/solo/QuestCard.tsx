@@ -27,7 +27,7 @@ export default function QuestCard({ spin }: { spin: SpinResult }) {
         )}
         <p className="text-[15px] leading-5">
           <span className="font-semibold">Why this spot: </span>
-          <span className="text-label-2">{spin.place.reason}</span>
+          <span className="text-label-2">{cap(spin.place.reason)}</span>
         </p>
         <p className="text-[15px] leading-5">
           <span className="font-semibold">Mission: </span>
