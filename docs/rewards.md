@@ -39,34 +39,59 @@ reason `restaurant_visit`, and each top-up a `group_bonus`, linked to the `Rewar
 1. **Recommended:** the place was in the user's "for you" results (`POST /api/me/recommendations`
    now logs these in `RecommendationShown`) or in one of their squads' top 5, within **48 h**.
    A squad top 5 also unlocks the group bonus.
-2. **Receipt:**
+2. **At the restaurant (GPS check-in):** the claim carries the phone's location, which must be
+   within **150 m** of the place, plus up to 75 m of the phone's reported GPS error. Fixes rougher
+   than 500 m are refused. So you claim while you're there. The location is checked, not stored.
+   (`checkIn()` in `src/features/gamification/checkin.ts`.)
+3. **Receipt, scanned:** the user photographs the receipt; Gemini reads the restaurant name,
+   total, date/time and receipt number (`src/features/rewards/receiptOcr.ts`). The server signs
+   those facts into a 30-minute token tied to the user, and the claim uses the token's facts,
+   not typed values, so the total can't be made up. The photo is never stored.
    - dated within the last **36 h** and not in the future
-   - if a merchant name was read, it must share a real word with the place's name
+   - the scanned name must share a real word with the place's name
      ("LANTERN DUMPLING HSE" matches "Lantern Dumpling House")
-3. **No reuse:** each person can claim a receipt once, and at most as many people as the
+   - typed receipts are only accepted when scanning isn't configured (no `GEMINI_API_KEY`), so
+     the app still runs offline in dev; then only the GPS check-in proves the visit
+4. **No reuse:** each person can claim a receipt once, and at most as many people as the
    `diners` on it.
-4. **Limits:** one reward **per place per day** (Boston date), **2 rewarded visits per day**.
+5. **Limits:** one reward **per place per day** (Boston date), **2 rewarded visits per day**.
+
+Known limits: a determined user can fake browser GPS (developer tools), and a photo of someone
+else's real receipt from that restaurant would still read fine. Each of the other rules (one claim
+per receipt, recent receipt, 2 claims a day) caps what that's worth.
 
 ## API
+
+**`POST /api/rewards/receipt`** (signed in, multipart form, field `photo`: JPEG/PNG/WebP/GIF under
+4 MB; the claim screen shrinks photos to 1600 px first):
+
+→ `200 { receipt: { merchantName, total, date, receiptNumber?, diners? }, receiptToken, expiresAt }`
+→ `422` when it isn't a readable receipt (`not_a_receipt` / `unreadable`), with a message to show
+→ `503` when scanning isn't set up; `429` after 12 scans in an hour
 
 **`POST /api/rewards/visits`** (signed in):
 
 ```json
 {
   "placeId": "seed-ct-lantern",
-  "receipt": { "total": 64.5, "date": "2026-11-21T19:42:00-05:00", "merchantName": "LANTERN DUMPLING", "diners": 2, "receiptNumber": "CHK-1042" },
+  "location": { "lat": 42.3505, "lng": -71.0621, "accuracyM": 18 },
+  "receiptToken": "eyJ1Ijo...sig",
+  "diners": 2,
   "travel": { "rideId": "cmw...ride" }
 }
 ```
 
-→ `201 { visitId, points, breakdown, groupMultiplier, groupSize, recommendedVia, xp, travelNote? }`
+Without scanning configured, send `"receipt": { "total", "date", "merchantName"?, "receiptNumber"? }`
+instead of `receiptToken`. `diners` overrides the guest count read off the receipt.
+
+→ `201 { visitId, points, breakdown, groupMultiplier, groupSize, recommendedVia, xp, travelNote?, checkInDistanceM }`
 
 Errors come back as `{ error: { code, message } }`:
 
 | Code | When |
 |---|---|
-| `forbidden` (403) | not recommended in the last 48 h |
-| `bad_request` (400) | receipt in the future, too old, or from a different restaurant |
+| `forbidden` (403) | not recommended in the last 48 h, or not at the restaurant (GPS check-in) |
+| `bad_request` (400) | receipt in the future, too old, or from a different restaurant; no scan (when scanning is on); scan expired or not yours; place location unknown |
 | `conflict` (409) | receipt already claimed, or already rewarded at this place today |
 | `too_many_requests` (429) | 2 rewarded visits already today |
 
@@ -86,9 +111,16 @@ with its point breakdown ("20 meal + 15 spend + 10 bus…").
   the claim still pays meal/spend points and returns a `travelNote` saying why there were no
   travel points. Pings aren't stored; a ride keeps only its first and last matched points
   (rounded to ~11 m), route, and distance.
-- **Receipt reading (OCR, not built yet):** turn the photo into `receipt.total`, `date`, and ideally
-  `merchantName` and `receiptNumber`, then call the endpoint. **Don't store the photo**: receipts
-  can show card digits and names. Only the total, date and a receipt key are kept.
+- **Receipt reading (built, `src/features/rewards/receiptOcr.ts`):** Gemini (`gemini-3.5-flash-lite`,
+  minimal thinking) reads the photo into a fixed JSON schema through the `@google/genai`
+  Interactions API. Anything it can't read comes back null and the user is asked to retake the
+  photo. The photo goes to the Gemini API for that one request and **is never stored by the app**:
+  receipts can show card digits and names. Only the total, date and a receipt key are kept. One
+  API call per scan, rate limited to 12 an hour per user. Get a free key at
+  https://aistudio.google.com/apikey and set `GEMINI_API_KEY`. On the free tier, check Google's
+  terms on how request data may be used; use test receipts for demos.
+- **GPS check-in (built, `src/features/gamification/checkin.ts`):** pure `checkIn(here, place)`,
+  usable by quests too.
 - **Points display (P4):** shown by the existing points card and `GET /api/me/points`.
 
 ## Database
@@ -103,8 +135,9 @@ Tables (run `npm run db:push` after pulling):
 ## Screens
 
 - **`/rewards/claim`** (`src/components/rewards/ClaimVisitScreen.tsx`): pick a place recommended in
-  the last 48 h (`GET /api/rewards/eligible`: squad top 5s first, then "for you" and Spin), type the
-  receipt total, time and people on it, optionally pick a verified ride and rate the meal (the
-  rating goes to `POST /api/ratings` and teaches the recommender). Shows the points breakdown.
+  the last 48 h (`GET /api/rewards/eligible`: squad top 5s first, then "for you" and Spin), scan
+  the receipt (shows the restaurant, total and time it read), set the people on it, optionally
+  pick a verified ride and rate the meal (the rating goes to `POST /api/ratings` and teaches the
+  recommender). "Claim Points" takes a fresh GPS fix for the check-in, then shows the breakdown.
+  When `eligible` says `receiptScan: false`, the typed receipt form is shown instead.
 - Linked from the squad's top 5 (each pick), the plan page, and Profile → Food → "Claim points for a meal".
-- Receipts are typed in; photo reading (OCR) isn't built.

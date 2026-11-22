@@ -1,12 +1,15 @@
 // Owner: P1 - Planner & Quests (ML, rewards) (see TEAM.md)
 // /rewards/claim: claim points for eating at a recommended place (src/features/rewards).
-//   pick the place (recommended in the last 48 h) -> receipt total, time, people on the bill
-//   -> optional verified bus/T ride -> optional rating -> POST /api/rewards/visits
-// The receipt is typed in for now (no photo reading yet); only these facts are sent and stored.
+//   pick the place (recommended in the last 48 h) -> scan the receipt (Gemini reads the
+//   restaurant, total and time) -> people on the bill -> optional verified bus/T ride
+//   -> optional rating -> Claim: GPS check-in at the restaurant + POST /api/rewards/visits
+// The photo is read once and discarded; only the facts are kept. If receipt scanning isn't set
+// up on the server (no GEMINI_API_KEY), the receipt is typed in instead.
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, ListRow, ListSection, SegmentedControl, SelectRow, StarIcon, TextFieldRow } from "@/components/shared/ios";
+import { currentFix, scanReceiptPhoto, type ScannedReceipt } from "@/features/rewards/client";
 
 type Claimable = { placeId: string; name: string | null; via: "squad" | "for-you"; at: string };
 type Ride = { id: string | null; status: string; mode: "bus" | "t" | null; routeName: string | null; usedForReward: boolean; verifiedAt: string | null };
@@ -49,12 +52,19 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
+  // Receipt scanning (when the server has it): the read facts and the signed token for the claim.
+  const [canScan, setCanScan] = useState(false);
+  const [scan, setScan] = useState<ScannedReceipt | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const photoInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    Promise.all([getJson<{ places: Claimable[]; visitsLeftToday: number }>("/api/rewards/eligible"), getJson<{ rides: Ride[] }>("/api/rides").catch(() => ({ rides: [] }))])
+    Promise.all([getJson<{ places: Claimable[]; visitsLeftToday: number; receiptScan?: boolean }>("/api/rewards/eligible"), getJson<{ rides: Ride[] }>("/api/rides").catch(() => ({ rides: [] }))])
       .then(([e, r]) => {
         setPlaces(e.places);
         setLeft(e.visitsLeftToday);
+        setCanScan(!!e.receiptScan);
         setRides(r.rides.filter((x) => x.status === "verified" && x.id && !x.usedForReward));
         setPlaceId((cur) => cur || e.places[0]?.placeId || "");
       })
@@ -63,16 +73,40 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
 
   const place = useMemo(() => places?.find((p) => p.placeId === placeId) ?? null, [places, placeId]);
   const amount = Number(total);
-  const valid = place != null && Number.isFinite(amount) && amount > 0 && amount <= 2000 && when !== "";
+  const typedValid = Number.isFinite(amount) && amount > 0 && amount <= 2000 && when !== "";
+  const valid = place != null && (canScan ? scan != null : typedValid);
+
+  async function onPhoto(file: File | undefined) {
+    if (!file) return;
+    setScanning(true);
+    setScanError(null);
+    try {
+      const s = await scanReceiptPhoto(file);
+      setScan(s);
+      if (s.receipt.diners) setDiners(s.receipt.diners);
+    } catch (err) {
+      setScan(null);
+      setScanError((err as Error).message);
+    } finally {
+      setScanning(false);
+      if (photoInput.current) photoInput.current.value = ""; // so retaking the same file fires again
+    }
+  }
 
   async function submit() {
     if (!valid || !place) return;
     setBusy(true);
     setError(null);
     try {
+      // Check-in: you claim while you're at the restaurant.
+      const location = await currentFix();
       const res = await postJson<Result>("/api/rewards/visits", {
         placeId: place.placeId,
-        receipt: { total: Math.round(amount * 100) / 100, date: new Date(when).toISOString(), diners, ...(merchant.trim() ? { merchantName: merchant.trim() } : {}) },
+        location,
+        diners,
+        ...(canScan && scan
+          ? { receiptToken: scan.receiptToken }
+          : { receipt: { total: Math.round(amount * 100) / 100, date: new Date(when).toISOString(), ...(merchant.trim() ? { merchantName: merchant.trim() } : {}) } }),
         ...(rideId ? { travel: { rideId } } : {}),
       });
       // A rating also teaches the recommender (8-10 = like, 0-3 = dislike).
@@ -151,12 +185,32 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
         />
       </ListSection>
 
-      <ListSection header="Receipt" footer="Type the total from your receipt. Only the amount, time and restaurant name are kept, never a photo.">
-        <TextFieldRow label="Total ($)" inputMode="decimal" placeholder="42.50" value={total} onChange={(e) => setTotal(e.target.value.replace(/[^\d.]/g, ""))} />
-        <TextFieldRow label="Time" type="datetime-local" value={when} max={localNow()} onChange={(e) => setWhen(e.target.value)} />
-        <SelectRow label="People on it" value={diners} options={Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: String(i + 1) }))} onChange={setDiners} />
-        <TextFieldRow label="Name on it" placeholder="Optional" value={merchant} onChange={(e) => setMerchant(e.target.value)} />
-      </ListSection>
+      {canScan ? (
+        <ListSection header="Receipt" footer="Your photo is read once for the restaurant, total and time, then thrown away. It's never stored.">
+          {scan && (
+            <>
+              <ListRow title="Restaurant" value={scan.receipt.merchantName} />
+              <ListRow title="Total" value={`$${scan.receipt.total.toFixed(2)}`} />
+              <ListRow title="Time" value={new Date(scan.receipt.date).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} />
+            </>
+          )}
+          <SelectRow label="People on it" value={diners} options={Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: String(i + 1) }))} onChange={setDiners} />
+          <div className="px-4 py-3">
+            <input ref={photoInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onPhoto(e.target.files?.[0])} />
+            <Button variant={scan ? "tinted" : undefined} onClick={() => photoInput.current?.click()} disabled={scanning}>
+              {scanning ? "Reading receipt…" : scan ? "Retake Photo" : "Scan Receipt"}
+            </Button>
+            {scanError && <p className="mt-2 text-[14px] text-danger">{scanError}</p>}
+          </div>
+        </ListSection>
+      ) : (
+        <ListSection header="Receipt" footer="Type the total from your receipt. Only the amount, time and restaurant name are kept, never a photo.">
+          <TextFieldRow label="Total ($)" inputMode="decimal" placeholder="42.50" value={total} onChange={(e) => setTotal(e.target.value.replace(/[^\d.]/g, ""))} />
+          <TextFieldRow label="Time" type="datetime-local" value={when} max={localNow()} onChange={(e) => setWhen(e.target.value)} />
+          <SelectRow label="People on it" value={diners} options={Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: String(i + 1) }))} onChange={setDiners} />
+          <TextFieldRow label="Name on it" placeholder="Optional" value={merchant} onChange={(e) => setMerchant(e.target.value)} />
+        </ListSection>
+      )}
 
       <ListSection header="How did you get there?" footer={rides.length ? "Verified bus rides earn 10, T rides 5." : "Record your trip by bus or T next time for travel points."}>
         <SelectRow
@@ -180,8 +234,9 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
       {error && <p className="mt-3 rounded-[14px] bg-cell px-4 py-3 text-[14px] text-danger">{error}</p>}
       <div className="mt-6">
         <Button onClick={submit} disabled={!valid || busy}>
-          <StarIcon size={18} /> {busy ? "Claiming…" : "Claim Points"}
+          <StarIcon size={18} /> {busy ? "Checking you in…" : "Claim Points"}
         </Button>
+        <p className="mt-2 px-4 text-center text-[13px] text-label-2">Claim while you&apos;re at the restaurant: we check your location once to confirm you&apos;re there. It isn&apos;t stored.</p>
       </div>
     </>
   );
