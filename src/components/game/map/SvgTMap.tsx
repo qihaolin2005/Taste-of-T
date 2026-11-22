@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { LatLng } from "@/lib/geo";
 import type { RendererProps } from "./types";
-import { DOWNTOWN, familyOf, isInterchange, stationFamilies } from "./model";
+import { DOWNTOWN, familyOf, isInterchange, onVisibleRoute, stationFamilies } from "./model";
 
 const W = 1000; // projected width in SVG units
 const MIN_W = 40; // most zoomed in (viewBox width)
@@ -33,8 +33,13 @@ function useProjection(stations: RendererProps["stations"]) {
   }, [stations]);
 }
 
-export default function SvgTMap({ stations, lines, stamped, vehicles, selectedId, onSelect, me }: RendererProps) {
-  const { project, H } = useProjection(stations);
+export default function SvgTMap({ stations: allStations, lines: allLines, stamped, vehicles: allVehicles, selectedId, onSelect, me, destination, route, visibleRoutes }: RendererProps) {
+  // Project with every station so the map doesn't jump when lines are hidden.
+  const { project, H } = useProjection(allStations);
+  // With a route showing, draw only the T lines it rides (plus their stations and trains).
+  const lines = useMemo(() => allLines.filter((l) => onVisibleRoute(visibleRoutes, [l.id])), [allLines, visibleRoutes]);
+  const stations = useMemo(() => allStations.filter((s) => onVisibleRoute(visibleRoutes, s.lines) || s.id === selectedId), [allStations, visibleRoutes, selectedId]);
+  const vehicles = useMemo(() => allVehicles.filter((v) => onVisibleRoute(visibleRoutes, [v.routeId])), [allVehicles, visibleRoutes]);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [px, setPx] = useState({ w: 360, h: 480 }); // rendered size in CSS px
 
@@ -56,7 +61,7 @@ export default function SvgTMap({ stations, lines, stamped, vehicles, selectedId
     setBox((b) => {
       if (!initialized.current) {
         initialized.current = true;
-        const c = project(DOWNTOWN);
+        const c = project(destination ?? DOWNTOWN);
         const w = W * 0.32;
         return { x: c.x - w / 2, y: c.y - (w * aspect) / 2, w, h: w * aspect };
       }
@@ -64,16 +69,32 @@ export default function SvgTMap({ stations, lines, stamped, vehicles, selectedId
       const cy = b.y + b.h / 2;
       return { x: cx - b.w / 2, y: cy - (b.w * aspect) / 2, w: b.w, h: b.w * aspect };
     });
-  }, [px, project]);
+  }, [px, project, destination]);
 
   // Pan to "me" when it's (re)located. Adjusting state during render on a prop change is
   // React's recommended alternative to an effect here.
+  // With a destination, frame the whole trip instead (below).
   const [lastMe, setLastMe] = useState(me);
   if (me !== lastMe) {
     setLastMe(me);
-    if (me) {
+    if (me && !destination) {
       const f = project(me);
       setBox((b) => ({ ...b, x: f.x - b.w / 2, y: f.y - b.h / 2 }));
+    }
+  }
+
+  // Frame the trip (you, the route, the place) when a route arrives.
+  const [lastRoute, setLastRoute] = useState(route);
+  if (route !== lastRoute) {
+    setLastRoute(route);
+    const pts = [...(route ?? []).flatMap((p) => p.points), ...(destination ? [destination] : []), ...(me ? [me] : [])].map(project);
+    if (pts.length >= 2) {
+      const xs = pts.map((p) => p.x);
+      const ys = pts.map((p) => p.y);
+      const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+      const aspect = px.h / px.w;
+      const w = Math.min(W * 1.2, Math.max(MIN_W, (x1 - x0) * 1.25, ((y1 - y0) * 1.25) / aspect));
+      setBox({ x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - (w * aspect) / 2, w, h: w * aspect });
     }
   }
 
@@ -168,6 +189,19 @@ export default function SvgTMap({ stations, lines, stamped, vehicles, selectedId
           )),
         )}
 
+        {/* The trip: rides in their line color over a white casing, walks dashed. */}
+        {(route ?? []).map((seg, i) => {
+          const pts = seg.points.map((p) => { const q = project(p); return `${q.x.toFixed(1)},${q.y.toFixed(1)}`; }).join(" ");
+          return seg.walk ? (
+            <polyline key={`trip-${i}`} points={pts} fill="none" stroke="#636366" strokeWidth={3} strokeDasharray="2 6" strokeLinecap="round" vectorEffect="non-scaling-stroke" pointerEvents="none" />
+          ) : (
+            <g key={`trip-${i}`} pointerEvents="none">
+              <polyline points={pts} fill="none" stroke="#fff" strokeWidth={11} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+              <polyline points={pts} fill="none" stroke={seg.color} strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+            </g>
+          );
+        })}
+
         {stations.map((s) => {
           const p = project(s);
           const color = stationFamilies(s)[0]?.color ?? "#8e8e93";
@@ -222,6 +256,26 @@ export default function SvgTMap({ stations, lines, stamped, vehicles, selectedId
             </g>
           );
         })}
+
+        {destination && (() => {
+          const p = project(destination);
+          return (
+            <g pointerEvents="none">
+              <path
+                d={`M${p.x} ${p.y} l${-8 * u} ${-12 * u} a${10 * u} ${10 * u} 0 1 1 ${16 * u} 0 Z`}
+                fill="#7954ac"
+                stroke="#fff"
+                strokeWidth={2.5 * u}
+              />
+              <circle cx={p.x} cy={p.y - 15 * u} r={3.5 * u} fill="#fff" />
+              {destination.name && (
+                <text x={p.x} y={p.y - 30 * u} textAnchor="middle" fontSize={13 * u} fontWeight={700} fill="#7954ac" stroke="var(--cell)" strokeWidth={3 * u} paintOrder="stroke">
+                  {destination.name}
+                </text>
+              )}
+            </g>
+          );
+        })()}
 
         {me && (() => {
           const p = project(me);

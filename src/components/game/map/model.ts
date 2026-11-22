@@ -33,6 +33,11 @@ export function isInterchange(station: StationRecord): boolean {
   return stationFamilies(station).length > 1;
 }
 
+/** With a route showing, only the lines it rides (and their stations/trains) are drawn. */
+export function onVisibleRoute(visible: ReadonlySet<string> | null | undefined, routeIds: readonly string[]): boolean {
+  return !visible || routeIds.some((r) => visible.has(r));
+}
+
 export type DrawnLine = { id: string; color: string; paths: LatLng[][] };
 
 export function decodeLines(lines: readonly LineRecord[]): DrawnLine[] {

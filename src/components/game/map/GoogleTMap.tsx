@@ -14,9 +14,9 @@ import {
   useApiLoadingStatus,
   useMap,
 } from "@vis.gl/react-google-maps";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import type { RendererProps } from "./types";
-import { DOWNTOWN, familyOf, isInterchange, stationFamilies } from "./model";
+import { DOWNTOWN, familyOf, isInterchange, onVisibleRoute, stationFamilies } from "./model";
 
 const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 // Advanced markers + dark mode need a Map ID; Google's DEMO_MAP_ID works for development.
@@ -41,6 +41,32 @@ function CameraFollow({ target, zoom }: { target: google.maps.LatLngLiteral | nu
     if (zoom && (map.getZoom() ?? 0) < zoom) map.setZoom(zoom);
   }, [map, target, zoom]);
   return null;
+}
+
+/** Frame the whole trip (you, the route, the place) once it's planned. */
+function FitRoute({ points }: { points: google.maps.LatLngLiteral[] }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!map || points.length < 2) return;
+    const bounds = new google.maps.LatLngBounds();
+    for (const p of points) bounds.extend(p);
+    map.fitBounds(bounds, 48);
+  }, [map, points]);
+  return null;
+}
+
+/** Walking legs: a dotted gray line (Google draws dots via a repeated symbol). */
+const WALK_DOTS = [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 1, strokeColor: "#636366", scale: 3 }, offset: "0", repeat: "10px" }];
+
+function DestinationPin({ name }: { name?: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+      {name && (
+        <div style={{ marginBottom: 4, padding: "2px 8px", borderRadius: 8, background: "#7954ac", color: "#fff", font: "600 12px system-ui", whiteSpace: "nowrap", boxShadow: "0 1px 4px rgba(0,0,0,.35)" }}>{name}</div>
+      )}
+      <div style={{ width: 22, height: 22, borderRadius: "50% 50% 50% 0", transform: "rotate(-45deg)", background: "#7954ac", border: "3px solid #fff", boxShadow: "0 1px 4px rgba(0,0,0,.45)" }} />
+    </div>
+  );
 }
 
 function StationDot({ color, interchange, stamped, selected }: { color: string; interchange: boolean; stamped: boolean; selected: boolean }) {
@@ -82,8 +108,18 @@ function TrainMarker({ color, bearing }: { color: string; bearing: number | null
   );
 }
 
-export default function GoogleTMap({ stations, lines, stamped, vehicles, selectedId, onSelect, me, onFail }: RendererProps & { onFail: () => void }) {
+export default function GoogleTMap({ stations: allStations, lines: allLines, stamped, vehicles: allVehicles, selectedId, onSelect, me, destination, route, visibleRoutes, onFail }: RendererProps & { onFail: () => void }) {
+  // With a route showing, draw only the T lines it rides (plus their stations and trains).
+  const lines = useMemo(() => allLines.filter((l) => onVisibleRoute(visibleRoutes, [l.id])), [allLines, visibleRoutes]);
+  const stations = useMemo(() => allStations.filter((s) => onVisibleRoute(visibleRoutes, s.lines) || s.id === selectedId), [allStations, visibleRoutes, selectedId]);
+  const vehicles = useMemo(() => allVehicles.filter((v) => onVisibleRoute(visibleRoutes, [v.routeId])), [allVehicles, visibleRoutes]);
   const selected = stations.find((s) => s.id === selectedId) ?? null;
+  const tripPoints = useMemo(() => {
+    const pts = (route ?? []).flatMap((p) => p.points);
+    if (destination) pts.push(destination);
+    if (me && destination) pts.push(me);
+    return pts;
+  }, [route, destination, me]);
 
   return (
     <APIProvider apiKey={API_KEY} onError={onFail}>
@@ -125,13 +161,33 @@ export default function GoogleTMap({ stations, lines, stamped, vehicles, selecte
           </AdvancedMarker>
         ))}
 
+        {/* The trip: rides in their line color over a white casing, walks dotted. */}
+        {(route ?? []).map((p, i) =>
+          p.walk ? (
+            <Polyline key={`trip-${i}`} path={p.points} strokeOpacity={0} icons={WALK_DOTS} zIndex={20} clickable={false} />
+          ) : (
+            [
+              <Polyline key={`trip-${i}-casing`} path={p.points} strokeColor="#ffffff" strokeWeight={11} strokeOpacity={1} zIndex={20} clickable={false} />,
+              <Polyline key={`trip-${i}`} path={p.points} strokeColor={p.color} strokeWeight={7} strokeOpacity={1} zIndex={21} clickable={false} />,
+            ]
+          ),
+        )}
+
+        {destination && (
+          <AdvancedMarker position={destination} anchorPoint={AdvancedMarkerAnchorPoint.BOTTOM_CENTER} zIndex={1200} title={destination.name ?? "Destination"}>
+            <DestinationPin name={destination.name} />
+          </AdvancedMarker>
+        )}
+
         {me && (
           <AdvancedMarker position={me} anchorPoint={AdvancedMarkerAnchorPoint.CENTER} zIndex={1100} title="You">
             <div style={{ width: 18, height: 18, borderRadius: "50%", background: "#0a84ff", border: "3px solid #fff", boxShadow: "0 0 0 6px rgba(10,132,255,.25)" }} />
           </AdvancedMarker>
         )}
 
-        <CameraFollow target={me} zoom={15} />
+        {/* With a destination, frame the trip; otherwise follow you as before. */}
+        {destination ? <FitRoute points={tripPoints} /> : <CameraFollow target={me} zoom={15} />}
+        {destination && !route && <CameraFollow target={destination} zoom={15} />}
         <CameraFollow target={selected} />
       </Map>
     </APIProvider>

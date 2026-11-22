@@ -2,18 +2,57 @@
 // Interactive T map: real MBTA lines + stations, live trains, your stamps.
 // Uses Google Maps when NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is set and loads; otherwise (no key,
 // bad key, offline) the SVG map drawn from the same MBTA snapshot. The demo never breaks.
+// With a `destination` (/map?to=lat,lng&name=..., from Spin or a group pick) it also shows the
+// route there by T and bus from where you are (GET /api/directions).
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { distanceMeters, walkMinutes } from "@/lib/geo";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { distanceMeters, walkMinutes, type LatLng } from "@/lib/geo";
 import type { LineRecord, StationRecord } from "@/lib/mbta/stations";
+import { tRoutesInTrip, type TripPlan } from "@/features/directions/types";
 import GoogleTMap, { hasGoogleMapsKey } from "./map/GoogleTMap";
 import SvgTMap from "./map/SvgTMap";
 import StationCard from "./map/StationCard";
+import RouteCard, { type RouteState } from "./map/RouteCard";
 import { useLiveTrains, useMyLocation, useStampedStations } from "./map/hooks";
-import { decodeLines, FAMILIES, familyOf } from "./map/model";
+import { decodeLines, onVisibleRoute } from "./map/model";
 
-type Props = { stations: readonly StationRecord[]; lines: readonly LineRecord[] };
+type Props = { stations: readonly StationRecord[]; lines: readonly LineRecord[]; destination?: (LatLng & { name?: string }) | null };
+
+/** Plans the trip once we know where you are. Re-plans only if you move ~100 m+. */
+function useRoute(destination: Props["destination"], me: LatLng | null, locError: string | null) {
+  const [result, setResult] = useState<{ key: string; state: RouteState } | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  // Round to ~100 m so small GPS jitter doesn't re-plan.
+  const from = me ? `${me.lat.toFixed(3)},${me.lng.toFixed(3)}` : null;
+  const to = destination ? `${destination.lat},${destination.lng}` : null;
+  const key = `${from}|${to}|${attempt}`;
+
+  useEffect(() => {
+    if (!from || !to || !destination) return;
+    const ctrl = new AbortController();
+    const q = new URLSearchParams({ from, to, ...(destination.name ? { name: destination.name } : {}) });
+    fetch(`/api/directions?${q}`, { signal: ctrl.signal, cache: "no-store" })
+      .then(async (r) => {
+        const body = await r.json().catch(() => null);
+        if (!r.ok) throw new Error(body?.error?.message ?? "Couldn't plan a route right now.");
+        setResult({ key, state: { status: "ready", plan: (body?.plan ?? null) as TripPlan | null } });
+      })
+      .catch((err: Error) => {
+        if (err.name !== "AbortError") setResult({ key, state: { status: "error", message: err.message } });
+      });
+    return () => ctrl.abort();
+  }, [from, to, destination, key]);
+
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  if (!destination) return { state: null, retry };
+  const state: RouteState =
+    result?.key === key ? result.state
+    : from ? { status: "loading" }
+    : locError ? { status: "error", message: `${locError}. Turn on location to see the route from where you are, or open Google Maps.` }
+    : { status: "locating" };
+  return { state, retry };
+}
 
 function LocateIcon() {
   return (
@@ -32,7 +71,7 @@ function TrainToggleIcon() {
   );
 }
 
-export default function TMap({ stations, lines }: Props) {
+export default function TMap({ stations, lines, destination = null }: Props) {
   const drawn = useMemo(() => decodeLines(lines), [lines]);
   const [googleFailed, setGoogleFailed] = useState(false);
   const onGoogleFail = useCallback(() => setGoogleFailed(true), []);
@@ -43,6 +82,27 @@ export default function TMap({ stations, lines }: Props) {
   const stamped = useStampedStations();
   const { me, error: locError, locating, locate } = useMyLocation();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Routing to a place: find where you are right away, then plan the trip.
+  useEffect(() => {
+    if (destination) locate();
+  }, [destination, locate]);
+  const { state: routeState, retry } = useRoute(destination, me, locError);
+  const retryRoute = useCallback(() => {
+    if (!me) locate();
+    retry();
+  }, [me, locate, retry]);
+  const plan = routeState?.status === "ready" ? routeState.plan : null;
+  const route = plan?.path ?? null;
+
+  // With a route showing, hide the T lines it doesn't ride so the trip is easy to see.
+  // "Show all lines" is remembered per destination, so a new route starts focused again.
+  const destKey = destination ? `${destination.lat},${destination.lng}` : null;
+  const [showAllFor, setShowAllFor] = useState<string | null>(null);
+  const focused = !!plan && showAllFor !== destKey;
+  const ridden = useMemo(() => (plan ? tRoutesInTrip(plan, lines.map((l) => l.id)) : null), [plan, lines]);
+  const visibleRoutes = focused ? ridden : null;
+  const shownTrains = (trains?.vehicles ?? []).filter((v) => onVisibleRoute(visibleRoutes, [v.routeId]));
 
   const selected = stations.find((s) => s.id === selectedId) ?? null;
   const nearest = useMemo(() => {
@@ -63,13 +123,16 @@ export default function TMap({ stations, lines }: Props) {
     selectedId,
     onSelect: setSelectedId,
     me,
+    destination,
+    route,
+    visibleRoutes,
   };
 
   const trainStatus =
     !showTrains ? null
     : !trains ? "Loading trains…"
     : trains.source === "unavailable" ? "Live trains unavailable"
-    : `${trains.source === "stale" ? "Last seen" : "Live"} · ${trains.vehicles.length} trains`;
+    : `${trains.source === "stale" ? "Last seen" : "Live"} · ${shownTrains.length} train${shownTrains.length === 1 ? "" : "s"}${visibleRoutes ? " on your route" : ""}`;
 
   return (
     <div>
@@ -109,12 +172,25 @@ export default function TMap({ stations, lines }: Props) {
             Offline map
           </div>
         )}
+
+        {plan && (
+          <button
+            type="button"
+            aria-pressed={!focused}
+            onClick={() => setShowAllFor(focused ? destKey : null)}
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-bar px-3.5 py-1.5 text-[13px] font-semibold text-tint shadow-md ring-[0.5px] ring-separator backdrop-blur-xl active:bg-cell-2"
+          >
+            {focused ? "Show all lines" : "Show just my route"}
+          </button>
+        )}
       </div>
 
       {locError && <p className="mt-2 px-1 text-[13px] text-[#ff3b30]">{locError}</p>}
 
       {selected ? (
         <StationCard station={selected} stamped={stamped.has(selected.id)} me={me} onClose={() => setSelectedId(null)} />
+      ) : destination && routeState ? (
+        <RouteCard to={destination} me={me} state={routeState} onRetry={retryRoute} />
       ) : nearest ? (
         <button type="button" onClick={() => setSelectedId(nearest.s.id)} className="mt-3 w-full rounded-[10px] bg-cell px-4 py-3 text-left active:bg-cell-2">
           <span className="block text-[13px] text-label-2">Nearest station</span>
@@ -122,28 +198,6 @@ export default function TMap({ stations, lines }: Props) {
           <span className="text-[15px] text-label-2"> · {walkMinutes(me!, nearest.s)} min walk</span>
         </button>
       ) : null}
-
-      <section className="mt-6">
-        <h2 className="px-4 pb-1.5 text-[13px] uppercase text-label-2">Your Lines</h2>
-        <div className="overflow-hidden rounded-[10px] bg-cell">
-          {FAMILIES.map((f) => {
-            const onLine = stations.filter((s) => s.lines.some((r) => familyOf(r).id === f.id));
-            const got = onLine.filter((s) => stamped.has(s.id)).length;
-            return (
-              <div key={f.id} className="ios-row flex items-center">
-                <span className="ml-4 h-[29px] w-[29px] shrink-0 rounded-[7px]" style={{ background: f.color }} />
-                <div className="ios-row-body ml-3 flex min-h-11 flex-1 items-center gap-3 py-2 pr-4">
-                  <span className="flex-1 text-[17px]">{f.name}</span>
-                  <span className="text-[15px] text-label-2 tabular-nums">
-                    {got}/{onLine.length}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <p className="px-4 pt-1.5 text-[13px] text-label-2">Check in at a station to stamp it. Stamped stations light up on the map.</p>
-      </section>
     </div>
   );
 }
