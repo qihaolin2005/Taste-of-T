@@ -6,7 +6,7 @@ import GroupTripsScreen from "@/components/trips/GroupTripsScreen";
 
 async function Trips({ params }: { params: PageProps<"/room/[roomId]/trips">["params"] }) {
   const { roomId } = await params;
-  return <GroupTripsScreen code={roomId.toUpperCase()} />;
+  return <GroupTripsScreen key={roomId.toUpperCase()} code={roomId.toUpperCase()} />;
 }
 
 export default function Page({ params }: PageProps<"/room/[roomId]/trips">) {

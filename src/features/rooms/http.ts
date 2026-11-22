@@ -2,7 +2,7 @@
 // Shared Route Handler bits for /api/rooms/*.
 import { apiError } from "@/lib/api";
 import { isRateLimited, rateLimit } from "@/lib/rateLimit";
-import { RoomFullError, RoomNotFoundError } from "./roomStore";
+import { AlreadyInRoomError, NotHostError, RoomEndedError, RoomFullError, RoomNotFoundError } from "./roomStore";
 
 // Wrong codes are counted per IP, so nobody can sweep through codes to find strangers' rooms,
 // while members polling a real code are never throttled. 30 misses per 15 minutes.
@@ -20,6 +20,10 @@ export function roomErrorResponse(err: unknown, ip: string): Response {
     rateLimit(missKey(ip), MISS_LIMIT, MISS_WINDOW_MS);
     return apiError("not_found", err.message);
   }
+  // A real code whose group is over: 404, but not counted as a wrong guess.
+  if (err instanceof RoomEndedError) return apiError("not_found", err.message);
   if (err instanceof RoomFullError) return apiError("conflict", err.message);
+  if (err instanceof AlreadyInRoomError) return apiError("conflict", err.message);
+  if (err instanceof NotHostError) return apiError("forbidden", err.message);
   throw err;
 }

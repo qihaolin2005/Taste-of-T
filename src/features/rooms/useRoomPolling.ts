@@ -29,7 +29,12 @@ export function useRoomPolling(code: string) {
     }
   }, [code]);
 
+  // Stop asking once the group is gone (deleted, expired, or a wrong code): it won't come back, and
+  // each miss counts toward the server's wrong-code limit for everyone on this network.
+  const gone = state.status === "not-found";
+
   useEffect(() => {
+    if (gone) return;
     let stopped = false;
     const tick = () => {
       if (!stopped && document.visibilityState === "visible") void refresh();
@@ -42,7 +47,7 @@ export function useRoomPolling(code: string) {
       clearInterval(id);
       document.removeEventListener("visibilitychange", tick);
     };
-  }, [refresh]);
+  }, [refresh, gone]);
 
   /** Show a fresh RoomView right away (e.g. the response from joining). */
   const setRoom = useCallback((room: RoomView) => setState({ status: "ready", room }), []);

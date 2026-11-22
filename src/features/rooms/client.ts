@@ -23,3 +23,7 @@ export const createRoom = (input: CreateRoomInput) => call<{ code: string }>("/a
 export const fetchRoom = (code: string) => call<RoomView>(path(code));
 export const joinRoom = (code: string, input: MemberInput) => call<RoomView>(`${path(code)}/members`, { method: "POST", body: JSON.stringify(input) });
 export const leaveRoom = (code: string) => call<void>(`${path(code)}/members`, { method: "DELETE" });
+/** Host only: end the group for everyone. */
+export const deleteRoom = (code: string) => call<void>(path(code), { method: "DELETE" });
+/** The group you're in right now (member or host), or null. */
+export const fetchCurrentRoom = () => call<{ code: string | null }>("/api/rooms").then((r) => r.code);

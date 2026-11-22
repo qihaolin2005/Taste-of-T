@@ -1,11 +1,14 @@
 // Owner: P4 - Game Layer & Map (see TEAM.md)
 // "Start trip" / live recording card. Location is only requested when the user taps Start.
+// The recorder itself is app-wide (src/features/trips/activeRecorder.ts), so opening another page
+// mid-trip doesn't stop it; this card just shows it and starts/ends it.
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Button, ListRow, ListSection } from "@/components/shared/ios";
 import type { RideView } from "@/features/rides/service";
-import { createTrip, endTrip, recordTrip, type TripRecorder } from "@/features/trips/client";
+import { finishRecording, listenToRecorder, recordingTripId, startRecording, subscribeRecording } from "@/features/trips/activeRecorder";
+import { createTrip, endTrip } from "@/features/trips/client";
 import type { TripView } from "@/features/trips/service";
 import { duration, miles } from "./format";
 
@@ -30,15 +33,29 @@ function rideText(ride: RideView | null): string | null {
 }
 
 export default function TripRecorderCard({ roomId, placeId, questId, startLabel = "Start Trip", startFooter, current, onChange }: Props) {
-  const recorder = useRef<TripRecorder | null>(null);
-  const [recording, setRecording] = useState(false);
+  const recordingId = useSyncExternalStore(subscribeRecording, recordingTripId, () => null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ride, setRide] = useState<RideView | null>(null);
   // 0 until the clock starts ticking in the browser (no Date.now() during prerender)
   const [now, setNow] = useState(0);
 
-  useEffect(() => () => recorder.current?.stop(), []);
+  // Updates from the app-wide recorder, while this card is on screen. Leaving doesn't stop it.
+  useEffect(
+    () =>
+      listenToRecorder({
+        onUpdate: (t) => {
+          setError(null); // a hiccup (lost GPS, offline) is over once points get through
+          onChange(t);
+        },
+        onRide: setRide,
+        onError: setError,
+      }),
+    [onChange],
+  );
+  const live = current?.status === "recording" ? current : null;
+  const recording = live != null && recordingId === live.id;
+
   useEffect(() => {
     if (!recording) return;
     const tick = () => setNow(Date.now());
@@ -50,21 +67,9 @@ export default function TripRecorderCard({ roomId, placeId, questId, startLabel 
     };
   }, [recording]);
 
-  const live = current?.status === "recording" ? current : null;
-
   function begin(trip: TripView) {
-    recorder.current?.stop();
     setError(null);
-    recorder.current = recordTrip(trip.id, {
-      onUpdate: (t) => {
-        setError(null); // a hiccup (lost GPS, offline) is over once points get through
-        onChange(t);
-        if (t.status === "finished") setRecording(false);
-      },
-      onRide: setRide,
-      onError: setError,
-    });
-    setRecording(true);
+    startRecording(trip);
   }
 
   async function start() {
@@ -85,13 +90,11 @@ export default function TripRecorderCard({ roomId, placeId, questId, startLabel 
     if (!live) return;
     setBusy(true);
     try {
-      if (recorder.current) await recorder.current.finish();
-      else onChange(await endTrip(live.id));
+      const done = recordingId === live.id ? await finishRecording() : null;
+      onChange(done ?? (await endTrip(live.id)));
     } catch (err) {
       setError((err as Error).message);
     }
-    recorder.current = null;
-    setRecording(false);
     setBusy(false);
   }
 
