@@ -12,7 +12,9 @@ import { createQuest, type QuestView } from "@/features/gamification/quests";
 import {
   getRecommendations,
   loadRestaurants,
+  questPoints,
   restaurantSchema,
+  type QuestPointsBreakdown,
   type RecommendationItem,
   type RecommendationsResponse,
   type RestaurantCandidate,
@@ -56,6 +58,8 @@ export type SpinResult = {
   quest: QuestView;
   place: SpinPick & { lat: number | null; lng: number | null };
   mission: string;
+  /** How the quest's points were worked out (farther = a bit more, pricier = a lot more). */
+  pointsWhy: QuestPointsBreakdown;
   /** How many places it picked from, and how many the model found in range. */
   pool: number;
   found: number;
@@ -207,7 +211,8 @@ export async function spinTheT(db: Db, userId: string, req: SpinRequest, deps: S
 
   // One open Spin quest at a time: spinning again replaces the last one you didn't do.
   await db.quest.updateMany({ where: { userId, status: "active", placeId: { not: null } }, data: { status: "abandoned" } });
-  const quest = await createQuest(db, userId, { title: questTitle(p.name) });
+  const pointsWhy = questPoints({ priceLevel: p.priceLevel, distanceMiles: p.distanceMiles });
+  const quest = await createQuest(db, userId, { title: questTitle(p.name), points: pointsWhy.points });
   // The quest remembers where it is, so its trip knows where "arrived" is.
   await db.quest.update({ where: { id: quest.id }, data: { placeId: p.placeId, placeName: p.name, placeLat: coords?.lat ?? null, placeLng: coords?.lng ?? null } });
   return {
@@ -227,6 +232,7 @@ export async function spinTheT(db: Db, userId: string, req: SpinRequest, deps: S
       lng: coords?.lng ?? null,
     },
     mission: missionText(p),
+    pointsWhy,
     pool: picked.pool,
     found: recs.results.length,
     origin: recs.origin,

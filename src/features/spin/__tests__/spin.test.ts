@@ -2,7 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { createTestDb } from "@/test/db";
 import { createGuest } from "@/features/auth";
 import { getSeedPlaces } from "@/lib/places";
-import type { RecommendationItem } from "@/features/ml";
+import { questPoints, type RecommendationItem } from "@/features/ml";
 import { pickSpin, SPIN_POOL, spinRequestSchema, spinTheT } from "@/features/spin";
 import { addPoints, finishTrip, startTrip } from "@/features/trips";
 
@@ -102,7 +102,10 @@ describe("Spin the T with the ML recommender", () => {
     expect(r.origin?.source).toBe("override"); // your GPS position, not a station
     expect(r.place.distanceMiles!).toBeLessThanOrEqual(0.5);
     expect(r.place.lat).not.toBeNull();
-    expect(r.quest).toMatchObject({ status: "active", points: 100, title: `Eat at ${r.place.name}` });
+    expect(r.quest).toMatchObject({ status: "active", title: `Eat at ${r.place.name}` });
+    // priced by the place: farther pays a bit more, pricier a lot more
+    expect(r.quest.points).toBe(questPoints({ priceLevel: r.place.priceLevel, distanceMiles: r.place.distanceMiles }).points);
+    expect(r.pointsWhy.points).toBe(r.quest.points);
     // the place was "shown", so the rewards system counts a visit there as recommended
     expect(await db.recommendationShown.count({ where: { userId: u, placeId: r.place.placeId } })).toBe(1);
   });
@@ -173,8 +176,8 @@ describe("going there completes the quest", () => {
     // walk 500 m north to the place over ~6 minutes
     const fixes = Array.from({ length: 26 }, (_, i) => ({ lat: north(place.lat, -500 + i * 20), lng: place.lng, t: at(i * 15).getTime(), accuracyM: 8 }));
     const done = await addPoints(db, u, trip.id, fixes, at(400));
-    expect(done).toMatchObject({ status: "finished", arrived: true, questAwarded: 100 });
-    expect((await db.user.findUniqueOrThrow({ where: { id: u } })).xp).toBe(100);
+    expect(done).toMatchObject({ status: "finished", arrived: true, questAwarded: r.quest.points });
+    expect((await db.user.findUniqueOrThrow({ where: { id: u } })).xp).toBe(r.quest.points);
     expect((await db.quest.findUniqueOrThrow({ where: { id: r.quest.id } })).status).toBe("completed");
   });
 
@@ -182,7 +185,7 @@ describe("going there completes the quest", () => {
     const { u, r, place } = await quest();
     const trip = await startTrip(db, u, { place, questId: r.quest.id }, T0);
     await addPoints(db, u, trip.id, [{ lat: north(place.lat, -600), lng: place.lng, t: at(0).getTime() }, { lat: north(place.lat, -100), lng: place.lng, t: at(300).getTime() }], at(300));
-    expect(await finishTrip(db, u, trip.id, at(310))).toMatchObject({ arrived: true, questAwarded: 100 });
+    expect(await finishTrip(db, u, trip.id, at(310))).toMatchObject({ arrived: true, questAwarded: r.quest.points });
   });
 
   it("no points for teleporting: starting at the door, or a trip to a different place", async () => {

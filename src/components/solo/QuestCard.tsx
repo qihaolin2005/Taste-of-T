@@ -8,6 +8,14 @@ import { distanceText, priceText } from "@/features/spin/missionText";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).replace(/-/g, " ");
 
+/** "100 base +12 for distance × 1.5 for $$" */
+function pointsWhyText(w: SpinResult["pointsWhy"]): string {
+  const parts = [`${w.base} base`];
+  if (w.distanceBonus > 0) parts.push(`+${w.distanceBonus} for distance`);
+  if (w.priceMultiplier !== 1) parts.push(`× ${w.priceMultiplier} for ${"$".repeat(w.priceLevel)}`);
+  return parts.join(" ");
+}
+
 export default function QuestCard({ spin }: { spin: SpinResult }) {
   const p = spin.place;
   const facts = [distanceText(p.distanceMiles), priceText(p.priceLevel), p.rating != null ? `★ ${p.rating.toFixed(1)}` : null, p.neighborhood].filter(Boolean);
@@ -40,6 +48,9 @@ export default function QuestCard({ spin }: { spin: SpinResult }) {
         </p>
         <div className="flex items-center justify-between pt-1">
           <span className="rounded-full bg-tint/15 px-3 py-1 text-[15px] font-semibold text-tint">+{spin.quest.points} points</span>
+          {spin.pointsWhy && <span className="text-[12px] text-label-3">{pointsWhyText(spin.pointsWhy)}</span>}
+        </div>
+        <div className="flex items-center justify-end">
           <span className="text-[12px] text-label-3">
             Picked from your top {spin.pool} of {spin.found} nearby
           </span>

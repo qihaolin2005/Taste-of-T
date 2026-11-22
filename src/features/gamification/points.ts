@@ -34,12 +34,12 @@ export type PointsEventView = {
 export type PointsSummary = { total: number; events: PointsEventView[] };
 
 /**
- * How many points a quest is worth.
- * TODO(ML): replace with the points model (difficulty, distance, new line, time of night...).
- * Until then every quest is worth the same.
+ * How many points a quest is worth when the caller doesn't say.
+ * Spin the T prices its quests by the place (questPoints in src/features/ml: farther pays a
+ * bit more, pricier pays a lot more) and passes `points`; this is the fallback for the rest.
  */
 export const DEFAULT_QUEST_POINTS = 100;
-// The quest is unused until the ML model lands; it's the input that model will need.
+// The quest has no place to price here.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function pointsForQuest(_quest: { title: string; stationId?: string | null }): number {
   return DEFAULT_QUEST_POINTS;

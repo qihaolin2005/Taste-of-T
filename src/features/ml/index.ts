@@ -8,3 +8,4 @@ export * from "./recommend";
 export * from "./session";
 export * from "./history";
 export * from "./recommendations";
+export * from "./questPoints";
