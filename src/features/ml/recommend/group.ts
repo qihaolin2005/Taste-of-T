@@ -5,6 +5,7 @@
 //   kind of place (the room's stop) -> city area (Boston + Cambridge + Somerville = one area)
 //   -> strict dietary filter on the UNION of everyone's restrictions
 //   -> score every place for every member with the individual model (no distance: groups have no radius)
+//   -> blend in travel fairness: how far each member rides from tonight's start (config.group.travel)
 //   -> group score = 0.6 * mean + 0.4 * min, with a "hate" veto  [config.ts: group.*]
 //   -> deck of ~18: MMR for cuisine variety + a few lower-confidence "explore" picks
 //
@@ -28,6 +29,8 @@
 //     everyone, so a well-rated place someone clearly dislikes would otherwise never drop below the
 //     threshold. If the veto would leave fewer than `minAfterVeto` places, it's dropped and the
 //     result says so.
+import { distanceMeters, type LatLng } from "@/lib/geo";
+import { getStation } from "@/lib/mbta/stations";
 import type { UserContext } from "../context";
 import { RECOMMENDER_CONFIG, type RecommenderConfig } from "./config";
 import { dietaryHighlights, fitWeight, selectByDietary, unionDietary } from "./dietary";
@@ -49,11 +52,26 @@ export type GroupMember = {
 export type HateReason = "low-score" | "disliked" | "avoid-tag" | "taste";
 export type MemberScore = { memberId: string; score: number; confidence: number; similarity: number; hates: HateReason | null };
 
+/** How far each member would travel (straight line from tonight's start). */
+export type GroupTravel = {
+  /** 0-1: avgWeight * mean + minWeight * min of members' travel scores (config.group.travel). */
+  score: number;
+  avgMiles: number;
+  /** The longest ride anyone in the group would have. */
+  maxMiles: number;
+  /** How many members we could place (have a start station or location). */
+  measured: number;
+};
+
 export type GroupCandidate = {
   place: RestaurantCandidate;
+  /** What ranks the deck: taste (0.6 mean + 0.4 min) blended with travel fairness, x diet fit. */
   groupScore: number;
+  /** Taste only, before travel and diet fit. */
   mean: number;
   min: number;
+  /** Set when the place and at least one member can be located. */
+  travel?: GroupTravel;
   memberScores: MemberScore[];
   /** 0-1: how little we know about how the group feels about this place. */
   uncertainty: number;
@@ -118,6 +136,34 @@ function resolveCity(members: readonly GroupMember[], override?: string): string
   return top?.label ?? null;
 }
 
+/** Where a member sets off tonight: the station from their join form, else live location, else home. */
+function originOf(m: GroupMember): LatLng | null {
+  const st = m.ctx.stations.start ? getStation(m.ctx.stations.start) : undefined;
+  if (st) return { lat: st.lat, lng: st.lng };
+  if (m.ctx.location) return { lat: m.ctx.location.lat, lng: m.ctx.location.lng };
+  const home = m.ctx.stations.home ? getStation(m.ctx.stations.home) : undefined;
+  return home ? { lat: home.lat, lng: home.lng } : null;
+}
+
+const MILE_M = 1609.34;
+
+/** Travel fairness for one place (config.group.travel), or null if it can't be measured. */
+export function travelForGroup(origins: readonly (LatLng | null)[], place: RestaurantCandidate, cfg: RecommenderConfig = RECOMMENDER_CONFIG): GroupTravel | null {
+  if (place.lat == null || place.lng == null) return null;
+  const t = cfg.group.travel;
+  const miles = origins.filter((o): o is LatLng => o != null).map((o) => distanceMeters(o, { lat: place.lat!, lng: place.lng! }) / MILE_M);
+  if (!miles.length) return null;
+  const each = miles.map((mi) => Math.max(0, 1 - mi / t.maxMiles));
+  const mean = each.reduce((a, b) => a + b, 0) / each.length;
+  const score = (t.avgWeight * mean + t.minWeight * Math.min(...each)) / (t.avgWeight + t.minWeight);
+  return {
+    score: round(score),
+    avgMiles: round(miles.reduce((a, b) => a + b, 0) / miles.length, 2),
+    maxMiles: round(Math.max(...miles), 2),
+    measured: miles.length,
+  };
+}
+
 function avoids(m: ProfiledUser, p: RestaurantCandidate): boolean {
   const avoid = new Set(m.ctx.preferences.avoid.map(norm));
   return avoid.size > 0 && [...cuisinesOf(p), ...p.tags.map(norm)].some((t) => avoid.has(t));
@@ -165,6 +211,12 @@ function deckReason(c: GroupCandidate, explore: boolean, dietary: string[]): str
   else if (c.min >= 0.6) parts.push("a good fit for everyone");
   else if (c.mean >= 0.6) parts.push("most of the group should like it");
   else parts.push(`${tasteTagsOf(c.place).slice(0, 2).join(" and ") || "something different"} for the group`);
+  const tr = c.travel;
+  const tc = RECOMMENDER_CONFIG.group.travel;
+  if (tr && tr.measured > 1) {
+    if (tr.maxMiles <= tc.closeMiles) parts.push("close for everyone");
+    else if (tr.maxMiles >= tc.longMiles) parts.push(`a long ride for one of you (${tr.maxMiles.toFixed(1)} mi)`);
+  }
   parts.push(...dietaryHighlights(c.place, dietary));
   return parts.join(", ");
 }
@@ -221,9 +273,22 @@ export function buildGroupDeck(
   const catalog = opts.catalog ?? places;
   const profiled = members.map((m) => profileUser(m.ctx, catalog, m.swipes, cfg));
   const ids = members.map((m) => m.id);
-  const scored = safe
-    .map((p) => scoreForGroup(profiled, ids, p, cfg))
-    .map((c) => ({ ...c, groupScore: round(c.groupScore * fitWeight(diet.fit.get(c.place.id), cfg)) }))
+  // Taste, then travel fairness (config.group.travel: a small weight, never the deciding factor),
+  // then diet fit.
+  const origins = members.map(originOf);
+  const tw = cfg.group.travel.weight;
+  const tastes = safe.map((p) => scoreForGroup(profiled, ids, p, cfg));
+  const travels = tastes.map((c) => travelForGroup(origins, c.place, cfg));
+  // A place we can't locate gets the average travel score (neutral), not a free pass on travel.
+  const measuredTravel = travels.filter((t): t is GroupTravel => t != null);
+  const neutral = measuredTravel.length ? measuredTravel.reduce((s, t) => s + t.score, 0) / measuredTravel.length : null;
+  const scored = tastes
+    .map((c, i) => {
+      const travel = travels[i];
+      const travelScore = travel?.score ?? neutral;
+      const blended = travelScore == null ? c.groupScore : (1 - tw) * c.groupScore + tw * travelScore;
+      return { ...c, ...(travel ? { travel } : {}), groupScore: round(blended * fitWeight(diet.fit.get(c.place.id), cfg)) };
+    })
     .sort((a, b) => b.groupScore - a.groupScore || a.place.id.localeCompare(b.place.id));
 
   // 4. Veto, unless it would leave too few places
