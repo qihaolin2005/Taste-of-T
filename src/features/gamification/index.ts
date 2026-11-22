@@ -3,3 +3,5 @@
 export * from "./points";
 export * from "./quests";
 export * from "./stamps";
+export * from "./achievements";
+export * from "./shop";
