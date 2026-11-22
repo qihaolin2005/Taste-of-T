@@ -1,5 +1,5 @@
 // Owner: P3 - Group Mode & App Shell (see TEAM.md)
-// Home (Figma Home layout): greeting, real stats, today's missions, Spin / Start a Night,
+// Home (Figma Home layout): greeting, real stats, today's missions, Spin / Start an Adventure,
 // points. The layout lives in components/home/HomeScreen; this page supplies station data.
 import HomeScreen, { type HomeStation } from "@/components/home/HomeScreen";
 import { Screen } from "@/components/shared/ios";

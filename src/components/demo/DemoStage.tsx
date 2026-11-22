@@ -9,9 +9,9 @@ import IPhoneFrame from "./IPhoneFrame";
 const SCREENS = [
   { label: "Home", path: "/" },
   { label: "Spin the T", path: "/spin" },
-  { label: "Start a Night", path: "/room/new" },
+  { label: "Start an Adventure", path: "/room/new" },
   { label: "Join Room", path: "/room/demo" },
-  { label: "Night Plan", path: "/room/demo/plan" },
+  { label: "Adventure Plan", path: "/room/demo/plan" },
   { label: "T Map", path: "/map" },
   { label: "Profile", path: "/profile" },
 ];
@@ -31,7 +31,7 @@ export default function DemoStage() {
         <p className="text-[13px] font-semibold uppercase tracking-[0.12em] text-[#ff9f0a]">BostonHacks · Eats &amp; Streets</p>
         <h1 className="mt-2 text-[34px] font-bold leading-tight lg:text-[48px]">Taste of T</h1>
         <p className="mt-2 hidden text-[17px] leading-relaxed text-white/70 lg:block">
-          Food quests and group nights out along the MBTA. Everyone fits the budget, everyone makes the last train.
+          Food quests and group adventures along the MBTA. Everyone fits the budget, everyone makes the last train.
         </p>
 
         <div className="mt-4 flex gap-2 overflow-x-auto pb-2 lg:mt-8 lg:flex-col lg:overflow-visible">

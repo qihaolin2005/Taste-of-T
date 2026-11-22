@@ -1,5 +1,5 @@
 // Owner: P3 - Group Mode & App Shell (see TEAM.md)
-// Rooms ("Start a Night"): create with a 4-letter code, look up by code, join, leave.
+// Rooms ("Start an Adventure"): create with a 4-letter code, look up by code, join, leave.
 //
 // Privacy: anyone with the code can see who's in the room and where they're starting from,
 // but NOT other members' budgets, home stations, or dietary needs. The planner reads those

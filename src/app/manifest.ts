@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Taste of T",
     short_name: "Taste of T",
-    description: "Food quests and group nights out along the Boston T.",
+    description: "Food quests and group adventures along the Boston T.",
     start_url: "/",
     scope: "/",
     display: "standalone",

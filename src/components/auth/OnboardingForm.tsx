@@ -325,7 +325,7 @@ export default function OnboardingForm({ stations }: { stations: readonly Statio
               maxLength={40}
               disabled={busy}
             />
-            <p className="pl-4 text-[13px] text-[#777080]">This is how you’ll show up in group nights.</p>
+            <p className="pl-4 text-[13px] text-[#777080]">This is how you’ll show up in group adventures.</p>
           </form>
           <ErrorBox message={error} />
           <div className="mt-auto grid gap-2.5 pt-6">
@@ -475,7 +475,7 @@ export default function OnboardingForm({ stations }: { stations: readonly Statio
               <div>
                 <p className="text-[16px] font-bold text-[#30203F]">Finding friends is coming soon</p>
                 <p className="mt-1 text-[14px] leading-5 text-[#777080]">
-                  Soon you’ll be able to search for and follow other explorers. For now, invite friends with a link, or start a group night together from the Night tab.
+                  Soon you’ll be able to search for and follow other explorers. For now, invite friends with a link, or start a group adventure together from the Adventure tab.
                 </p>
               </div>
             </div>

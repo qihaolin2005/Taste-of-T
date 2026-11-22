@@ -201,7 +201,7 @@ export default function HomeScreen({ stations }: { stations: readonly HomeStatio
       <section className="tot-home-in" style={{ animationDelay: "60ms" }}>
         <div className="mb-3 mt-6 flex items-center justify-between">
           <h2 className="text-[20px] font-bold tracking-[-0.03em] text-label">Today’s Missions</h2>
-          <Link href="/spin" className="text-[13px] font-bold text-tint active:opacity-60">
+          <Link href="/spin" className="whitespace-nowrap rounded-[10px] bg-tint px-3 py-1.5 text-[13px] font-bold text-tint-fg transition active:scale-95">
             Spin the T
           </Link>
         </div>
@@ -225,16 +225,16 @@ export default function HomeScreen({ stations }: { stations: readonly HomeStatio
         </div>
       </section>
 
-      {/* Figma .friends-exploring strip, used for the real group-night entry point. */}
+      {/* Figma .friends-exploring strip, used for the real group-adventure entry point. */}
       <section className="tot-home-in mt-4 grid grid-cols-[46px_1fr_auto] items-center gap-3 rounded-[18px] bg-lavender p-[13px]" style={{ animationDelay: "120ms" }}>
         <span className="grid size-[46px] place-items-center rounded-full bg-cell text-plum">
           <GroupIcon size={22} />
         </span>
         <p className="grid gap-0.5">
-          <b className="text-[15px] font-bold text-label">Start a Night</b>
+          <b className="text-[15px] font-bold text-label">Start an Adventure</b>
           <span className="text-[13px] leading-[1.35] text-label-2">Dinner, dessert, and fun for the group. Everyone makes the last train.</span>
         </p>
-        <Link href="/room/new" className="whitespace-nowrap rounded-[10px] bg-cell px-3 py-2 text-[13px] font-bold text-plum transition active:scale-95">
+        <Link href="/room/new" className="whitespace-nowrap rounded-[10px] bg-tint px-3 py-2 text-[13px] font-bold text-tint-fg transition active:scale-95">
           Start
         </Link>
       </section>

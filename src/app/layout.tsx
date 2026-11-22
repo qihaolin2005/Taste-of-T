@@ -8,7 +8,7 @@ const dmSerif = DM_Serif_Display({ subsets: ["latin"], weight: "400", variable: 
 
 export const metadata: Metadata = {
   title: "Taste of T",
-  description: "Food quests and group nights out along the Boston T.",
+  description: "Food quests and group adventures along the Boston T.",
   applicationName: "Taste of T",
   // iOS home-screen app behavior (full-screen, status bar over content).
   appleWebApp: {
