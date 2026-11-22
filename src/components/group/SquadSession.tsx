@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, CheckIcon, HeartIcon, ListRow, ListSection, StarIcon } from "@/components/shared/ios";
-import { endSession, fetchSession, sendSwipe, startSession, type LiveState } from "@/features/squads/client";
+import { endSession, fetchSession, sendSwipe, SquadApiError, startSession, type LiveState } from "@/features/squads/client";
 
 const POLL_MS = 2000;
 const SWIPE_PX = 90;
@@ -26,15 +26,19 @@ type Card = NonNullable<LiveState["deck"]>[number];
 function useSession(code: string) {
   const [live, setLive] = useState<LiveState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The group is gone (deleted or expired): stop polling, it won't come back.
+  const [gone, setGone] = useState(false);
   const refresh = useCallback(async () => {
     try {
       setLive(await fetchSession(code));
       setError(null);
     } catch (err) {
       setError((err as Error).message);
+      if (err instanceof SquadApiError && err.status === 404) setGone(true);
     }
   }, [code]);
   useEffect(() => {
+    if (gone) return;
     let stopped = false;
     const tick = () => {
       if (!stopped && document.visibilityState === "visible") void refresh();
@@ -47,7 +51,7 @@ function useSession(code: string) {
       clearInterval(id);
       document.removeEventListener("visibilitychange", tick);
     };
-  }, [refresh]);
+  }, [refresh, gone]);
   return { live, setLive, error, refresh };
 }
 
@@ -223,7 +227,9 @@ export default function SquadSession({ code }: { code: string }) {
     const mine = { ...live.mySwipes, ...pending };
     const done = live.deck.filter((c) => c.placeId in mine).length;
     const next = live.deck.find((c) => !(c.placeId in mine));
-    const canSwipe = live.myMemberId != null;
+    // Only people in the round swipe: someone who joined after the host started is a member (has a
+    // member id) but isn't in the progress list, and the server would refuse their swipes.
+    const canSwipe = live.myMemberId != null && live.progress.some((p) => p.memberId === live.myMemberId);
     const swipe = (placeId: string, liked: boolean) => {
       setActionError(null);
       setPending((p) => ({ ...p, [placeId]: liked }));
@@ -253,7 +259,7 @@ export default function SquadSession({ code }: { code: string }) {
           <div className="h-full rounded-full bg-tint transition-[width] duration-300" style={{ width: `${(done / live.deck.length) * 100}%` }} />
         </div>
         {!canSwipe ? (
-          <p className="mt-3 rounded-[14px] bg-cell px-4 py-4 text-[15px] text-label-2">You&apos;re not part of this round. Join before the next one.</p>
+          <p className="mt-3 rounded-[14px] bg-cell px-4 py-4 text-[15px] text-label-2">You joined after this round started, so you can&apos;t swipe on it. You&apos;ll see the top 5 here when everyone&apos;s done.</p>
         ) : next ? (
           <SwipeCard key={next.placeId} card={next} onSwipe={(liked) => swipe(next.placeId, liked)} />
         ) : (

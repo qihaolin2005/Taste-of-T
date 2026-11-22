@@ -3,10 +3,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, GroupIcon, ListRow, ListSection, MapIcon, Screen } from "@/components/shared/ios";
 import type { StationOption } from "@/components/shared/StationPicker";
-import { joinRoom, leaveRoom } from "@/features/rooms/client";
+import { deleteRoom, joinRoom, leaveRoom } from "@/features/rooms/client";
 import type { RoomView } from "@/features/rooms/roomStore";
 import { useRoomPolling } from "@/features/rooms/useRoomPolling";
 import { formatMinutes } from "@/lib/time";
@@ -34,6 +34,8 @@ export default function RoomScreen({ code, stations }: { code: string; stations:
   const { state, setRoom } = useRoomPolling(code);
   const [editing, setEditing] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  // Next keeps this page alive after you leave it; don't come back to a stuck "Leaving…".
+  useEffect(() => () => setLeaving(false), []);
   const stationName = (id: string) => stations.find((s) => s.id === id)?.name ?? id;
 
   if (state.status === "loading") {
@@ -77,8 +79,21 @@ export default function RoomScreen({ code, stations }: { code: string; stations:
     }
   }
 
+  /** Host only: ends the group for everyone (they go back to "join or start"). */
+  async function endGroup() {
+    if (!window.confirm(`Delete ${room.name} for everyone? This can't be undone.`)) return;
+    setLeaving(true);
+    try {
+      await deleteRoom(room.code);
+      router.push("/room/new");
+    } catch {
+      setLeaving(false);
+    }
+  }
+
   return (
-    <Screen title={room.name} tab="night" back={back}>
+    // In the group (or hosting it), the Adventure tab brings you right back here, so no back link.
+    <Screen title={room.name} tab="night" back={room.you || room.youAreHost ? undefined : back}>
       <p className="-mt-1 text-[15px] text-label-2">{whenText(room)}</p>
       <ShareLink code={room.code} name={room.name} />
 
@@ -126,10 +141,15 @@ export default function RoomScreen({ code, stations }: { code: string; stations:
           <ListSection footer="Record your way there and see everyone's paths on one map.">
             <ListRow icon={<MapIcon size={16} />} iconBg="#ff375f" title="Trip Map" subtitle="Everyone's path to the restaurant" href={`/room/${room.code}/trips`} />
           </ListSection>
-          <ListSection>
+          <ListSection footer={room.youAreHost ? "If you leave, the next person who joined becomes host." : undefined}>
             <ListRow title={leaving ? "Leaving…" : "Leave Group"} destructive onClick={leaving ? undefined : leave} />
           </ListSection>
         </>
+      )}
+      {room.youAreHost && !editing && (
+        <ListSection footer="Ends the group for everyone. They can still claim points for tonight's picks.">
+          <ListRow title="Delete Group" destructive onClick={leaving ? undefined : endGroup} />
+        </ListSection>
       )}
     </Screen>
   );
