@@ -13,7 +13,11 @@
 // slip in a longer word is tolerated.
 
 /** Dropped entirely: they say nothing about which place it is. */
-const NOISE = new Set(["the", "and", "of", "llc", "inc", "co", "corp", "ltd", "restaurant", "restaurants", "est", "store", "location", "boston", "ma"]);
+const NOISE = new Set([
+  "the", "and", "of", "llc", "inc", "co", "corp", "ltd", "restaurant", "restaurants", "est", "store", "location", "boston", "ma",
+  // articles in other languages ("El Jefe's", "La Taqueria", "Pho Le"): they don't tell places apart
+  "los", "las", "les", "del", "des", "dos", "una", "der", "die", "das",
+]);
 
 /** Shared by many places, so never enough on their own. */
 const GENERIC = new Set([
@@ -48,7 +52,8 @@ export function nameWords(s: string): string[] {
     .replace(/[^a-z0-9 ]+/g, " ")
     .split(/\s+/)
     .map((w) => ABBREVIATIONS[w] ?? w)
-    .filter((w) => w.length >= 2 && !/^\d+$/.test(w) && !NOISE.has(w));
+    // 1-2 letter words ("el", "la", "de", "y") say nothing about which place it is.
+    .filter((w) => w.length >= 3 && !/^\d+$/.test(w) && !NOISE.has(w));
 }
 
 /** One edit (insert, delete, change) apart? */
@@ -84,10 +89,27 @@ function sameWord(placeWord: string, receiptWord: string): boolean {
   return oneEdit(placeWord, receiptWord) || oneEdit(ocr(placeWord), ocr(receiptWord));
 }
 
+/**
+ * The name without Google's branch label: "El Jefe's Taqueria - Boston Common" -> "El Jefe's
+ * Taqueria", "Sweetgreen (Back Bay)" -> "Sweetgreen". The label is where, not which place:
+ * "BOSTON COMMON COFFEE" mustn't match El Jefe's because both say "Common".
+ */
+export function withoutBranch(name: string): string {
+  const main = name.split(/\s+[-–—|]\s+|\s*\(/)[0].trim();
+  return nameWords(main).length ? main : name;
+}
+
 export function merchantMatches(receiptName: string, placeName: string): boolean {
   const receipt = nameWords(receiptName);
-  const place = [...new Set(nameWords(placeName))];
-  if (!place.length || !receipt.length) return false;
+  const place = [...new Set(nameWords(withoutBranch(placeName)))];
+  if (!place.length) {
+    // A name made only of short words ("The Q", "OK Cafe"): all of them must be on the receipt.
+    const short = (n: string) => n.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter((w) => w && !NOISE.has(w));
+    const want = short(withoutBranch(placeName));
+    const have = new Set(short(receiptName));
+    return want.length > 0 && want.every((w) => have.has(w));
+  }
+  if (!receipt.length) return false;
   const onReceipt = (w: string) => receipt.some((r) => sameWord(w, r));
 
   const distinctive = place.filter((w) => !isGeneric(w));
