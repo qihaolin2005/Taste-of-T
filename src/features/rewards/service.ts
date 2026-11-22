@@ -25,7 +25,7 @@ import type { LatLng } from "@/lib/geo";
 import { awardPointsTx } from "@/features/gamification";
 import { checkRideForReward } from "@/features/rides";
 import { REWARDS_CONFIG, type RewardsConfig } from "./config";
-import { proveVisit, type VisitProof } from "./presence";
+import { findRideToPlace, proveVisit, type VisitProof } from "./presence";
 import { basePoints, groupMultiplier, withGroup, type PointsBreakdown, type TravelMode } from "./points";
 
 type Db = PrismaClient;
@@ -232,12 +232,14 @@ export async function claimVisit(
   if (samePlaceToday >= cfg.limits.perPlacePerDay) fail("conflict", "You've already earned points here today.");
   if (visitsToday >= cfg.limits.visitsPerDay) fail("too_many_requests", `That's ${cfg.limits.visitsPerDay} rewarded visits today. Come back tomorrow!`);
 
-  // 5. Travel: only a ride verified against live MBTA data, ending near this place, unused.
+  // 5. Travel: only a ride verified against live MBTA data, ending near this place, unused. The
+  //    rider never picks "bus" or "T": if the claim doesn't name a ride, we look for one.
   let travelMode: TravelMode = "none";
   let rideId: string | null = null;
   let travelNote: string | undefined;
-  if (input.travel) {
-    const check = await checkRideForReward(db, userId, input.travel.rideId, { now, place: opts.placeCoords });
+  const travelRideId = input.travel?.rideId ?? (await findRideToPlace(db, userId, { place: opts.placeCoords ?? null, receiptAt: printed, config: cfg }));
+  if (travelRideId) {
+    const check = await checkRideForReward(db, userId, travelRideId, { now, place: opts.placeCoords });
     if ("ride" in check) {
       travelMode = check.ride.mode;
       rideId = check.ride.id;

@@ -29,6 +29,34 @@ export function fixIsNear(fix: PresenceFix, place: LatLng, cfg: RewardsConfig = 
   return { ok: true };
 }
 
+/**
+ * The verified bus/T ride that took you to this place, if any: not yet used for points, ended
+ * within config.presence.rideEndRadiusM of it, around the receipt time. Newest first.
+ * Used when the claim doesn't name a ride, so nobody has to pick one by hand.
+ */
+export async function findRideToPlace(
+  db: Db,
+  userId: string,
+  opts: { place: LatLng | null; receiptAt: Date; config?: RewardsConfig },
+): Promise<string | null> {
+  const cfg = opts.config ?? REWARDS_CONFIG;
+  if (!opts.place) return null;
+  const w = cfg.presence.windowHours * HOUR;
+  const rides = await db.ride.findMany({
+    where: {
+      userId,
+      status: "verified",
+      rewardVisit: null,
+      lastMatchAt: { gte: new Date(opts.receiptAt.getTime() - w), lte: new Date(opts.receiptAt.getTime() + w) },
+      endLat: { not: null },
+      endLng: { not: null },
+    },
+    orderBy: { lastMatchAt: "desc" },
+    select: { id: true, endLat: true, endLng: true },
+  });
+  return rides.find((r) => distanceMeters({ lat: r.endLat!, lng: r.endLng! }, opts.place!) <= cfg.presence.rideEndRadiusM)?.id ?? null;
+}
+
 export async function proveVisit(
   db: Db,
   userId: string,

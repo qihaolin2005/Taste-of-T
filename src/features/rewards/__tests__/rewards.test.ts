@@ -409,3 +409,38 @@ describe("proof you were at the restaurant", () => {
     expect(() => claimVisitSchema.parse({ placeId: "p", receipt: { total: 10, date: minsAgo(5) }, presence: { lat: 99, lng: 0, accuracyM: 5 } })).toThrow();
   });
 });
+
+// ------------------------------------------------------------- travel points without picking a ride
+
+describe("travel points find your verified ride by themselves", () => {
+  const nearStop = { lat: 42.3540, lng: -71.0620 }; // ~170 m from where verifiedRide() ends
+
+  it("a claim that names no ride still gets bus points from the verified ride that ended nearby", async () => {
+    const u = await newUser();
+    await recommend(u, "p-auto");
+    const ride = await verifiedRide(u, "bus");
+    const r = await claimVisit(db, u, claim("p-auto", 30), { now: NOW, placeCoords: nearStop });
+    expect(r.breakdown).toMatchObject({ travel: REWARDS_CONFIG.travel.bus, travelMode: "bus" });
+    expect((await db.rewardVisit.findUniqueOrThrow({ where: { id: r.visitId } })).rideId).toBe(ride);
+  });
+
+  it("the same ride isn't picked up again for another visit", async () => {
+    const u = await newUser();
+    await recommend(u, "p-auto1");
+    await recommend(u, "p-auto2");
+    await verifiedRide(u, "t");
+    expect((await claimVisit(db, u, claim("p-auto1", 30), { now: NOW, placeCoords: nearStop })).breakdown.travel).toBe(REWARDS_CONFIG.travel.t);
+    const second = { ...claim("p-auto2", 31), presence: { ...nearStop, accuracyM: 10 } };
+    expect((await claimVisit(db, u, second, { now: NOW, placeCoords: nearStop })).breakdown.travel).toBe(0);
+  });
+
+  it("a ride that ended far away, or wasn't verified, earns nothing", async () => {
+    const u = await newUser();
+    await recommend(u, "p-auto-far");
+    await verifiedRide(u, "bus");
+    await verifiedRide(u, "t", { status: "tracking" });
+    const davis = { lat: 42.39674, lng: -71.12181 };
+    const r = await claimVisit(db, u, { ...claim("p-auto-far", 30), presence: { ...davis, accuracyM: 10 } }, { now: NOW, placeCoords: davis });
+    expect(r.breakdown).toMatchObject({ travel: 0, travelMode: "none" });
+  });
+});
