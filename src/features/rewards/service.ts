@@ -56,7 +56,7 @@ export const claimVisitSchema = z
     travel: z.object({ rideId: z.string().min(1).max(40) }).strict().optional(),
     /** The phone's location when claiming, to confirm you're at the place. Checked, never stored. */
     presence: z
-      .object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180), accuracyM: z.number().min(0).max(100_000) })
+      .object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180), accuracyM: z.number().min(0).max(100_000).optional() })
       .strict()
       .optional(),
   })

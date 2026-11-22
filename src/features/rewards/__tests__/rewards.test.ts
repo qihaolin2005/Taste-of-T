@@ -346,11 +346,12 @@ describe("proof you were at the restaurant", () => {
   const at = (dLatM: number) => ({ lat: PLACE.lat + dLatM / 111_320, lng: PLACE.lng }); // dLatM meters north
   const withFix = (placeId: string, fix: { lat: number; lng: number; accuracyM: number }) => ({ ...claim(placeId, 30), presence: fix });
 
-  it("a phone fix near the place (with GPS error allowed) passes; far or imprecise fails", () => {
+  it("a phone fix near the place (with GPS error allowed) passes; far or too rough fails", () => {
+    // The shared GPS check-in (CHECKIN_CONFIG): 150 m + up to 75 m of reported error, fixes up to 500 m.
     expect(fixIsNear({ ...at(100), accuracyM: 10 }, PLACE).ok).toBe(true);
-    expect(fixIsNear({ ...at(190), accuracyM: 50 }, PLACE).ok).toBe(true); // 150 + 50 allowance
-    expect(fixIsNear({ ...at(400), accuracyM: 10 }, PLACE)).toMatchObject({ ok: false, reason: expect.stringMatching(/400 m away/) });
-    expect(fixIsNear({ ...at(10), accuracyM: 500 }, PLACE)).toMatchObject({ ok: false, reason: expect.stringMatching(/precise/) });
+    expect(fixIsNear({ ...at(210), accuracyM: 75 }, PLACE).ok).toBe(true);
+    expect(fixIsNear({ ...at(400), accuracyM: 10 }, PLACE)).toMatchObject({ ok: false, reason: expect.stringMatching(/about 400 m away/) });
+    expect(fixIsNear({ ...at(10), accuracyM: 800 }, PLACE)).toMatchObject({ ok: false, reason: expect.stringMatching(/too rough/) });
   });
 
   it("claiming at the restaurant works and records how it was confirmed (not where)", async () => {
@@ -366,7 +367,7 @@ describe("proof you were at the restaurant", () => {
   it("typing a receipt from home is refused", async () => {
     const u = await newUser();
     await recommend(u, "p-home");
-    await expectReward(claimVisit(db, u, withFix("p-home", { ...at(3000), accuracyM: 10 }), { now: NOW, placeCoords: PLACE }), "forbidden", /couldn't confirm.*3\.0 km away/);
+    await expectReward(claimVisit(db, u, withFix("p-home", { ...at(3000), accuracyM: 10 }), { now: NOW, placeCoords: PLACE }), "forbidden", /couldn't confirm.*about 1\.9 mi away/);
     await expectReward(claimVisit(db, u, claim("p-home", 30), { now: NOW, placeCoords: PLACE }), "forbidden", /Turn on location/);
     expect(await db.rewardVisit.count({ where: { userId: u } })).toBe(0);
   });

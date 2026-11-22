@@ -39,12 +39,8 @@ export const REWARDS_CONFIG = {
    * windowHours of the receipt time.
    */
   presence: {
-    /** Phone fix or trip point this close to the place counts. */
-    radiusM: 150,
-    /** A fix's own accuracy is added to the radius, up to this much. */
-    accuracyAllowanceM: 50,
-    /** Fixes less precise than this can't confirm anything (indoor guesses). */
-    maxAccuracyM: 100,
+    // How close counts as "at the place" (and how much GPS error is allowed) is the shared GPS
+    // check-in's CHECKIN_CONFIG (src/features/gamification/checkin.ts); trips use its radius too.
     /** Stops can be a few blocks away, so a ride may end this far from the place. */
     rideEndRadiusM: 400,
     windowHours: 3,

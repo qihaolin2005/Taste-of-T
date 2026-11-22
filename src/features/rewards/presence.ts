@@ -9,24 +9,23 @@
 // GPS can be faked by a determined cheater; this stops casual "type a receipt from home" claims.
 import type { PrismaClient } from "@/generated/prisma/client";
 import { distanceMeters, type LatLng } from "@/lib/geo";
+import { checkIn, CHECKIN_CONFIG } from "@/features/gamification/checkin";
 import { REWARDS_CONFIG, type RewardsConfig } from "./config";
 
 type Db = PrismaClient;
 const HOUR = 3_600_000;
 
-export type PresenceFix = LatLng & { accuracyM: number };
+export type PresenceFix = LatLng & { accuracyM?: number };
 /** How the visit was confirmed. "unchecked": we don't know where the place is, so it can't be checked. */
 export type VisitProof = "here" | "trip" | "ride" | "unchecked";
 
-const fmt = (m: number) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
-
-/** Is this phone fix close enough to the place? Allows for some GPS error, never a bad fix. */
-export function fixIsNear(fix: PresenceFix, place: LatLng, cfg: RewardsConfig = REWARDS_CONFIG): { ok: true } | { ok: false; reason: string } {
-  const p = cfg.presence;
-  if (!(fix.accuracyM <= p.maxAccuracyM)) return { ok: false, reason: `Your location isn't precise enough (±${fmt(fix.accuracyM)}). Step outside or wait a moment, then try again.` };
-  const d = distanceMeters(fix, place);
-  if (d > p.radiusM + Math.min(fix.accuracyM, p.accuracyAllowanceM)) return { ok: false, reason: `You're ${fmt(d)} away.` };
-  return { ok: true };
+/**
+ * Is this phone fix at the place? The shared GPS check-in (src/features/gamification/checkin.ts):
+ * within its radius plus some of the reported GPS error, and not a hopelessly rough fix.
+ */
+export function fixIsNear(fix: PresenceFix, place: LatLng): { ok: true } | { ok: false; reason: string } {
+  const r = checkIn(fix, place, CHECKIN_CONFIG);
+  return r.ok ? { ok: true } : { ok: false, reason: r.message };
 }
 
 /**
@@ -73,7 +72,7 @@ export async function proveVisit(
   // 1. Here now
   let hereNote: string | null = null;
   if (opts.here) {
-    const near = fixIsNear(opts.here, place, cfg);
+    const near = fixIsNear(opts.here, place);
     if (near.ok && inWindow(opts.now.getTime())) return { proof: "here" };
     hereNote = near.ok ? `Your receipt is from more than ${p.windowHours} hours ago.` : near.reason;
   }
@@ -88,7 +87,7 @@ export async function proveVisit(
     for (const pt of pts) {
       if (!Array.isArray(pt) || pt.length < 3) continue;
       const [lat, lng, sec] = pt as number[];
-      if (inWindow(t.startedAt.getTime() + sec * 1000) && distanceMeters({ lat, lng }, place) <= p.radiusM) return { proof: "trip" };
+      if (inWindow(t.startedAt.getTime() + sec * 1000) && distanceMeters({ lat, lng }, place) <= CHECKIN_CONFIG.radiusM) return { proof: "trip" };
     }
   }
 

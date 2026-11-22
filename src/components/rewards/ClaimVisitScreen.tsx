@@ -1,41 +1,26 @@
 // Owner: P1 - Planner & Quests (ML, rewards) (see TEAM.md)
 // /rewards/claim: claim points for eating at a recommended place (src/features/rewards).
-//   pick the place (recommended in the last 48 h) -> receipt total, time, people on the bill
-//   -> optional rating -> POST /api/rewards/visits
-// Travel points: nobody picks "bus" or "T" here. The server finds your ride that was verified
-// against live MBTA data (recorded with "Start Trip") and ended near the place; this screen just
-// shows whether you have one, or how to get one next time.
-// Receipt: typed in, or filled by the OCR scanner (ReceiptScanner, docs/receipt-ocr.md).
-// On submit it asks for the phone's location, so the server can confirm you're at the place
-// (src/features/rewards/presence.ts). Location is checked, never stored. If it's off or denied,
-// a trip you recorded there (or a verified ride) can still confirm it.
-// The receipt is typed in for now (no photo reading yet); only these facts are sent and stored.
+//   pick the place (recommended in the last 48 h) -> scan the receipt (Gemini reads the
+//   restaurant, total and time) -> people on the bill -> optional rating
+//   -> Claim: phone location + POST /api/rewards/visits
+// The photo is read once and discarded; only the facts are kept. If receipt scanning isn't set
+// up on the server (no GEMINI_API_KEY), the receipt is typed in instead.
+// Proof you were there (src/features/rewards/presence.ts): the phone's location at the place, or
+// if it's off / you already left, a trip you recorded there or a verified ride that ended nearby.
+// Travel points: nobody picks "bus" or "T". The server finds your ride verified against live MBTA
+// data (recorded with "Start Trip"); this screen shows whether you have one.
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, ListRow, ListSection, SegmentedControl, SelectRow, StarIcon, TextFieldRow, TrainIcon } from "@/components/shared/ios";
-import { toLocalInput, type ReceiptReading } from "@/features/rewards/receipt";
-import ReceiptScanner from "./ReceiptScanner";
+import { currentFix, scanReceiptPhoto, type ScannedReceipt } from "@/features/rewards/client";
 
 type Claimable = { placeId: string; name: string | null; via: "squad" | "for-you"; at: string };
 type Ride = { id: string | null; status: string; mode: "bus" | "t" | null; routeName: string | null; usedForReward: boolean; verifiedAt: string | null };
 type Breakdown = { meal: number; spend: number; travel: number; travelMode: string; firstVisit: number; repeatFactor: number; base: number };
 type Result = { points: number; xp: number; groupMultiplier: number; groupSize: number; breakdown: Breakdown; travelNote?: string; verifiedBy?: string };
-type Fix = { lat: number; lng: number; accuracyM: number };
 
 const VERIFIED: Record<string, string> = { here: "Your location", trip: "Your recorded trip", ride: "Your verified ride" };
-
-/** The phone's location for this claim, or null if it's off, denied or slow. */
-function currentFix(): Promise<Fix | null> {
-  if (typeof navigator === "undefined" || !navigator.geolocation) return Promise.resolve(null);
-  return new Promise((resolve) =>
-    navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, accuracyM: p.coords.accuracy }),
-      () => resolve(null),
-      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
-    ),
-  );
-}
 
 /** "2026-11-21T19:40" in the phone's local time, for <input type="datetime-local">. */
 function localNow(minutesAgo = 0): string {
@@ -68,56 +53,67 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
   const [diners, setDiners] = useState(1);
   const [when, setWhen] = useState(() => localNow(5));
   const [merchant, setMerchant] = useState("");
-  const [receiptNumber, setReceiptNumber] = useState("");
-  const [scanned, setScanned] = useState(false);
   const [stars, setStars] = useState(0);
   const [busy, setBusy] = useState<false | "locating" | "claiming">(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
+  // Receipt scanning (when the server has it): the read facts and the signed token for the claim.
+  const [canScan, setCanScan] = useState(false);
+  const [scan, setScan] = useState<ScannedReceipt | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const photoInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    Promise.all([getJson<{ places: Claimable[]; visitsLeftToday: number }>("/api/rewards/eligible"), getJson<{ rides: Ride[] }>("/api/rides").catch(() => ({ rides: [] }))])
+    Promise.all([getJson<{ places: Claimable[]; visitsLeftToday: number; receiptScan?: boolean }>("/api/rewards/eligible"), getJson<{ rides: Ride[] }>("/api/rides").catch(() => ({ rides: [] }))])
       .then(([e, r]) => {
         setPlaces(e.places);
         setLeft(e.visitsLeftToday);
+        setCanScan(!!e.receiptScan);
         setRides(r.rides.filter((x) => x.status === "verified" && x.id && !x.usedForReward));
         setPlaceId((cur) => cur || e.places[0]?.placeId || "");
       })
       .catch((err: Error) => setLoadError(err.message));
   }, []);
 
-  /** Fill the receipt fields from the scanner; the person can still edit them. */
-  function applyReading(r: ReceiptReading) {
-    if (r.total != null && r.total > 0) setTotal(r.total.toFixed(2));
-    const local = r.date ? toLocalInput(r.date) : null;
-    if (local) setWhen(local);
-    if (r.merchantName) setMerchant(r.merchantName);
-    if (r.receiptNumber) setReceiptNumber(r.receiptNumber);
-    if (r.diners != null && r.diners >= 1 && r.diners <= 12) setDiners(Math.round(r.diners));
-    setScanned(true);
-  }
-
   const place = useMemo(() => places?.find((p) => p.placeId === placeId) ?? null, [places, placeId]);
   const amount = Number(total);
-  const valid = place != null && Number.isFinite(amount) && amount > 0 && amount <= 2000 && when !== "";
+  const typedValid = Number.isFinite(amount) && amount > 0 && amount <= 2000 && when !== "";
+  const valid = place != null && (canScan ? scan != null : typedValid);
+
+  async function onPhoto(file: File | undefined) {
+    if (!file) return;
+    setScanning(true);
+    setScanError(null);
+    try {
+      const s = await scanReceiptPhoto(file);
+      setScan(s);
+      if (s.receipt.diners) setDiners(s.receipt.diners);
+    } catch (err) {
+      setScan(null);
+      setScanError((err as Error).message);
+    } finally {
+      setScanning(false);
+      if (photoInput.current) photoInput.current.value = ""; // so retaking the same file fires again
+    }
+  }
 
   async function submit() {
     if (!valid || !place) return;
     setBusy("locating");
     setError(null);
     try {
-      const fix = await currentFix();
+      // Location at the restaurant. If it's off or fails, still claim: a recorded trip or a
+      // verified ride can confirm the visit, and the server says what's missing if nothing does.
+      const location = await currentFix().catch(() => null);
       setBusy("claiming");
       const res = await postJson<Result>("/api/rewards/visits", {
         placeId: place.placeId,
-        ...(fix ? { presence: fix } : {}),
-        receipt: {
-          total: Math.round(amount * 100) / 100,
-          date: new Date(when).toISOString(),
-          diners,
-          ...(merchant.trim() ? { merchantName: merchant.trim() } : {}),
-          ...(receiptNumber.trim() ? { receiptNumber: receiptNumber.trim() } : {}),
-        },
+        ...(location ? { location } : {}),
+        diners,
+        ...(canScan && scan
+          ? { receiptToken: scan.receiptToken }
+          : { receipt: { total: Math.round(amount * 100) / 100, date: new Date(when).toISOString(), ...(merchant.trim() ? { merchantName: merchant.trim() } : {}) } }),
       });
       // A rating also teaches the recommender (8-10 = like, 0-3 = dislike).
       if (stars > 0) await postJson("/api/ratings", { placeId: place.placeId, score: stars * 2 }).catch(() => {});
@@ -196,16 +192,32 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
         />
       </ListSection>
 
-      <ReceiptScanner onRead={applyReading} disabled={busy !== false} />
-      <ListSection
-        header="Receipt"
-        footer={scanned ? "Read from your photo. Fix anything that looks wrong. We only keep the amount, time and restaurant name." : "Type the total from your receipt. We only keep the amount, time and restaurant name."}
-      >
-        <TextFieldRow label="Total ($)" inputMode="decimal" placeholder="42.50" value={total} onChange={(e) => setTotal(e.target.value.replace(/[^\d.]/g, ""))} />
-        <TextFieldRow label="Time" type="datetime-local" value={when} max={localNow()} onChange={(e) => setWhen(e.target.value)} />
-        <SelectRow label="People on bill" value={diners} options={Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: String(i + 1) }))} onChange={setDiners} />
-        <TextFieldRow label="Restaurant" placeholder="As on receipt (optional)" value={merchant} onChange={(e) => setMerchant(e.target.value)} />
-      </ListSection>
+      {canScan ? (
+        <ListSection header="Receipt" footer="Your photo is read once for the restaurant, total and time, then thrown away. It's never stored.">
+          {scan && (
+            <>
+              <ListRow title="Restaurant" value={scan.receipt.merchantName} />
+              <ListRow title="Total" value={`$${scan.receipt.total.toFixed(2)}`} />
+              <ListRow title="Time" value={new Date(scan.receipt.date).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} />
+            </>
+          )}
+          <SelectRow label="People on bill" value={diners} options={Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: String(i + 1) }))} onChange={setDiners} />
+          <div className="px-4 py-3">
+            <input ref={photoInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onPhoto(e.target.files?.[0])} />
+            <Button variant={scan ? "tinted" : undefined} onClick={() => photoInput.current?.click()} disabled={scanning}>
+              {scanning ? "Reading receipt…" : scan ? "Retake Photo" : "Scan Receipt"}
+            </Button>
+            {scanError && <p className="mt-2 text-[14px] text-danger">{scanError}</p>}
+          </div>
+        </ListSection>
+      ) : (
+        <ListSection header="Receipt" footer="Type the total from your receipt. We only keep the amount, time and restaurant name.">
+          <TextFieldRow label="Total ($)" inputMode="decimal" placeholder="42.50" value={total} onChange={(e) => setTotal(e.target.value.replace(/[^\d.]/g, ""))} />
+          <TextFieldRow label="Time" type="datetime-local" value={when} max={localNow()} onChange={(e) => setWhen(e.target.value)} />
+          <SelectRow label="People on bill" value={diners} options={Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: String(i + 1) }))} onChange={setDiners} />
+          <TextFieldRow label="Restaurant" placeholder="As on receipt (optional)" value={merchant} onChange={(e) => setMerchant(e.target.value)} />
+        </ListSection>
+      )}
 
       <ListSection
         header="How Did You Get There?"
@@ -246,7 +258,7 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
           <StarIcon size={18} /> {busy === "locating" ? "Checking your location…" : busy ? "Claiming…" : "Claim Points"}
         </Button>
         <p className="mt-2 px-4 text-center text-[13px] text-label-2">
-          We check your location to confirm you&apos;re at {place?.name ?? "the restaurant"}. It&apos;s never saved. Already left? A trip you recorded there works too.
+          Claim at {place?.name ?? "the restaurant"}: we check your location once to confirm you&apos;re there. It&apos;s never saved. Already left? A trip you recorded there works too.
         </p>
       </div>
     </>
