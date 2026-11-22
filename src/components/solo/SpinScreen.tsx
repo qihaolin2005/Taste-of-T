@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from "react";
 import { Button, DiceIcon, ListRow, ListSection, SegmentedControl, SelectRow } from "@/components/shared/ios";
+import SnapReceiptButton from "@/components/rewards/SnapReceiptButton";
 import TripRecorderCard from "@/components/trips/TripRecorderCard";
 import type { SpinRequest, SpinResult } from "@/features/spin/generateQuest";
 import { fetchMyTrips } from "@/features/trips/client";
@@ -159,12 +160,17 @@ export default function SpinScreen() {
         </>
       )}
 
-      {questDone && (
-        <ListSection>
+      {(questDone || trip?.status === "finished") && (
+        <ListSection footer="After you pay, snap the receipt: we read the total and give you points for the meal (more if you came by bus or T). The photo isn't kept.">
           <ListRow
-            title={awarded ? `Quest complete! +${awarded} points` : "You made it!"}
-            subtitle="Enjoy your meal. Snap the receipt for reward points."
+            title={awarded ? `Quest complete! +${awarded} points` : questDone ? "You made it!" : "Trip ended"}
+            subtitle="Enjoy your meal, then snap the receipt for reward points."
           />
+          {result && (
+            <div className="p-4">
+              <SnapReceiptButton placeId={result.place.placeId} />
+            </div>
+          )}
         </ListSection>
       )}
 

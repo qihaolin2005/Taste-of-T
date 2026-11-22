@@ -13,7 +13,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, ListRow, ListSection, SegmentedControl, SelectRow, StarIcon, TextFieldRow, TrainIcon } from "@/components/shared/ios";
-import { currentFix, scanReceiptPhoto, type ScannedReceipt } from "@/features/rewards/client";
+import { currentFix, scanReceiptPhoto, takePendingScan, type ScannedReceipt } from "@/features/rewards/client";
 
 type Claimable = { placeId: string; name: string | null; via: "squad" | "for-you"; at: string };
 type Ride = { id: string | null; status: string; mode: "bus" | "t" | null; routeName: string | null; usedForReward: boolean; verifiedAt: string | null };
@@ -72,9 +72,15 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
         setCanScan(!!e.receiptScan);
         setRides(r.rides.filter((x) => x.status === "verified" && x.id && !x.usedForReward));
         setPlaceId((cur) => cur || e.places[0]?.placeId || "");
+        // Snapped on another screen ("Snap Your Receipt" after a trip): use that scan here.
+        const pending = e.receiptScan ? takePendingScan(initialPlaceId) : null;
+        if (pending) {
+          setScan(pending);
+          if (pending.receipt.diners) setDiners(pending.receipt.diners);
+        }
       })
       .catch((err: Error) => setLoadError(err.message));
-  }, []);
+  }, [initialPlaceId]);
 
   // Next keeps this page alive while you're on another one. When you leave, clear the finished
   // claim, so coming back (say, to claim your second meal) shows the form, not the last result.
