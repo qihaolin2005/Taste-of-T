@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   areaOf,
   buildGroupDeck,
-  checkDietary,
+  dietFit,
   cuisinesOf,
   groupVotesToSwipes,
   RECOMMENDER_CONFIG,
@@ -48,15 +48,12 @@ describe("buildGroupDeck: filters", () => {
     expect(r.counts.otherCategory).toBe(mixed.length - 1);
   });
 
-  it("applies the UNION of members' restrictions: vegetarian + vegan -> every place is vegan-safe", () => {
+  it("applies the UNION of members' restrictions: vegetarian + vegan -> no place that fails either", () => {
     const r = buildGroupDeck([member("veg", { dietary: ["vegetarian"] }), member("vgn", { dietary: ["Vegan"] }), member("none")], PLACES);
     expect(r.dietary.sort()).toEqual(["vegan", "vegetarian"]);
     expect(r.deck.length).toBeGreaterThan(0);
-    for (const c of r.ranked) {
-      expect(checkDietary(c.place, ["vegetarian"]).ok).toBe(true);
-      expect(checkDietary(c.place, ["vegan"]).ok).toBe(true);
-    }
-    expect(r.ranked.some((c) => c.place.dietStyle === "non-veg-only" || (c.place.dietStyle === "mixed" && c.place.dietary == null))).toBe(false);
+    for (const c of r.ranked) expect(dietFit(c.place, ["vegetarian", "vegan"])).not.toBe("no");
+    expect(r.ranked.some((c) => c.place.dietStyle === "non-veg-only")).toBe(false);
   });
 
   it("returns an empty deck with a warning when nothing satisfies everyone", () => {

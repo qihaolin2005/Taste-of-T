@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { createTestDb } from "@/test/db";
 import { getOrCreateUser, updatePreferences } from "@/features/users";
-import { checkDietary, getRecommendations, loadSeedRestaurants, recommendationsRequestSchema, recordSoloSwipe } from "@/features/ml";
+import { dietFit, getRecommendations, loadSeedRestaurants, recommendationsRequestSchema, recordSoloSwipe } from "@/features/ml";
 import { ALL_PLACES, COPLEY } from "../recommend/__tests__/fixtures";
 
 const db = createTestDb();
@@ -33,7 +33,7 @@ describe("getRecommendations", () => {
     const id = await newUser({ dietary: ["vegan"] });
     const r = (await getRecommendations(db, id, { candidates: ALL_PLACES, limit: 50 }))!;
     expect(r.results.length).toBeGreaterThan(0);
-    for (const x of r.results) expect(checkDietary(ALL_PLACES.find((p) => p.id === x.placeId)!, ["vegan"]).ok).toBe(true);
+    for (const x of r.results) expect(dietFit(ALL_PLACES.find((p) => p.id === x.placeId)!, ["vegan"])).not.toBe("no");
     expect(r.counts.dietary).toBeGreaterThan(0);
   });
 

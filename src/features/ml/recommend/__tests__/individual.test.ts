@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   blendWeights,
   checkDietary,
+  dietFit,
   confidenceFrom,
   deriveInteractions,
   groupSwipesToHistory,
@@ -103,7 +104,11 @@ describe("recommendForUser: hard filters", () => {
     for (const dietary of [["vegetarian"], ["vegan"], ["halal"], ["vegan", "halal"]]) {
       const ctx = makeContext({ dietary });
       const r = recommendForUser(ctx, ALL_PLACES, { limit: 50 });
-      for (const x of r.results) expect(checkDietary(x.place, dietary).ok).toBe(true);
+      for (const x of r.results) {
+        expect(dietFit(x.place, dietary)).not.toBe("no");
+        // Halal is a religious rule: only places that say so.
+        if (dietary.includes("halal")) expect(checkDietary(x.place, ["halal"]).ok).toBe(true);
+      }
     }
   });
 
@@ -111,7 +116,6 @@ describe("recommendForUser: hard filters", () => {
     const ctx = makeContext({ dietary: ["vegan"], ratings: [{ placeId: "bbSteak", score: 10 }] });
     const r = recommendForUser(ctx, ALL_PLACES, { limit: 50 });
     expect(ids(r)).not.toContain("bbSteak");
-    expect(ids(r)).not.toContain("ctNoodle"); // unknown dietary info
     expect(r.counts.dietary).toBeGreaterThan(0);
   });
 

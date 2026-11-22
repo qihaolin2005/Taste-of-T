@@ -13,7 +13,7 @@ import { distanceMeters } from "@/lib/geo";
 import { getStation } from "@/lib/mbta/stations";
 import type { UserContext } from "../context";
 import { RECOMMENDER_CONFIG, type RecommenderConfig } from "./config";
-import { dietaryHighlights, filterByDietary, normalizeDietary } from "./dietary";
+import { dietaryHighlights, fitWeight, normalizeDietary, selectByDietary } from "./dietary";
 import { deriveInteractions, type Interaction, type Swipe } from "./interactions";
 import { cuisinesOf, hasCoords, type RestaurantCandidate } from "./restaurant";
 import { bayesianRating, buildUserProfile, cosine, cuisinePart, restaurantVector, tasteTagsOf, type UserProfile } from "./vectors";
@@ -229,7 +229,7 @@ export function buildReasons(
   if (place.rating != null && place.rating >= cfg.reasons.goodRating && (place.reviewCount ?? 0) >= cfg.reasons.minReviewsForRating)
     r.push(`${place.rating.toFixed(1)}★ from ${fmtCount(place.reviewCount!)} reviews`);
 
-  r.push(...dietaryHighlights(place, user.ctx.preferences.dietary));
+  r.push(...dietaryHighlights(place, user.ctx.preferences.dietary, cfg));
   return r;
 }
 
@@ -280,11 +280,12 @@ export function recommendForUser(ctx: UserContext, allPlaces: readonly Restauran
   }
   counts.outOfArea = places.length - inArea.length;
 
-  // 2. Hard filters: dietary (strict), avoid tags, then places they clearly disliked
+  // 2. Hard filters: dietary (see dietary.ts: strict for allergies/religion, softer for veg/vegan),
+  //    avoid tags, then places they clearly disliked
   const needs = normalizeDietary(ctx.preferences.dietary);
-  const dietOk = new Set(filterByDietary(inArea.map((x) => x.place), needs).map((p) => p.id));
-  counts.dietary = inArea.length - dietOk.size;
-  let pool = inArea.filter((x) => dietOk.has(x.place.id));
+  const diet = selectByDietary(inArea.map((x) => x.place), needs, cfg);
+  counts.dietary = inArea.length - diet.kept.length;
+  let pool = inArea.filter((x) => diet.fit.has(x.place.id));
 
   const avoid = new Set(ctx.preferences.avoid.map((t) => t.toLowerCase()));
   const beforeAvoid = pool.length;
@@ -300,7 +301,8 @@ export function recommendForUser(ctx: UserContext, allPlaces: readonly Restauran
   const scored = pool.map(({ place, mi }) => {
     const d01 = mi == null ? null : clamp01(1 - mi / Math.max(radius, 1e-9));
     const { score, components } = scorePlace(user, place, d01, cfg);
-    return { place, score, components, distanceMiles: mi == null ? null : round(mi, 2) };
+    // A place that only probably has options for their diet ranks a little lower.
+    return { place, score: round(score * fitWeight(diet.fit.get(place.id), cfg)), components, distanceMiles: mi == null ? null : round(mi, 2) };
   });
   counts.scored = scored.length;
 

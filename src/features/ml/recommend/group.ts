@@ -30,7 +30,7 @@
 //     result says so.
 import type { UserContext } from "../context";
 import { RECOMMENDER_CONFIG, type RecommenderConfig } from "./config";
-import { dietaryHighlights, filterByDietary, unionDietary } from "./dietary";
+import { dietaryHighlights, fitWeight, selectByDietary, unionDietary } from "./dietary";
 import { groupSwipesToHistory, type Swipe } from "./interactions";
 import { mmrRerank, profileUser, scorePlace, type ProfiledUser } from "./individual";
 import { cuisinesOf, type RestaurantCandidate } from "./restaurant";
@@ -158,14 +158,13 @@ export function scoreForGroup(members: readonly ProfiledUser[], memberIds: reado
   };
 }
 
+/** Why it's in the deck. The card already shows cuisines and rating, so those aren't repeated. */
 function deckReason(c: GroupCandidate, explore: boolean, dietary: string[]): string {
   const parts: string[] = [];
-  if (explore) parts.push("wildcard: helps us learn the group's taste");
+  if (explore) parts.push("a wildcard to learn the group's taste");
   else if (c.min >= 0.6) parts.push("a good fit for everyone");
   else if (c.mean >= 0.6) parts.push("most of the group should like it");
-  const cu = tasteTagsOf(c.place).slice(0, 2);
-  if (cu.length) parts.push(cu.join(", "));
-  if (c.place.rating != null) parts.push(`${c.place.rating.toFixed(1)}★`);
+  else parts.push(`${tasteTagsOf(c.place).slice(0, 2).join(" and ") || "something different"} for the group`);
   parts.push(...dietaryHighlights(c.place, dietary));
   return parts.join(", ");
 }
@@ -213,15 +212,19 @@ export function buildGroupDeck(
   } else warnings.push("No city for this group: using every place.");
   counts.outOfCity = beforeCity - pool.length;
 
-  // 2. Dietary: union of every member's restrictions, strict
-  const safe = filterByDietary(pool, dietary);
+  // 2. Dietary: union of every member's restrictions (see dietary.ts for how strict each is)
+  const diet = selectByDietary(pool, dietary, cfg);
+  const safe = diet.kept;
   counts.dietary = pool.length - safe.length;
 
   // 3. Score each place for each member, aggregate
   const catalog = opts.catalog ?? places;
   const profiled = members.map((m) => profileUser(m.ctx, catalog, m.swipes, cfg));
   const ids = members.map((m) => m.id);
-  const scored = safe.map((p) => scoreForGroup(profiled, ids, p, cfg)).sort((a, b) => b.groupScore - a.groupScore || a.place.id.localeCompare(b.place.id));
+  const scored = safe
+    .map((p) => scoreForGroup(profiled, ids, p, cfg))
+    .map((c) => ({ ...c, groupScore: round(c.groupScore * fitWeight(diet.fit.get(c.place.id), cfg)) }))
+    .sort((a, b) => b.groupScore - a.groupScore || a.place.id.localeCompare(b.place.id));
 
   // 4. Veto, unless it would leave too few places
   const kept = scored.filter((c) => !c.vetoed);

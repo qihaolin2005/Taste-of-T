@@ -24,7 +24,7 @@ DB (user, preferences, location, stamps, ratings, wishlist)        RoomMember (j
 | `subjectId` | salted SHA-256 of the user id | Stable per person, not reversible. No name or avatar is ever included. |
 | `kind` | | `"user"` (has an account) or `"member"` (room member, maybe no account) |
 | `preferences.tastes` / `avoid` | preferences | Lowercased tags, e.g. `dumplings`, `seafood` |
-| `preferences.dietary` | preferences / join form | `vegetarian`, `vegan`, `halal`, `kosher`, `gluten-free`, … **Hard constraint.** |
+| `preferences.dietary` | preferences / join form | `vegetarian`, `vegan`, `halal`, `kosher`, `gluten-free`, … Strict for halal/kosher/allergies; soft for vegetarian/vegan (see `dietary.ts`). |
 | `preferences.budgetPerPerson`, `maxWalkMinutes` | preferences | `null` if unknown |
 | `stations.home` / `start` / `homeLines` | preferences | MBTA station ids (`place-harsq`) + line families |
 | `location` | last known location | **Only if the user opted in** and it's < 24 h old. Coarsened to 3 decimals (~110 m), plus `nearestStationId` and `ageMinutes`. Otherwise `null`. |
@@ -111,9 +111,14 @@ Two pure, synchronous recommenders on top of `UserContext`. All tunable numbers 
 `recommend/config.ts`. Missing data (swipes, restaurant fields, city) is listed in
 [`docs/ml-schema-proposal.md`](../../../docs/ml-schema-proposal.md).
 
-**Dietary filter (`dietary.ts`).** A hard filter that runs before any scoring. Vegetarian means
-not `non-veg-only` and has vegetarian options; vegan means has vegan options; other needs must be
-listed explicitly. Unknown dietary info = not supported. Groups use the union of members' needs.
+**Dietary filter (`dietary.ts`).** Runs before any scoring. Each place gets a fit per need: yes /
+likely / maybe / no. Halal, kosher and allergies are strict (only places that list them).
+Vegetarian and vegan are softer, because Google only tells us "serves vegetarian food" and "vegan
+restaurant": a strict rule left vegans with 1-2 places. `non-veg-only` is always out; "yes" and
+"likely" places (e.g. vegetarian options at a Thai or Indian place, for a vegan) are always in;
+"maybe" places only when fewer than `config.dietary.minPool` are left. Lower fits score a little
+less (`config.dietary.fitWeight`) and their reason says "likely has vegan options" or "check the
+menu". Groups use the union of members' needs.
 (`baselineModel` still treats unknown as a soft -0.5; not changed yet.)
 
 **Individual: `recommendForUser(ctx, places, opts)`**

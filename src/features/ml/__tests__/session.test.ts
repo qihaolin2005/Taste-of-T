@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildSquadPlan,
-  checkDietary,
+  dietFit,
   createSessionDeck,
   liveStandings,
   readSessionDeck,
@@ -42,7 +42,7 @@ describe("createSessionDeck", () => {
     expect(deck.items).toHaveLength(RECOMMENDER_CONFIG.session.deckSize);
     expect(deck.items.filter((i) => i.explore)).toHaveLength(RECOMMENDER_CONFIG.session.exploreSlots);
     expect(deck.memberIds).toEqual(["a", "b", "c"]);
-    for (const c of [...deck.items, ...deck.backups]) expect(checkDietary(c.place, ["vegetarian", "vegan"]).ok).toBe(true);
+    for (const c of [...deck.items, ...deck.backups]) expect(dietFit(c.place, ["vegetarian", "vegan"])).not.toBe("no");
     const ids = new Set(deck.items.map((i) => i.place.id));
     expect(deck.backups.some((b) => ids.has(b.place.id))).toBe(false);
   });

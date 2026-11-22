@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { StationOption } from "@/components/shared/StationPicker";
 import { completeOnboarding, getMe, savePreferences, shareCurrentLocation, updateProfile, type DietaryNeed } from "@/lib/identity";
+import { CUISINES, DIETARY, DIETARY_VALUES, SKIP_OPTIONS, toggle, toggleExclusive } from "./foodOptions";
 import { AuthField, AuthTitle, ChipGroup, Icon, Spinner, StepHeader, primaryButton, secondaryButton, serif, textButton } from "./authUi";
 import "./auth-intro.css";
 
@@ -19,38 +20,6 @@ import "./auth-intro.css";
 const DEFAULT_NAME = "T Explorer";
 const TOTAL = 4;
 type Step = 1 | 2 | 3 | 4 | "done";
-
-/** Figma cuisine chips -> recommender taste tags (src/features/ml/vocab.ts TASTE_VOCAB). */
-const CUISINES: { value: string; label: string; tags: string[] }[] = [
-  { value: "italian", label: "Italian", tags: ["italian"] },
-  { value: "japanese", label: "Japanese", tags: ["japanese"] },
-  { value: "korean", label: "Korean", tags: ["korean"] },
-  { value: "chinese", label: "Chinese", tags: ["chinese"] },
-  { value: "thai", label: "Thai", tags: ["thai"] },
-  { value: "mexican", label: "Mexican", tags: ["mexican"] },
-  { value: "mediterranean", label: "Mediterranean", tags: ["mediterranean"] },
-  { value: "american", label: "American", tags: ["american"] },
-  { value: "indian", label: "Indian", tags: ["indian"] },
-  { value: "bakery", label: "Bakery & Desserts", tags: ["bakery", "dessert"] },
-  { value: "cafe", label: "Coffee & Tea", tags: ["cafe", "boba"] },
-  { value: "any", label: "Open to Anything", tags: [] },
-];
-
-/** Figma dietary chips. Values are the backend's fixed DIETARY_VOCAB, plus an exclusive "none". */
-const DIETARY: { value: DietaryNeed | "none"; label: string }[] = [
-  { value: "vegetarian", label: "Vegetarian" },
-  { value: "vegan", label: "Vegan" },
-  { value: "halal", label: "Halal" },
-  { value: "kosher", label: "Kosher" },
-  { value: "gluten-free", label: "Gluten-free" },
-  { value: "dairy-free", label: "Dairy-free" },
-  { value: "nut-free", label: "Nut allergy" },
-  { value: "none", label: "No restrictions" },
-];
-const DIETARY_VALUES = new Set(DIETARY.map((d) => d.value));
-
-/** Kept from the original onboarding: foods the planner should avoid. */
-const SKIP_OPTIONS = ["seafood", "shellfish", "pork", "beef", "spicy", "sushi"].map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }));
 
 /** Figma budget options -> defaultBudget (max dollars per person; the ML scales by $100). */
 const BUDGETS = [
@@ -60,21 +29,6 @@ const BUDGETS = [
 ];
 
 type Start = { kind: "station"; id: string } | { kind: "location"; nearestStationId: string | null } | null;
-
-function toggle(set: ReadonlySet<string>, v: string): Set<string> {
-  const next = new Set(set);
-  if (next.has(v)) next.delete(v);
-  else next.add(v);
-  return next;
-}
-
-/** Toggle with one exclusive option (e.g. "No restrictions"): picking it clears the rest and vice versa. */
-function toggleExclusive(set: ReadonlySet<string>, v: string, exclusive: string): Set<string> {
-  if (v === exclusive) return set.has(v) ? new Set() : new Set([v]);
-  const next = toggle(set, v);
-  next.delete(exclusive);
-  return next;
-}
 
 function stepFromUrl(): 1 | 2 | 3 | 4 {
   const n = Number(new URLSearchParams(window.location.search).get("step"));
@@ -347,7 +301,7 @@ export default function OnboardingForm({ stations }: { stations: readonly Statio
           <ChipGroup label="Favorite flavors" options={CUISINES} selected={cuisines} onToggle={(v) => setCuisines((s) => toggleExclusive(s, v, "any"))} />
           <ChoiceLabel>Anything we should keep in mind?</ChoiceLabel>
           <ChipGroup label="Dietary needs" options={DIETARY} selected={dietary} onToggle={(v) => setDietary((s) => toggleExclusive(s, v, "none"))} />
-          <p className="mt-2.5 pl-1 text-[13px] text-[#777080]">We’ll never suggest a place that can’t serve these.</p>
+          <p className="mt-2.5 pl-1 text-[13px] text-[#777080]">We’ll never suggest a place that can’t serve these. You can change them anytime in Profile.</p>
           <ChoiceLabel>Rather skip? (optional)</ChoiceLabel>
           <ChipGroup label="Foods to skip" options={SKIP_OPTIONS} selected={skip} onToggle={(v) => setSkip((s) => toggle(s, v))} />
           <ErrorBox message={error} />

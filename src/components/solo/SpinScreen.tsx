@@ -154,7 +154,7 @@ export default function SpinScreen() {
             <p className="mt-3 px-4 text-center text-[13px] text-label-2">Location is off, so this used your saved spot. Allow location for spots near you right now.</p>
           )}
           {!result && !error && (
-            <p className="mt-3 px-4 text-center text-[13px] text-label-2">We&apos;ll pick a spot the model thinks you&apos;ll love, then you go get it.</p>
+            <p className="mt-3 px-4 text-center text-[13px] text-label-2">We&apos;ll pick a spot we think you&apos;ll love. Then go get it!</p>
           )}
         </>
       )}
