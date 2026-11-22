@@ -338,3 +338,20 @@ describe("route helpers", () => {
     expect("response" in bad && bad.response.status).toBe(404);
   });
 });
+
+describe("expired rooms", () => {
+  it("reusing an expired room's code keeps its members' swipe history", async () => {
+    const { createRoom } = await import("@/features/rooms");
+    const s = await squad(1);
+    const deck = await startAdventure(db, s.id, s.host, { places: PLACES });
+    for (const it of deck.items.slice(0, 3)) await submitSwipe(db, s.id, s.host, it.place.id, true);
+    await db.room.update({ where: { id: s.id }, data: { expiresAt: new Date(0) } });
+    const other = await newUser();
+    const code = await createRoom(db, other, { name: "New", day: "tonight", startTime: 1140, slots: ["dinner"] }, new Date(), () => s.id);
+    expect(code).toBe(s.id); // same code, brand-new room
+    const history = await loadUserSwipes(db, s.host);
+    expect(history).toHaveLength(3);
+    expect(history.every((h) => h.source === "group")).toBe(true);
+    expect(await db.swipe.count({ where: { roomId: s.id } })).toBe(0); // the new room starts clean
+  });
+});

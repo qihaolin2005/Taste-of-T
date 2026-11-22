@@ -196,7 +196,9 @@ model Swipe {
   userId    String
   user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   roomId    String?
-  room      Room?       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  /// SetNull, not Cascade: expired rooms are deleted when their code is reused, and the swipes are
+  /// still the user's taste history.
+  room      Room?       @relation(fields: [roomId], references: [id], onDelete: SetNull)
   memberId  String?
   /// SetNull, not Cascade: if a member leaves the room, their swipes stay in their taste history.
   member    RoomMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)

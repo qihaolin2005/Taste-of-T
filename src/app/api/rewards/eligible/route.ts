@@ -1,11 +1,12 @@
 // Owner: P1 - Planner & Quests (ML, rewards) (see TEAM.md)
-//   GET /api/rewards/eligible -> { places: [{ placeId, name, via: "squad" | "for-you", at }] }
-// Places recommended to you in the last 48 h (squad top 5s first), i.e. what you can claim points for.
+//   GET /api/rewards/eligible -> { places: [{ placeId, name, via: "squad" | "for-you", at }], visitsLeftToday }
+// Places recommended to you in the last 48 h (squad top 5s first) that you haven't already
+// claimed today, i.e. what you can claim points for, plus how many claims you have left today.
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/requireUser";
 import { googlePlacesEnabled, listRestaurants } from "@/lib/places";
 import { loadRestaurants } from "@/features/ml";
-import { listClaimablePlaces } from "@/features/rewards";
+import { listClaimablePlaces, visitsLeftToday } from "@/features/rewards";
 
 export async function GET() {
   const auth = await requireUser();
@@ -16,5 +17,5 @@ export async function GET() {
     const names = new Map(known.map((k) => [k.id, k.name ?? null]));
     for (const p of places) p.name ??= names.get(p.placeId) ?? null;
   }
-  return Response.json({ places }, { headers: { "cache-control": "no-store" } });
+  return Response.json({ places, visitsLeftToday: await visitsLeftToday(db, auth.userId) }, { headers: { "cache-control": "no-store" } });
 }
