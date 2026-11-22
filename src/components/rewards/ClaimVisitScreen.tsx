@@ -1,7 +1,11 @@
 // Owner: P1 - Planner & Quests (ML, rewards) (see TEAM.md)
 // /rewards/claim: claim points for eating at a recommended place (src/features/rewards).
 //   pick the place (recommended in the last 48 h) -> receipt total, time, people on the bill
-//   -> optional verified bus/T ride -> optional rating -> POST /api/rewards/visits
+//   -> optional rating -> POST /api/rewards/visits
+// Travel points: nobody picks "bus" or "T" here. The server finds your ride that was verified
+// against live MBTA data (recorded with "Start Trip") and ended near the place; this screen just
+// shows whether you have one, or how to get one next time.
+// Receipt: typed in, or filled by the OCR scanner (ReceiptScanner, docs/receipt-ocr.md).
 // On submit it asks for the phone's location, so the server can confirm you're at the place
 // (src/features/rewards/presence.ts). Location is checked, never stored. If it's off or denied,
 // a trip you recorded there (or a verified ride) can still confirm it.
@@ -9,7 +13,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Button, ListRow, ListSection, SegmentedControl, SelectRow, StarIcon, TextFieldRow } from "@/components/shared/ios";
+import { Button, ListRow, ListSection, SegmentedControl, SelectRow, StarIcon, TextFieldRow, TrainIcon } from "@/components/shared/ios";
+import { toLocalInput, type ReceiptReading } from "@/features/rewards/receipt";
+import ReceiptScanner from "./ReceiptScanner";
 
 type Claimable = { placeId: string; name: string | null; via: "squad" | "for-you"; at: string };
 type Ride = { id: string | null; status: string; mode: "bus" | "t" | null; routeName: string | null; usedForReward: boolean; verifiedAt: string | null };
@@ -62,7 +68,8 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
   const [diners, setDiners] = useState(1);
   const [when, setWhen] = useState(() => localNow(5));
   const [merchant, setMerchant] = useState("");
-  const [rideId, setRideId] = useState("");
+  const [receiptNumber, setReceiptNumber] = useState("");
+  const [scanned, setScanned] = useState(false);
   const [stars, setStars] = useState(0);
   const [busy, setBusy] = useState<false | "locating" | "claiming">(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +86,17 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
       .catch((err: Error) => setLoadError(err.message));
   }, []);
 
+  /** Fill the receipt fields from the scanner; the person can still edit them. */
+  function applyReading(r: ReceiptReading) {
+    if (r.total != null && r.total > 0) setTotal(r.total.toFixed(2));
+    const local = r.date ? toLocalInput(r.date) : null;
+    if (local) setWhen(local);
+    if (r.merchantName) setMerchant(r.merchantName);
+    if (r.receiptNumber) setReceiptNumber(r.receiptNumber);
+    if (r.diners != null && r.diners >= 1 && r.diners <= 12) setDiners(Math.round(r.diners));
+    setScanned(true);
+  }
+
   const place = useMemo(() => places?.find((p) => p.placeId === placeId) ?? null, [places, placeId]);
   const amount = Number(total);
   const valid = place != null && Number.isFinite(amount) && amount > 0 && amount <= 2000 && when !== "";
@@ -93,8 +111,13 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
       const res = await postJson<Result>("/api/rewards/visits", {
         placeId: place.placeId,
         ...(fix ? { presence: fix } : {}),
-        receipt: { total: Math.round(amount * 100) / 100, date: new Date(when).toISOString(), diners, ...(merchant.trim() ? { merchantName: merchant.trim() } : {}) },
-        ...(rideId ? { travel: { rideId } } : {}),
+        receipt: {
+          total: Math.round(amount * 100) / 100,
+          date: new Date(when).toISOString(),
+          diners,
+          ...(merchant.trim() ? { merchantName: merchant.trim() } : {}),
+          ...(receiptNumber.trim() ? { receiptNumber: receiptNumber.trim() } : {}),
+        },
       });
       // A rating also teaches the recommender (8-10 = like, 0-3 = dislike).
       if (stars > 0) await postJson("/api/ratings", { placeId: place.placeId, score: stars * 2 }).catch(() => {});
@@ -173,20 +196,38 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
         />
       </ListSection>
 
-      <ListSection header="Receipt" footer="Type the total from your receipt. We only keep the amount, time and restaurant name.">
+      <ReceiptScanner onRead={applyReading} disabled={busy !== false} />
+      <ListSection
+        header="Receipt"
+        footer={scanned ? "Read from your photo. Fix anything that looks wrong. We only keep the amount, time and restaurant name." : "Type the total from your receipt. We only keep the amount, time and restaurant name."}
+      >
         <TextFieldRow label="Total ($)" inputMode="decimal" placeholder="42.50" value={total} onChange={(e) => setTotal(e.target.value.replace(/[^\d.]/g, ""))} />
         <TextFieldRow label="Time" type="datetime-local" value={when} max={localNow()} onChange={(e) => setWhen(e.target.value)} />
         <SelectRow label="People on bill" value={diners} options={Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: String(i + 1) }))} onChange={setDiners} />
         <TextFieldRow label="Restaurant" placeholder="As on receipt (optional)" value={merchant} onChange={(e) => setMerchant(e.target.value)} />
       </ListSection>
 
-      <ListSection header="How did you get there?" footer={rides.length ? "Verified bus rides earn 10, T rides 5." : "Record your trip by bus or T next time for travel points."}>
-        <SelectRow
-          label="Ride"
-          value={rideId}
-          options={[{ value: "", label: "No ride" }, ...rides.map((r) => ({ value: r.id!, label: `${r.mode === "bus" ? "Bus" : "T"}${r.routeName ? ` · ${r.routeName}` : ""}` }))]}
-          onChange={setRideId}
-        />
+      <ListSection
+        header="How Did You Get There?"
+        footer={
+          rides.length
+            ? "A verified ride counts automatically if it ended near this place. Bus earns 10 points, T earns 5."
+            : "Travel points need a ride we can verify. Before you board, tap Start Trip in My Trips (or on your Spin quest). We match your phone to the live bus or train, so there's nothing to pick here."
+        }
+      >
+        {rides.length ? (
+          rides.map((r) => (
+            <ListRow
+              key={r.id}
+              icon={<TrainIcon size={16} />}
+              title={r.routeName ?? (r.mode === "bus" ? "Bus" : "T")}
+              subtitle={r.mode === "bus" ? "Bus ride" : "T ride"}
+              value="Verified ✓"
+            />
+          ))
+        ) : (
+          <ListRow icon={<TrainIcon size={16} />} title="No verified ride yet" subtitle="Tap to record your next trip" href="/trips" />
+        )}
       </ListSection>
 
       <ListSection header="How was it? (optional)" footer="Ratings make your recommendations better.">

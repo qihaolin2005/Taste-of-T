@@ -56,6 +56,12 @@ reason `restaurant_visit`, and each top-up a `group_bonus`, linked to the `Rewar
    and is stored as `"unchecked"`. GPS can be spoofed; this stops casual "typed it from home" claims.
 5. **Limits:** one reward **per place per day** (Boston date), **2 rewarded visits per day**.
 
+**Travel points** need a ride verified against live MBTA data (tap Start Trip before boarding;
+`src/features/rides`). Nobody picks "bus" or "T": if the claim doesn't name a ride, the server uses
+the verified, unused ride that ended within 400 m of the place around the receipt time.
+
+**Receipt OCR** plugs into the claim screen: see [receipt-ocr.md](receipt-ocr.md).
+
 ## API
 
 **`POST /api/rewards/visits`** (signed in):
