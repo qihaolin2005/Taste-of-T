@@ -52,6 +52,9 @@ export type SpinPick = Pick<
   "placeId" | "name" | "category" | "cuisines" | "rating" | "priceLevel" | "neighborhood" | "distanceMiles" | "reason" | "score"
 >;
 
+/** Filters the spin had to drop to find anything (distance is never widened). */
+export type SpinRelaxed = "craving" | "budget";
+
 export type SpinResult = {
   quest: QuestView;
   place: SpinPick & { lat: number | null; lng: number | null };
@@ -63,6 +66,8 @@ export type SpinResult = {
   origin: RecommendationsResponse["origin"];
   /** Why a filter was loosened, e.g. "No ramen within 1 mi, so here's something else you'll like." */
   notes: string[];
+  /** Which of your filters this pick doesn't meet. Empty = it matches everything you asked for. */
+  relaxed: SpinRelaxed[];
   model: string;
 };
 
@@ -108,31 +113,43 @@ function hasCuisine(r: RecommendationItem, craving: string): boolean {
   const name = (r.name ?? "").toLowerCase();
   return (CRAVING_WORDS[craving] ?? [craving.replace("-", " ")]).some((w) => name.includes(w));
 }
-const withinBudget = (r: RecommendationItem, budget: number | undefined) => budget == null || r.priceLevel == null || r.priceLevel <= budget;
+/**
+ * "strict": the place lists a price, and it's in budget. "lenient": a place with no listed price
+ * passes too (Google has no price for many places). "off": any price.
+ */
+type BudgetMode = "strict" | "lenient" | "off";
+const withinBudget = (r: RecommendationItem, budget: number | undefined, mode: BudgetMode) =>
+  mode === "off" || budget == null || (r.priceLevel == null ? mode === "lenient" : r.priceLevel <= budget);
 
 /**
- * Pick from the model's ranked list. Filters are loosened one at a time (cuisine, then budget,
- * then places you've already seen) rather than coming back empty.
+ * Pick from the model's ranked list. Filters are loosened one at a time (places you spun
+ * recently, places with no listed price, cuisine, then budget, then places you've already seen)
+ * rather than coming back empty.
+ * `recent`: places your last spins sent you to (from the server), skipped while there's
+ * anything else; `exclude`: places already shown on this page.
  */
 export function pickSpin(
   ranked: readonly RecommendationItem[],
-  req: Pick<SpinRequest, "budget" | "craving" | "exclude" | "radiusMiles">,
+  req: Pick<SpinRequest, "budget" | "craving" | "exclude" | "radiusMiles"> & { recent?: readonly string[] },
   rng: () => number = Math.random,
-): { pick: RecommendationItem; pool: number; notes: string[] } | null {
+): { pick: RecommendationItem; pool: number; notes: string[]; relaxed: SpinRelaxed[] } | null {
   if (!ranked.length) return null;
   const notes: string[] = [];
   const cuisine = req.craving !== "anything" && req.craving !== "dinner" && req.craving !== "dessert" ? req.craving : null;
   const seen = new Set(req.exclude);
+  const recent = new Set(req.recent ?? []);
 
-  const attempts: { list: RecommendationItem[]; note?: string }[] = [];
+  const attempts: { list: RecommendationItem[]; note?: string; relaxed?: SpinRelaxed[] }[] = [];
   const fresh = ranked.filter((r) => !seen.has(r.placeId));
-  const filter = (list: RecommendationItem[], useCuisine: boolean, useBudget: boolean) =>
-    list.filter((r) => (!useCuisine || !cuisine || hasCuisine(r, cuisine)) && (!useBudget || withinBudget(r, req.budget)));
+  const filter = (list: RecommendationItem[], useCuisine: boolean, budget: BudgetMode) =>
+    list.filter((r) => (!useCuisine || !cuisine || hasCuisine(r, cuisine)) && withinBudget(r, req.budget, budget));
   const label = cuisine?.replace("-", " ");
-  attempts.push({ list: filter(fresh, true, true) });
-  if (cuisine) attempts.push({ list: filter(fresh, false, true), note: `No ${label} within ${req.radiusMiles} mi${req.budget ? " in your budget" : ""}, so here's something else you'll like.` });
-  if (req.budget) attempts.push({ list: filter(fresh, false, false), note: `Nothing in your budget within ${req.radiusMiles} mi, so this one costs a bit more.` });
-  if (seen.size) attempts.push({ list: filter(ranked as RecommendationItem[], true, true), note: "You've seen every spot nearby, so we're starting over." });
+  if (recent.size) attempts.push({ list: filter(fresh.filter((r) => !recent.has(r.placeId)), true, "strict") });
+  attempts.push({ list: filter(fresh, true, "strict") });
+  if (req.budget) attempts.push({ list: filter(fresh, true, "lenient"), note: `Nothing nearby lists a price in your budget, so this spot's price isn't listed. Check before you go.` });
+  if (cuisine) attempts.push({ list: filter(fresh, false, "lenient"), relaxed: ["craving"], note: `No ${label} within ${req.radiusMiles} mi${req.budget ? " in your budget" : ""}, so here's something else you'll like.` });
+  if (req.budget) attempts.push({ list: filter(fresh, false, "off"), relaxed: cuisine ? ["craving", "budget"] : ["budget"], note: `Nothing in your budget within ${req.radiusMiles} mi, so this one costs a bit more.` });
+  if (seen.size) attempts.push({ list: filter(ranked as RecommendationItem[], true, "lenient"), note: "You've seen every spot nearby, so we're starting over." });
 
   const hit = attempts.find((a) => a.list.length);
   if (!hit) return null;
@@ -150,7 +167,7 @@ export function pickSpin(
       break;
     }
   }
-  return { pick, pool: pool.length, notes };
+  return { pick, pool: pool.length, notes, relaxed: hit.relaxed ?? [] };
 }
 
 /** What to type into Google for a craving (searchCraving). */
@@ -197,7 +214,12 @@ export async function spinTheT(db: Db, userId: string, req: SpinRequest, deps: S
   );
   if (!recs) throw new SpinError("User not found.");
 
-  const picked = pickSpin(recs.results, req, deps.rng);
+  // Places your last few spins sent you to (any page, any session), so Spin doesn't keep
+  // serving the same spot when there are others. Skipped only while alternatives exist.
+  const since = new Date((deps.now ?? new Date()).getTime() - 24 * 3_600_000);
+  const recentQuests = await db.quest.findMany({ where: { userId, placeId: { not: null }, createdAt: { gte: since } }, orderBy: { createdAt: "desc" }, take: 5, select: { placeId: true } });
+  const recent = recentQuests.flatMap((q) => (q.placeId ? [q.placeId] : []));
+  const picked = pickSpin(recs.results, { ...req, recent }, deps.rng);
   if (!picked) throw new SpinError(`Nothing the model likes within ${req.radiusMiles} mi. Try a bigger distance.`);
   const p = picked.pick;
 
@@ -231,6 +253,7 @@ export async function spinTheT(db: Db, userId: string, req: SpinRequest, deps: S
     found: recs.results.length,
     origin: recs.origin,
     notes: [...picked.notes, ...recs.warnings],
+    relaxed: picked.relaxed,
     model: recs.model,
   };
 }

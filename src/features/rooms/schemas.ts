@@ -2,8 +2,14 @@
 import { z } from "zod";
 import { isKnownStation } from "@/lib/mbta/stations";
 
-export const STOP_CATEGORIES = ["dinner", "dessert", "activity"] as const;
+/**
+ * Every stop a saved group can have, in night order. New groups pick from NEW_STOP_CATEGORIES
+ * (all food: Dinner -> Dessert or boba -> Late-Night Bites). "activity" is kept only so groups
+ * made before Late-Night Bites still load; it can't be picked any more.
+ */
+export const STOP_CATEGORIES = ["dinner", "dessert", "late-night", "activity"] as const;
 export type StopCategory = (typeof STOP_CATEGORIES)[number];
+export const NEW_STOP_CATEGORIES = ["dinner", "dessert", "late-night"] as const satisfies readonly StopCategory[];
 
 const stationId = z.string().min(1).max(64).refine(isKnownStation, "Pick a T station");
 
@@ -15,10 +21,10 @@ export const createRoomSchema = z
     /** Minutes after midnight, e.g. 19:00 = 1140. Half-hour steps. */
     startTime: z.number().int().min(0).max(1439).refine((m) => m % 30 === 0, "Use :00 or :30"),
     slots: z
-      .array(z.enum(STOP_CATEGORIES))
+      .array(z.enum(NEW_STOP_CATEGORIES))
       .min(1, "Pick at least one stop")
       .max(3)
-      .transform((s) => STOP_CATEGORIES.filter((c) => s.includes(c))), // canonical order, deduped
+      .transform((s) => NEW_STOP_CATEGORIES.filter((c) => s.includes(c))), // canonical order, deduped
   })
   .strict();
 export type CreateRoomInput = z.infer<typeof createRoomSchema>;

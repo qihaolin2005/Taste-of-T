@@ -126,8 +126,11 @@ export type ClaimablePlace = { placeId: string; name: string | null; via: Recomm
  * Places the user could claim points for right now: recommended to them within the window, from
  * a squad's top 5 (first, newest plan first) or their "for you" / Spin results. Names come from
  * the squad plan; for "for you" places the caller looks them up (they're null here).
+ * `include`: the place the claim screen was opened for (?placeId=). It and your recent Spin
+ * quests' places come right after the squad picks, but only if they pass the same
+ * recommended-recently check a claim does.
  */
-export async function listClaimablePlaces(db: Db, userId: string, opts: { now?: Date; config?: RewardsConfig } = {}): Promise<ClaimablePlace[]> {
+export async function listClaimablePlaces(db: Db, userId: string, opts: { now?: Date; config?: RewardsConfig; include?: string | null } = {}): Promise<ClaimablePlace[]> {
   const cfg = opts.config ?? REWARDS_CONFIG;
   const now = opts.now ?? new Date();
   const since = new Date(now.getTime() - cfg.limits.recommendedWithinHours * HOUR);
@@ -146,6 +149,18 @@ export async function listClaimablePlaces(db: Db, userId: string, opts: { now?: 
         if (id && !out.has(id)) out.set(id, { placeId: id, name: pick.place?.name ?? null, via: "squad", at: p.createdAt.toISOString() });
       }
     }
+  }
+  // A spin logs every candidate it ranked (~50) with one timestamp, so the newest-30 list below
+  // can drop the place Spin actually sent you to. List that place (and the requested one) first.
+  const quests = await db.quest.findMany({ where: { userId, placeId: { not: null }, createdAt: { gte: since } }, orderBy: { createdAt: "desc" }, select: { placeId: true, placeName: true }, take: 10 });
+  const wanted = new Map<string, string | null>();
+  if (opts.include) wanted.set(opts.include, null);
+  for (const q of quests) if (q.placeId && !wanted.get(q.placeId)) wanted.set(q.placeId, q.placeName);
+  const wantedIds = [...wanted.keys()].filter((id) => !out.has(id));
+  if (wantedIds.length) {
+    const ok = await db.recommendationShown.findMany({ where: { userId, placeId: { in: wantedIds }, shownAt: { gte: since } } });
+    const at = new Map(ok.map((r) => [r.placeId, r.shownAt.toISOString()]));
+    for (const id of wantedIds) if (at.has(id)) out.set(id, { placeId: id, name: wanted.get(id) ?? null, via: "for-you", at: at.get(id)! });
   }
   const shown = await db.recommendationShown.findMany({ where: { userId, shownAt: { gte: since } }, orderBy: { shownAt: "desc" }, take: 30 });
   for (const r of shown) if (!out.has(r.placeId)) out.set(r.placeId, { placeId: r.placeId, name: null, via: "for-you", at: r.shownAt.toISOString() });

@@ -34,7 +34,7 @@ function Badge({ leg }: { leg: RideLeg }) {
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
-export default function RouteCard({ to, me, state, onRetry }: { to: LatLng & { name?: string }; me: LatLng | null; state: RouteState; onRetry: () => void }) {
+export default function RouteCard({ to, me, state, onRetry }: { to: LatLng & { name?: string; placeId?: string }; me: LatLng | null; state: RouteState; onRetry: () => void }) {
   const gmaps = googleMapsDirectionsUrl(to, me);
   const name = to.name ?? "the restaurant";
 

@@ -38,11 +38,25 @@ export type TripPlan = {
   path: TripPath[];
 };
 
-/** Full T + bus directions in Google Maps. Works on any phone with no API key. No origin = "from here". */
-export function googleMapsDirectionsUrl(to: LatLng, from?: LatLng | null): string {
+/**
+ * Full T + bus directions in Google Maps. Works on any phone with no API key. No origin = "from here".
+ * With a Google Place ID, Google routes to that exact place (bare coordinates get snapped to
+ * whatever business Google thinks is nearest, e.g. a store next door).
+ */
+export function googleMapsDirectionsUrl(to: LatLng & { name?: string; placeId?: string }, from?: LatLng | null): string {
   const q = new URLSearchParams({ api: "1", destination: `${to.lat},${to.lng}`, travelmode: "transit" });
+  if (to.placeId) {
+    if (to.name) q.set("destination", to.name);
+    q.set("destination_place_id", to.placeId);
+  }
   if (from) q.set("origin", `${from.lat},${from.lng}`);
   return `https://www.google.com/maps/dir/?${q}`;
+}
+
+/** "google:ChIJ..." (our place ids) -> "ChIJ...", or null for places that didn't come from Google. */
+export function googlePlaceId(id: string | null | undefined): string | null {
+  const m = /^google:([A-Za-z0-9_-]{10,300})$/.exec(id ?? "");
+  return m ? m[1] : null;
 }
 
 /**
@@ -77,10 +91,13 @@ export function tRoutesInTrip(plan: TripPlan, routeIds: readonly string[]): Set<
 }
 
 /** Link to the T map showing the route to a place, for Spin and group results. */
-export function routeMapHref(place: { lat?: number | null; lng?: number | null; name?: string | null }): string | null {
+export function routeMapHref(place: { lat?: number | null; lng?: number | null; name?: string | null; id?: string | null; placeId?: string | null }): string | null {
   if (typeof place.lat !== "number" || typeof place.lng !== "number") return null;
   const q = new URLSearchParams({ to: `${place.lat.toFixed(6)},${place.lng.toFixed(6)}` });
   if (place.name) q.set("name", place.name);
+  // Carried along so "Open in Google Maps" opens this exact place (see googleMapsDirectionsUrl).
+  const gid = googlePlaceId(place.placeId ?? place.id);
+  if (gid) q.set("pid", gid);
   return `/map?${q}`;
 }
 

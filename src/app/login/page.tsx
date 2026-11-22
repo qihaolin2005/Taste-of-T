@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: "Sign In · Taste of T" };
 export default function Page({ searchParams }: PageProps<"/login">) {
   return (
     <div
-      className="min-h-dvh bg-[#F8F5FF] text-[#30203F] [color-scheme:light] [font-family:var(--font-dm-sans),system-ui,sans-serif]"
+      className="min-h-dvh bg-[#F8F5FF] text-[#30203F] [color-scheme:light] [font-family:var(--font-sans)]"
     >
       {/* searchParams is request-time data; with cacheComponents it must be read inside
           Suspense so the rest of the page prerenders. Fallback = the splash background. */}

@@ -6,8 +6,9 @@
 
 import { useEffect, useState } from "react";
 import { Button, ListSection, SelectRow, TextFieldRow } from "@/components/shared/ios";
-import StationPicker, { type StationOption } from "@/components/shared/StationPicker";
+import type { StationOption } from "@/components/shared/StationPicker";
 import type { MemberInput } from "@/features/rooms/schemas";
+import HomeLocationSearch from "./HomeLocationSearch";
 import type { YourMembership } from "@/features/rooms/roomStore";
 import { getMe } from "@/lib/identity";
 import { formatMinutes, halfHours } from "@/lib/time";
@@ -67,8 +68,8 @@ export default function MemberForm({ stations, existing, submitLabel, onSubmit }
     <div>
       <ListSection header="You">
         <TextFieldRow label="Name" placeholder="What friends call you" value={name} onChange={(e) => setName(e.target.value)} maxLength={40} autoComplete="given-name" />
-        <StationPicker label="Starting from" stations={stations} value={start} onChange={setStart} />
-        <StationPicker label="Going home to" stations={stations} value={home} onChange={setHome} />
+        <HomeLocationSearch label="Starting from" stations={stations} value={start} onChange={setStart} />
+        <HomeLocationSearch label="Going home to" stations={stations} value={home} onChange={setHome} />
         <SelectRow label="Budget" value={budget} options={BUDGETS} onChange={setBudget} />
       </ListSection>
 

@@ -181,6 +181,8 @@ export type LiveState = {
   standings: { rank: number; placeId: string; name: string | null; likes: number; swiped: number; status: string; reason: string }[];
   plan: SquadPlan | null;
   warnings: string[];
+  /** Set when some cards cost more than the squad's tightest budget (no amounts: budgets are private). */
+  budgetNote: string | null;
 };
 
 export async function getLiveState(db: Db, roomId: string, viewerUserId: string | null, now = new Date()): Promise<LiveState> {
@@ -204,6 +206,7 @@ export async function getLiveState(db: Db, roomId: string, viewerUserId: string 
       standings: [],
       plan: null,
       warnings: [],
+      budgetNote: null,
     };
   }
 
@@ -238,5 +241,6 @@ export async function getLiveState(db: Db, roomId: string, viewerUserId: string 
     standings: live.picks.map((p) => ({ rank: p.rank, placeId: p.place.id, name: p.place.name ?? null, likes: p.likes, swiped: p.swiped, status: p.status, reason: p.reason })),
     plan,
     warnings: [...deck.warnings, ...live.warnings],
+    budgetNote: deck.overBudget ? "Not enough spots nearby fit everyone's budget, so a few of these cost a bit more. Check the $ on each card." : null,
   };
 }

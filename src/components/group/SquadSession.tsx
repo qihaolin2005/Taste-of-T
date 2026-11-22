@@ -123,7 +123,7 @@ function SwipeCard({ card, onSwipe }: { card: Card; onSwipe: (liked: boolean) =>
         >
           PASS
         </span>
-        <PlacePhoto placeId={card.placeId} alt={card.name ?? "The place"} className="-mx-5 -mt-5 mb-4 h-48 rounded-t-[22px]" priority />
+        <PlacePhoto placeId={card.placeId} alt={card.name ?? "The place"} className="-mx-5 -mt-5 mb-4 h-48 rounded-t-[22px]" priority fallback />
         <p className="pr-16 font-serif text-[26px] leading-tight text-label">{card.name ?? "A place nearby"}</p>
         {meta && <p className="mt-1 text-[15px] text-label-2">{meta}</p>}
         {card.cuisines.length > 0 && (
@@ -151,7 +151,7 @@ function SwipeCard({ card, onSwipe }: { card: Card; onSwipe: (liked: boolean) =>
 
 function Progress({ live }: { live: LiveState }) {
   return (
-    <ListSection header="Who's Swiping" footer={live.leftCount ? `${live.leftCount} left during swiping; their votes don't count.` : undefined}>
+    <ListSection header="Group Voting Progress" footer={live.leftCount ? `${live.leftCount} left during swiping; their votes don't count.` : undefined}>
       {live.progress.map((p) => (
         <ListRow
           key={p.memberId}
@@ -280,6 +280,7 @@ export default function SquadSession({ code }: { code: string }) {
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-cell-2" aria-hidden>
           <div className="h-full rounded-full bg-tint transition-[width] duration-300" style={{ width: `${(done / live.deck.length) * 100}%` }} />
         </div>
+        {live.budgetNote && <p className="mt-2 rounded-[12px] bg-lavender px-3 py-2 text-[13px] leading-[18px] text-plum">{live.budgetNote}</p>}
         {!canSwipe ? (
           <p className="mt-3 rounded-[14px] bg-cell px-4 py-4 text-[15px] text-label-2">You joined after this round started, so you can&apos;t swipe on it. You&apos;ll see the top 5 here when everyone&apos;s done.</p>
         ) : next ? (
@@ -289,7 +290,7 @@ export default function SquadSession({ code }: { code: string }) {
         )}
         {notice}
         <Progress live={live} />
-        <Standings live={live} header="Live Top 5" final={false} />
+        <Standings live={live} header="Group Favorites" final={false} />
         {live.isHost && (
           <div className="mt-4">
             <Button variant="plain" onClick={() => act(() => endSession(code))} disabled={busy}>
@@ -308,7 +309,7 @@ export default function SquadSession({ code }: { code: string }) {
       <div className="mt-6">
         {top && (
           <div className="overflow-hidden rounded-[22px] bg-tint p-5 text-tint-fg">
-            <PlacePhoto placeId={top.place.id} alt={top.place.name ?? "Tonight's pick"} className="-mx-5 -mt-5 mb-4 h-44" priority />
+            <PlacePhoto placeId={top.place.id} alt={top.place.name ?? "Tonight's pick"} className="-mx-5 -mt-5 mb-4 h-44" priority fallback />
             <p className="text-[13px] font-semibold uppercase tracking-wide opacity-80">Tonight&apos;s pick</p>
             <p className="mt-1 font-serif text-[26px] leading-tight">{top.place.name ?? top.place.id}</p>
             <p className="mt-1 text-[14px] opacity-90">{sentence(top.reason)}</p>

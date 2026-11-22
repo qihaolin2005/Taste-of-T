@@ -14,7 +14,7 @@ import MemberForm from "./MemberForm";
 import ShareLink from "./ShareLink";
 import SquadSession from "./SquadSession";
 
-const STOP_LABEL = { dinner: "Dinner", dessert: "Dessert", activity: "Activity" } as const;
+const STOP_LABEL = { dinner: "Dinner", dessert: "Dessert", "late-night": "Late-Night Bites", activity: "Activity" } as const;
 const back = { href: "/room/new", label: "Adventure" };
 
 function whenText(room: RoomView): string {

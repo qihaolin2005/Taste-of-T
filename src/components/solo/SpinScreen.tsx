@@ -1,16 +1,16 @@
 // Owner: P3 - Group Mode & App Shell (see TEAM.md)
 // Spin the T: how far, budget, craving -> Spin (uses where you are right now) -> a quest from
-// the ML recommender -> "Let's Go" records the trip, and arriving completes the quest.
+// the ML recommender -> "Start Trip" records the trip, and arriving completes the quest.
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, DiceIcon, ListRow, ListSection, SegmentedControl, SelectRow } from "@/components/shared/ios";
 import SnapReceiptButton from "@/components/rewards/SnapReceiptButton";
 import TripRecorderCard from "@/components/trips/TripRecorderCard";
 import type { SpinRequest, SpinResult } from "@/features/spin/generateQuest";
 import { fetchMyTrips } from "@/features/trips/client";
 import type { TripView } from "@/features/trips/service";
-import QuestCard from "./QuestCard";
+import QuestCard, { type SpinAsked } from "./QuestCard";
 
 // Same lists as src/features/spin/generateQuest.ts (kept here so the server module isn't bundled).
 const DISTANCES = ["0.5", "1", "2", "5"] as const;
@@ -33,6 +33,7 @@ const CRAVINGS = [
 ] as { value: SpinRequest["craving"]; label: string }[];
 
 const SAVED = "tot-spin"; // last spin, so leaving the page mid-trip doesn't lose the quest
+const SAVED_ASKED = "tot-spin-asked"; // what that spin asked for (the fallback banner names it)
 
 type Where = { lat: number; lng: number } | null;
 
@@ -56,15 +57,20 @@ export default function SpinScreen() {
   const [usedGps, setUsedGps] = useState<boolean | null>(null);
   const [result, setResult] = useState<SpinResult | null>(null);
   const [seen, setSeen] = useState<string[]>([]);
+  const [asked, setAsked] = useState<SpinAsked | null>(null);
+  const filtersRef = useRef<HTMLDivElement>(null);
   const [trip, setTrip] = useState<TripView | null>(null);
   const [awarded, setAwarded] = useState<number | null>(null);
 
   // Back on the page: restore the last quest and any trip still recording for it.
   useEffect(() => {
     let saved: SpinResult | null = null;
+    let savedAsked: SpinAsked | null = null;
     try {
       const raw = sessionStorage.getItem(SAVED);
       saved = raw ? (JSON.parse(raw) as SpinResult) : null;
+      const rawAsked = sessionStorage.getItem(SAVED_ASKED);
+      if (saved && rawAsked) savedAsked = JSON.parse(rawAsked) as SpinAsked;
     } catch {
       // storage blocked: start fresh
     }
@@ -73,6 +79,7 @@ export default function SpinScreen() {
         const open = trips.find((t) => t.status === "recording" && t.questId);
         if (saved && open && open.questId === saved.quest.id) {
           setResult(saved);
+          setAsked(savedAsked);
           setTrip(open);
         }
       })
@@ -98,11 +105,14 @@ export default function SpinScreen() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error?.message ?? "Spin failed");
       const r = data as SpinResult;
+      const a: SpinAsked = { craving, cravingLabel: CRAVINGS.find((c) => c.value === craving)?.label ?? craving, radiusMiles: Number(distance), budget: budget !== "any" ? Number(budget) : null };
       setResult(r);
+      setAsked(a);
       setSeen(exclude);
       setTrip(null);
       try {
         sessionStorage.setItem(SAVED, JSON.stringify(r));
+        sessionStorage.setItem(SAVED_ASKED, JSON.stringify(a));
       } catch {
         // fine without it
       }
@@ -126,6 +136,7 @@ export default function SpinScreen() {
     <>
       {!onTheWay && (
         <>
+          <div ref={filtersRef} className="scroll-mt-4" aria-hidden />
           <ListSection header="How Far?" footer="From where you are right now. Your location is only used for this spin, never saved.">
             <div className="p-3">
               <SegmentedControl options={DISTANCES.map((d) => ({ value: d, label: `${d} mi` }))} value={distance} onChange={setDistance} />
@@ -176,12 +187,12 @@ export default function SpinScreen() {
 
       {result && (
         <>
-          <QuestCard spin={result} />
+          <QuestCard spin={result} asked={asked} onAdjust={onTheWay ? undefined : () => filtersRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })} />
           {result.place.lat != null && !questDone && (
             <TripRecorderCard
               placeId={result.place.placeId}
               questId={result.quest.id}
-              startLabel="Let's Go"
+              startLabel="Start Trip"
               startFooter="Records your way there. Take the bus or T for travel points. Arriving completes the quest."
               current={trip}
               onChange={onTrip}

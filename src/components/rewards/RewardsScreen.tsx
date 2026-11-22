@@ -113,7 +113,7 @@ export default function RewardsScreen() {
       <div className="mt-3 rounded-[22px] bg-tint p-5 text-tint-fg">
         <p className="text-[13px] font-semibold uppercase tracking-wide opacity-80">Your points</p>
         <p className="mt-1 font-serif text-[44px] leading-none">{pts(shop.balance)}</p>
-        <p className="mt-2 text-[14px] opacity-90">Earn points by finishing quests, claiming meals, and unlocking achievements. Spend them below.</p>
+        <p className="mt-2 text-[14px] opacity-90">Earn points when you arrive at a Spin quest, claim a meal with your receipt, or unlock achievements. Spend them below.</p>
       </div>
 
       {fresh && (
@@ -158,7 +158,7 @@ export default function RewardsScreen() {
         </ListSection>
       ))}
 
-      <ListSection footer="After a meal at a place we recommended, claim points with your receipt.">
+      <ListSection footer="Ate at a spot we recommended in the last 48 hours? Scan your receipt: 20 points for the meal, more for what you spend, +10 for a first visit, and +5 (T) or +10 (bus) with a verified ride.">
         <ListRow icon={<StarIcon size={17} />} title="Claim points for a meal" href="/rewards/claim" />
       </ListSection>
 

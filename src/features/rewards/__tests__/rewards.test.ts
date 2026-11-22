@@ -337,6 +337,31 @@ describe("listClaimablePlaces", () => {
     await claimVisit(db, u, claim("c2", 20), { now: NOW });
     expect(await visitsLeftToday(db, u, { now: NOW })).toBe(0);
   });
+
+  // A spin logs ~50 candidates with one timestamp; the newest-30 cut used to drop the place Spin
+  // actually sent you to (Boston Burger missing, the picker showing another restaurant).
+  it("keeps your Spin quest's place and the requested place, even among 50 same-time recommendations", async () => {
+    const u = await newUser();
+    for (let i = 0; i < 50; i++) await recommend(u, `cand-${String(i).padStart(2, "0")}`);
+    await recommend(u, "zz-burger");
+    await recommend(u, "zz-asked");
+    await db.quest.create({ data: { userId: u, title: "Eat at Boston Burger", points: 100, placeId: "zz-burger", placeName: "Boston Burger Company", createdAt: NOW } });
+    const list = await listClaimablePlaces(db, u, { now: NOW, include: "zz-asked" });
+    expect(list[0]).toMatchObject({ placeId: "zz-asked", via: "for-you" });
+    expect(list[1]).toMatchObject({ placeId: "zz-burger", name: "Boston Burger Company", via: "for-you" });
+    expect(new Set(list.map((p) => p.placeId)).size).toBe(list.length); // no duplicates
+  });
+
+  it("never lists a requested place that wasn't recommended recently (same rule as claiming)", async () => {
+    const u = await newUser();
+    await recommend(u, "old", new Date(NOW.getTime() - 3 * 86_400_000));
+    await db.quest.create({ data: { userId: u, title: "Old quest", points: 100, placeId: "never-shown", placeName: "Never Shown", createdAt: NOW } });
+    const list = await listClaimablePlaces(db, u, { now: NOW, include: "old" });
+    expect(list.map((p) => p.placeId)).toEqual([]);
+    await recommend(u, "claimed");
+    await claimVisit(db, u, claim("claimed", 20), { now: NOW });
+    expect((await listClaimablePlaces(db, u, { now: NOW, include: "claimed" })).map((p) => p.placeId)).not.toContain("claimed");
+  });
 });
 
 // ------------------------------------------------------------- were you there?

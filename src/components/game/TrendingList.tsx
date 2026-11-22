@@ -72,7 +72,7 @@ export default function TrendingList({ items, activeId }: { items: TrendingPlace
             </div>
             {isOpen && (
               <div className="px-4 pb-4">
-                <PlacePhoto placeId={t.id} alt={t.name} className="h-48 w-full rounded-[14px]" />
+                <PlacePhoto placeId={t.id} alt={t.name} className="h-48 w-full rounded-[14px]" fallback />
                 <Link href={href} className="mt-2 block text-center text-[14px] font-semibold text-tint active:opacity-60">
                   {isActive ? "Showing on the map above" : "Show on the map & how to get there"}
                 </Link>

@@ -16,7 +16,7 @@ const stations = getStations()
 
 export default function Page() {
   return (
-    <div className="min-h-dvh bg-[#F8F5FF] text-[#30203F] [color-scheme:light] [font-family:var(--font-dm-sans),system-ui,sans-serif]">
+    <div className="min-h-dvh bg-[#F8F5FF] text-[#30203F] [color-scheme:light] [font-family:var(--font-sans)]">
       <OnboardingForm stations={stations} />
     </div>
   );

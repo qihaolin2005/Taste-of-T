@@ -65,7 +65,8 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
   const photoInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    Promise.all([getJson<{ places: Claimable[]; visitsLeftToday: number; receiptScan?: boolean }>("/api/rewards/eligible"), getJson<{ rides: Ride[] }>("/api/rides").catch(() => ({ rides: [] }))])
+    const eligibleUrl = initialPlaceId ? `/api/rewards/eligible?placeId=${encodeURIComponent(initialPlaceId)}` : "/api/rewards/eligible";
+    Promise.all([getJson<{ places: Claimable[]; visitsLeftToday: number; receiptScan?: boolean }>(eligibleUrl), getJson<{ rides: Ride[] }>("/api/rides").catch(() => ({ rides: [] }))])
       .then(([e, r]) => {
         setPlaces(e.places);
         setLeft(e.visitsLeftToday);
@@ -96,6 +97,9 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
   );
 
   const place = useMemo(() => places?.find((p) => p.placeId === placeId) ?? null, [places, placeId]);
+  // Opened for a place that can't earn points (not recommended in the last 48 h, or already
+  // claimed today): say so, instead of the picker silently showing a different restaurant.
+  const notEligible = !!initialPlaceId && !!places && !places.some((p) => p.placeId === initialPlaceId);
   const amount = Number(total);
   const typedValid = Number.isFinite(amount) && amount > 0 && amount <= 2000 && when !== "";
   const valid = place != null && (canScan ? scan != null : typedValid);
@@ -202,11 +206,17 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
 
   return (
     <>
-      <ListSection header="Where did you eat?">
+      <ListSection
+        header="Where did you eat?"
+        footer={notEligible && !place ? "That restaurant can't earn points right now. Points are for places we recommended to you in the last 48 hours that you haven't already claimed today. Pick one of those if you ate there." : undefined}
+      >
         <SelectRow
           label="Place"
-          value={placeId}
-          options={places.map((p) => ({ value: p.placeId, label: `${p.name ?? p.placeId}${p.via === "squad" ? " (group)" : ""}` }))}
+          value={place ? placeId : ""}
+          options={[
+            ...(place ? [] : [{ value: "", label: "Choose one" }]),
+            ...places.map((p) => ({ value: p.placeId, label: `${p.name ?? p.placeId}${p.via === "squad" ? " (group)" : ""}` })),
+          ]}
           onChange={setPlaceId}
         />
       </ListSection>

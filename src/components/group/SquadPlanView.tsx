@@ -49,7 +49,7 @@ export default function SquadPlanView({ code }: { code: string }) {
     <>
       {plan.recommended && (
         <div className="mt-3 overflow-hidden rounded-[22px] bg-tint p-5 text-tint-fg">
-          <PlacePhoto placeId={plan.recommended.place.id} alt={plan.recommended.place.name ?? "Tonight's pick"} className="-mx-5 -mt-5 mb-4 h-44" priority />
+          <PlacePhoto placeId={plan.recommended.place.id} alt={plan.recommended.place.name ?? "Tonight's pick"} className="-mx-5 -mt-5 mb-4 h-44" priority fallback />
           <p className="text-[13px] font-semibold uppercase tracking-wide opacity-80">Tonight&apos;s pick</p>
           <p className="mt-1 font-serif text-[26px] leading-tight">{plan.recommended.place.name ?? plan.recommended.place.id}</p>
           <p className="mt-1 text-[14px] opacity-90">{cap(plan.recommended.reason)}</p>

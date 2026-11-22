@@ -22,7 +22,11 @@ const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 // Advanced markers + dark mode need a Map ID; Google's DEMO_MAP_ID works for development.
 const MAP_ID = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID";
 
-export const hasGoogleMapsKey = API_KEY.length > 0;
+// TEMP demo mode (NEXT_PUBLIC_DEMO_MODE=true in .env.local): never load the Google Maps script,
+// so a used-up key can't show an error. TMap and TripMap then draw their offline SVG maps.
+// Remove the flag (or set it to false) to go back to Google Maps.
+export const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+export const hasGoogleMapsKey = API_KEY.length > 0 && !isDemoMode;
 
 function FailureWatcher({ onFail }: { onFail: () => void }) {
   const status = useApiLoadingStatus();

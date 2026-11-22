@@ -91,9 +91,11 @@ html.in-frame ::-webkit-scrollbar {
   --color-plum: var(--plum);
   --color-nav: var(--nav);
   --color-danger: var(--danger);
-  /* DM Sans for body text, DM Serif Display for headings (loaded in app/layout.tsx). */
-  --font-sans: var(--font-dm-sans), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --font-serif: var(--font-dm-serif), Georgia, serif;
+  /* DM Sans for body text, DM Serif Display for headings (loaded in app/layout.tsx). Both are
+     Latin-only, so restaurant names in Chinese, Japanese or Korean ("蜀大侠火锅", "한식당") need
+     real CJK system fonts named here, or some browsers draw boxes instead of falling back. */
+  --font-sans: var(--font-dm-sans), -apple-system, BlinkMacSystemFont, system-ui, "PingFang SC", "PingFang TC", "Hiragino Sans", "Apple SD Gothic Neo", "Noto Sans CJK SC", "Noto Sans CJK KR", "Microsoft YaHei", "Malgun Gothic", sans-serif;
+  --font-serif: var(--font-dm-serif), Georgia, "PingFang SC", "PingFang TC", "Hiragino Sans", "Apple SD Gothic Neo", "Noto Serif CJK SC", "Noto Sans CJK SC", "Microsoft YaHei", "Malgun Gothic", serif;
 }
 
 html {

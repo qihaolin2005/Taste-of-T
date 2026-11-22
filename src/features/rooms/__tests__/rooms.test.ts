@@ -157,6 +157,17 @@ describe("rooms", () => {
     expect(createRoomSchema.safeParse({ name: "x", day: "tonight", startTime: 1145, slots: ["dinner"] }).success).toBe(false);
     expect(createRoomSchema.safeParse({ name: "x", day: "tonight", startTime: 1140, slots: [] }).success).toBe(false);
   });
+
+  it("new groups are all food: Dinner -> Dessert or boba -> Late-Night Bites (no Activity)", async () => {
+    const food = createRoomSchema.parse({ name: "x", day: "tonight", startTime: 1140, slots: ["late-night", "dinner", "dessert"] });
+    expect(food.slots).toEqual(["dinner", "dessert", "late-night"]);
+    expect(createRoomSchema.safeParse({ name: "x", day: "tonight", startTime: 1140, slots: ["dinner", "activity"] }).success).toBe(false);
+    // A group saved before the change still loads with its Activity stop.
+    const host = await newUser();
+    const code = await createRoom(db, host, food);
+    await db.room.update({ where: { id: code }, data: { slots: ["dinner", "activity"] } });
+    expect((await getRoomView(db, code, host)).slots).toEqual(["dinner", "activity"]);
+  });
 });
 
 describe("your current group (the Adventure tab brings you back to it)", () => {

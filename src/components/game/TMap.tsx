@@ -10,14 +10,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { distanceMeters, walkMinutes, type LatLng } from "@/lib/geo";
 import type { LineRecord, StationRecord } from "@/lib/mbta/stations";
 import { tRoutesInTrip, type TripPlan } from "@/features/directions/types";
-import GoogleTMap, { hasGoogleMapsKey } from "./map/GoogleTMap";
+import GoogleTMap, { hasGoogleMapsKey, isDemoMode } from "./map/GoogleTMap";
 import SvgTMap from "./map/SvgTMap";
 import StationCard from "./map/StationCard";
 import RouteCard, { type RouteState } from "./map/RouteCard";
 import { useLiveTrains, useMyLocation, useStampedStations } from "./map/hooks";
 import { decodeLines, onVisibleRoute } from "./map/model";
 
-type Props = { stations: readonly StationRecord[]; lines: readonly LineRecord[]; destination?: (LatLng & { name?: string }) | null };
+type Props = { stations: readonly StationRecord[]; lines: readonly LineRecord[]; destination?: (LatLng & { name?: string; placeId?: string }) | null };
 
 /** Plans the trip once we know where you are. Re-plans only if you move ~100 m+. */
 function useRoute(destination: Props["destination"], me: LatLng | null, locError: string | null) {
@@ -168,8 +168,8 @@ export default function TMap({ stations, lines, destination = null }: Props) {
           </div>
         )}
         {!useGoogle && (
-          <div className="absolute bottom-3 left-3 rounded-full bg-bar px-2.5 py-1 text-[11px] text-label-2 ring-[0.5px] ring-separator backdrop-blur-xl">
-            Offline map
+          <div className={`absolute left-3 ${plan ? "top-[52px]" : "bottom-3"} rounded-full bg-bar px-2.5 py-1 text-[11px] text-label-2 ring-[0.5px] ring-separator backdrop-blur-xl`}>
+            {isDemoMode ? "Demo mode · offline map" : "Offline map"}
           </div>
         )}
 

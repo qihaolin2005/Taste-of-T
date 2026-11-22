@@ -323,7 +323,16 @@ describe("the shortlist follows the night's stops", () => {
     expect(deck.items.map((i) => i.place.id).sort()).toEqual(DESSERTS.map((d) => d.id).sort());
   });
 
-  it("an activity-only night swipes on activities, which skip the dietary filter", async () => {
+  it("a Late-Night Bites night swipes on food, never activities", async () => {
+    const s = await roomWithStops(["late-night"]);
+    const deck = await startAdventure(db, s.id, s.host, { places: MIXED });
+    expect(deck.category).toBe("dinner");
+    expect(deck.items.length).toBeGreaterThan(0);
+    expect(deck.items.some((i) => i.place.category === "activity")).toBe(false);
+  });
+
+  // Groups made before Late-Night Bites replaced Activity still have "activity" saved.
+  it("an older activity-only night still swipes on activities, which skip the dietary filter", async () => {
     const s = await roomWithStops(["activity"]);
     const deck = await startAdventure(db, s.id, s.host, { places: MIXED });
     expect(deck.items.map((i) => i.place.id)).toEqual(["karaoke"]); // vegan member, no dietary info: still shown

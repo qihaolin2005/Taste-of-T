@@ -55,7 +55,7 @@
 }
 .tot-scene .loading-skyline text {
   fill: #30203f;
-  font-family: var(--font-dm-sans), sans-serif;
+  font-family: var(--font-sans);
   font-size: 17px;
   font-weight: 800;
 }
@@ -106,7 +106,7 @@
 .tot-scene .moving-train .train-t-letter {
   fill: #30203f;
   stroke: none;
-  font-family: var(--font-dm-sans), sans-serif;
+  font-family: var(--font-sans);
   font-size: 9px;
   font-weight: 800;
 }
@@ -219,7 +219,7 @@
 .tot-line-art text {
   fill: #30203f;
   stroke: none;
-  font-family: var(--font-dm-sans), sans-serif;
+  font-family: var(--font-sans);
   font-size: 17px;
   font-weight: 800;
 }

@@ -90,6 +90,13 @@ describe("Google -> Place mapping", () => {
     expect(p.walkMinutes).toBeGreaterThan(0);
   });
 
+  it("skips members-only clubs even when Google also calls them a restaurant", () => {
+    // Real Google answer for the Harvard Club of Boston (types trimmed to the ones that matter)
+    const club = { ...RAMEN, displayName: { text: "Harvard Club of Boston" }, primaryType: "association_or_organization", types: ["event_venue", "association_or_organization", "restaurant", "food"] };
+    expect(mapGooglePlace(club, { stations })).toBeNull();
+    expect(mapGooglePlace({ ...RAMEN, primaryType: undefined }, { stations })).not.toBeNull(); // no primary type: still shown
+  });
+
   it("maps a vegan bakery as dessert in a dessert search, with vegan diet info", () => {
     const p = mapGooglePlace(VEGAN_BAKERY, { stations, categoryHint: "dessert" })!;
     expect(p).toMatchObject({ category: "dessert", dietStyle: "vegan-only", city: "Cambridge", stationId: "place-cntsq", pricePerPerson: 12, priceLevel: 1 });

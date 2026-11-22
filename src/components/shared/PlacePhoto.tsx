@@ -2,7 +2,8 @@
 // A restaurant's photo gallery (GET /api/places/photo), food photos first, with the photographer
 // credit Google requires. ‹ › arrows and dots go through up to 6 photos. The whole gallery comes
 // in one request and the next image is preloaded, so flipping is instant. Shows a soft
-// placeholder while loading, and nothing if the place has no photos.
+// placeholder while loading (until the image itself arrives), and nothing if the place has no
+// photos, or, with `fallback`, a "No photo" card in the same box (or if every photo fails).
 "use client";
 
 import { useEffect, useState, type MouseEvent, type PointerEvent } from "react";
@@ -62,12 +63,26 @@ function Arrow({ dir, onClick, label }: { dir: "left" | "right"; onClick: () => 
   );
 }
 
+/** Same box, no photo: soft lavender with a plate icon, so a card never shows an empty hole. */
+function NoPhoto({ className }: { className: string }) {
+  return (
+    <div className={`flex flex-col items-center justify-center gap-1.5 bg-lavender text-tint ${className}`} role="img" aria-label="No photo available">
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <circle cx="12" cy="12" r="5.5" />
+        <path d="M3 4v5a2 2 0 0 0 2 2v9M5 4v4M21 4c-1.5 1-2 3-2 5v2h2v9" />
+      </svg>
+      <span className="text-[13px] font-semibold opacity-80">No photo yet</span>
+    </div>
+  );
+}
+
 export default function PlacePhoto({
   placeId,
   alt,
   width = 640,
   className = "h-44 w-full",
   priority = false,
+  fallback = false,
 }: {
   placeId: string | null | undefined;
   alt: string;
@@ -77,12 +92,15 @@ export default function PlacePhoto({
   className?: string;
   /** Above the fold (a result card): load the first image right away instead of lazily. */
   priority?: boolean;
+  /** Keep the box when there's no photo (or it fails to load): a lavender "No photo" card. */
+  fallback?: boolean;
 }) {
   const key = `${placeId}|${width}`;
   const [loaded, setLoaded] = useState<{ key: string; photos: Photo[] } | null>(null);
   const [view, setView] = useState({ key, index: 0 });
   const index = view.key === key ? view.index : 0; // a new place starts at its first photo
   const [broken, setBroken] = useState<ReadonlySet<string>>(new Set());
+  const [arrived, setArrived] = useState<ReadonlySet<string>>(new Set());
 
   useEffect(() => {
     if (!hasPhoto(placeId)) return;
@@ -97,10 +115,11 @@ export default function PlacePhoto({
     };
   }, [placeId, width, key]);
 
-  if (!hasPhoto(placeId)) return null;
+  const none = fallback ? <NoPhoto className={className} /> : null;
+  if (!hasPhoto(placeId)) return none;
   if (loaded?.key !== key) return <div className={`animate-pulse bg-cell-2 ${className}`} aria-hidden />;
   const photos = loaded.photos.filter((p) => !broken.has(p.url));
-  if (!photos.length) return null;
+  if (!photos.length) return none;
 
   const count = photos.length;
   const i = Math.min(index, count - 1);
@@ -112,7 +131,7 @@ export default function PlacePhoto({
   };
 
   return (
-    <div className={`relative overflow-hidden bg-cell-2 ${className}`} aria-roledescription={count > 1 ? "carousel" : undefined}>
+    <div className={`relative overflow-hidden bg-cell-2 ${arrived.has(photo.url) ? "" : "animate-pulse"} ${className}`} aria-roledescription={count > 1 ? "carousel" : undefined}>
       {/* eslint-disable-next-line @next/next/no-img-element -- Google's photo URL; sizes vary and next/image would need its domains configured */}
       <img
         key={photo.url}
@@ -124,6 +143,7 @@ export default function PlacePhoto({
         referrerPolicy="no-referrer"
         draggable={false}
         className="h-full w-full select-none object-cover"
+        onLoad={() => setArrived((s) => new Set(s).add(photo.url))}
         onError={() => setBroken((s) => new Set(s).add(photo.url))}
       />
       {count > 1 && (

@@ -136,10 +136,18 @@ export type MapContext = {
   hub?: { stationId: string; city: string; neighborhood: string };
 };
 
-/** Returns null for places we shouldn't show (closed for good, no location). */
+/**
+ * Primary types that mean "not open to the public" even when Google also tags the place
+ * "restaurant": private clubs (the Harvard Club of Boston is primary association_or_organization),
+ * and campus or office dining.
+ */
+const NOT_PUBLIC_PRIMARY_TYPES = new Set(["association_or_organization", "university", "school", "corporate_office"]);
+
+/** Returns null for places we shouldn't show (closed for good, members only, no location). */
 export function mapGooglePlace(g: GooglePlace, ctx: MapContext): Place | null {
   if (!g.location || !g.displayName?.text) return null;
   if (g.businessStatus && g.businessStatus !== "OPERATIONAL") return null;
+  if (g.primaryType && NOT_PUBLIC_PRIMARY_TYPES.has(g.primaryType)) return null;
 
   const types = g.types ?? (g.primaryType ? [g.primaryType] : []);
   const category = categoryOf(types, ctx.categoryHint, g.primaryType);

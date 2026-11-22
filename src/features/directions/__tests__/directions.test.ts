@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getLines, getStations } from "@/lib/mbta/stations";
-import { buildNetwork, googleMapsDirectionsUrl, lineBranches, parseGoogleRoute, parseLatLng, planSubwayTrip, routeMapHref, tRoutesInTrip, type RideLeg, type TripPlan } from "@/features/directions";
+import { buildNetwork, googleMapsDirectionsUrl, googlePlaceId, lineBranches, parseGoogleRoute, parseLatLng, planSubwayTrip, routeMapHref, tRoutesInTrip, type RideLeg, type TripPlan } from "@/features/directions";
 
 const net = buildNetwork(getStations(), getLines());
 const rides = (p: TripPlan | null) => (p?.legs ?? []).filter((l): l is RideLeg => l.kind === "ride");
@@ -156,5 +156,25 @@ describe("links", () => {
   it("Google Maps link: transit, with or without a starting point", () => {
     expect(googleMapsDirectionsUrl(CHINATOWN)).toBe("https://www.google.com/maps/dir/?api=1&destination=42.3505%2C-71.0621&travelmode=transit");
     expect(googleMapsDirectionsUrl(CHINATOWN, HARVARD_SQ)).toContain("origin=42.3736%2C-71.1189");
+  });
+
+  // Bare coordinates made Google pick the nearest business (Van Leeuwen -> a Saks next door).
+  it("sends Google the exact place when we know its Google Place ID", () => {
+    const vl = { lat: 42.3473994, lng: -71.0880829, name: "Van Leeuwen Ice Cream", id: "google:ChIJz3YFIGV744kRUpFjIkGrniA" };
+    const href = routeMapHref(vl)!;
+    expect(href).toContain("pid=ChIJz3YFIGV744kRUpFjIkGrniA");
+    expect(routeMapHref({ ...vl, id: undefined, placeId: vl.id })).toBe(href); // Spin results call it placeId
+    expect(routeMapHref({ ...vl, id: "seed:gene-s" })).not.toContain("pid="); // not a Google place
+
+    const url = new URL(googleMapsDirectionsUrl({ lat: vl.lat, lng: vl.lng, name: vl.name, placeId: googlePlaceId(vl.id)! }, HARVARD_SQ));
+    expect(url.searchParams.get("destination")).toBe("Van Leeuwen Ice Cream");
+    expect(url.searchParams.get("destination_place_id")).toBe("ChIJz3YFIGV744kRUpFjIkGrniA");
+    expect(url.searchParams.get("travelmode")).toBe("transit");
+    expect(url.searchParams.get("origin")).toBe("42.3736,-71.1189");
+  });
+
+  it("only accepts real Google Place IDs", () => {
+    expect(googlePlaceId("google:ChIJz3YFIGV744kRUpFjIkGrniA")).toBe("ChIJz3YFIGV744kRUpFjIkGrniA");
+    for (const bad of ["ChIJz3YFIGV744kRUpFjIkGrniA", "seed:abc", "google:", "google:a&b=c", "google:short", null, undefined]) expect(googlePlaceId(bad)).toBeNull();
   });
 });

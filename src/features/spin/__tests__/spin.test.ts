@@ -82,6 +82,28 @@ describe("picking from the model's ranking", () => {
     expect(all?.notes[0]).toMatch(/starting over/);
   });
 
+  it("budget: prefers places that list a price in budget; unlisted prices only as a labeled fallback", () => {
+    const mixed = [item("no-price", 0.95, { priceLevel: null }), item("cheap", 0.5, { priceLevel: 1 })];
+    expect(pickSpin(mixed, req({ budget: 1 }))).toMatchObject({ pick: { placeId: "cheap" }, notes: [], relaxed: [] });
+    const onlyUnlisted = pickSpin([item("no-price", 0.9, { priceLevel: null })], req({ budget: 1 }));
+    expect(onlyUnlisted).toMatchObject({ pick: { placeId: "no-price" }, relaxed: [] });
+    expect(onlyUnlisted?.notes[0]).toMatch(/price isn't listed/);
+  });
+
+  it("says exactly which filters it relaxed, and nothing for an exact match", () => {
+    expect(pickSpin(ranked, req({ craving: "thai", budget: 1 }))?.relaxed).toEqual([]);
+    expect(pickSpin(ranked, req({ craving: "sushi", budget: 3 }))?.relaxed).toEqual(["craving"]);
+    expect(pickSpin([item("a", 0.9, { priceLevel: 4 })], req({ budget: 1 }))?.relaxed).toEqual(["budget"]);
+    expect(pickSpin([item("a", 0.9, { priceLevel: 4, cuisines: ["burgers"] })], req({ craving: "pizza", budget: 1 }))?.relaxed).toEqual(["craving", "budget"]);
+    expect(pickSpin(ranked, req({ exclude: ranked.map((x) => x.placeId) }))?.relaxed).toEqual([]); // starting over isn't a relaxed filter
+  });
+
+  it("avoids places your recent spins sent you to while there are others", () => {
+    const two = [item("van-leeuwen", 0.95), item("other", 0.3)];
+    for (let i = 0; i < 50; i++) expect(pickSpin(two, req({ recent: ["van-leeuwen"] }))?.pick.placeId).toBe("other");
+    expect(pickSpin([item("van-leeuwen", 0.95)], req({ recent: ["van-leeuwen"] }))?.pick.placeId).toBe("van-leeuwen"); // only option: still shown
+  });
+
   it("asks for distance, not time", () => {
     expect(spinRequestSchema.safeParse({ radiusMiles: 2 }).success).toBe(true);
     expect(spinRequestSchema.safeParse({ minutes: 30 }).success).toBe(false);

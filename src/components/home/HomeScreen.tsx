@@ -234,7 +234,7 @@ export default function HomeScreen({ stations }: { stations: readonly HomeStatio
         </span>
         <p className="grid gap-0.5">
           <b className="text-[15px] font-bold text-label">Start an Adventure</b>
-          <span className="text-[13px] leading-[1.35] text-label-2">Dinner, dessert, and fun for the group. Everyone makes the last train.</span>
+          <span className="text-[13px] leading-[1.35] text-label-2">Dinner, dessert, and late-night bites with your crew. Everyone makes the last train.</span>
         </p>
         <Link href="/room/new" className="whitespace-nowrap rounded-[10px] bg-tint px-3 py-2 text-[13px] font-bold text-tint-fg transition active:scale-95">
           Start

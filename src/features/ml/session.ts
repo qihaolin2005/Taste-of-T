@@ -23,13 +23,26 @@ export const SESSION_STOP_ORDER = ["dinner", "dessert", "activity"] as const;
 export type SessionCategory = (typeof SESSION_STOP_ORDER)[number];
 
 /**
+ * A night's stops in order, and the kind of place each one swipes on. "late-night" (Late-Night
+ * Bites) is food, so it swipes restaurants. "activity" is only on groups made before Late-Night
+ * Bites replaced it; those keep working as they did.
+ */
+const STOP_DECK: readonly (readonly [stop: string, deck: SessionCategory])[] = [
+  ["dinner", "dinner"],
+  ["dessert", "dessert"],
+  ["late-night", "dinner"],
+  ["activity", "activity"],
+];
+
+/**
  * What the squad swipes on: the night's first stop. A dinner night swipes restaurants, a
- * "dessert or boba" night swipes dessert spots, an activity-only night swipes activities.
+ * "dessert or boba" night swipes dessert spots, a late-night-only night swipes restaurants
+ * (older activity-only nights swipe activities).
  * `slots` is Room.slots (the stops the host picked); anything unreadable means dinner.
  */
 export function deckCategoryForStops(slots: unknown): SessionCategory {
   const picked = new Set(Array.isArray(slots) ? slots : []);
-  return SESSION_STOP_ORDER.find((c) => picked.has(c)) ?? "dinner";
+  return STOP_DECK.find(([stop]) => picked.has(stop))?.[1] ?? "dinner";
 }
 
 export type SessionDeck = {
@@ -51,6 +64,8 @@ export type SessionDeck = {
   dietary: string[];
   vetoDropped: boolean;
   warnings: string[];
+  /** Too few places fit the squad's tightest budget, so some cards cost more (see withinGroupBudget). */
+  overBudget?: boolean;
 };
 
 export type MemberProgress = { memberId: string; swiped: number; liked: number; total: number; done: boolean };
@@ -132,7 +147,8 @@ export function createSessionDeck(
   const cfg = opts.config ?? RECOMMENDER_CONFIG;
   const category = opts.category ?? "dinner";
   const groupMembers: GroupMember[] = members.map((m) => ({ id: m.memberId, ctx: m.ctx, swipes: m.swipes, city: m.city ?? undefined }));
-  const g = buildGroupDeck(groupMembers, places, {
+  const { pool, overBudget } = withinGroupBudget(members, places, category, cfg.session.deckSize, cfg.session.backups);
+  const g = buildGroupDeck(groupMembers, pool, {
     city: opts.city,
     categories: [category],
     // History at any kind of place (dessert spots, activities) still teaches each member's taste.
@@ -153,7 +169,37 @@ export function createSessionDeck(
     dietary: g.dietary,
     vetoDropped: g.vetoDropped,
     warnings: g.warnings,
+    ...(overBudget ? { overBudget: true } : {}),
   };
+}
+
+/**
+ * The squad's budget is the tightest one (everyone has to be able to afford the pick), compared
+ * with each place's price per person. The ranking only nudged prices before, so a $30 squad
+ * could get $$$ places. Places that fit come first; if too few fit, the cheapest of the rest
+ * fill the deck (overBudget: true, so the screen can say so). Budgets stay private: only the
+ * fact that some cards may cost more is shown, never anyone's amount.
+ */
+export function withinGroupBudget(
+  members: readonly SessionMember[],
+  places: readonly RestaurantCandidate[],
+  category: SessionCategory,
+  deckSize: number,
+  backups: number,
+): { pool: readonly RestaurantCandidate[]; overBudget: boolean } {
+  const budgets = members.map((m) => m.ctx.preferences.budgetPerPerson).filter((b): b is number => b != null && b > 0);
+  if (!budgets.length) return { pool: places, overBudget: false };
+  const cap = Math.min(...budgets);
+  const onDeck = (p: RestaurantCandidate) => p.category === category;
+  const fits = (p: RestaurantCandidate) => p.pricePerPerson <= cap;
+  const ok = places.filter((p) => !onDeck(p) || fits(p));
+  const okCount = ok.filter(onDeck).length;
+  if (okCount >= deckSize) return { pool: ok, overBudget: false };
+  const extra = places
+    .filter((p) => onDeck(p) && !fits(p))
+    .sort((a, b) => a.pricePerPerson - b.pricePerPerson)
+    .slice(0, deckSize + backups - okCount);
+  return { pool: [...ok, ...extra], overBudget: extra.length > 0 };
 }
 
 // ------------------------------------------------------------- 2. live

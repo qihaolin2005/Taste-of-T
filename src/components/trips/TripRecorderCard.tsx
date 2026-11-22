@@ -101,7 +101,7 @@ export default function TripRecorderCard({ roomId, placeId, questId, startLabel 
   if (!live) {
     return (
       <ListSection
-        header="Record Your Trip"
+        header="Track Your Adventure"
         footer={
           startFooter ??
           (roomId
@@ -131,9 +131,12 @@ export default function TripRecorderCard({ roomId, placeId, questId, startLabel 
       {rideText(ride) && <ListRow title={rideText(ride)} />}
       <div className="flex flex-col gap-2 p-4">
         {recording ? (
-          <Button onClick={finish} disabled={busy}>
-            {busy ? "Saving…" : "I'm Here: End Trip"}
-          </Button>
+          <>
+            <Button onClick={finish} disabled={busy}>
+              {busy ? "Saving…" : "Finish Trip"}
+            </Button>
+            {live.place && <p className="text-center text-[13px] leading-[18px] text-label-2">Tap when you&apos;re at {live.place.name ?? "the restaurant"}. Finishing there is what counts as arriving.</p>}
+          </>
         ) : (
           <>
             <Button onClick={() => begin(live)}>Resume Recording</Button>
