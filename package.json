@@ -20,6 +20,7 @@
     "db:studio": "prisma studio",
     "icons": "tsx scripts/make-icons.tsx",
     "stations": "tsx scripts/fetch-stations.ts",
+    "demo:trips": "tsx scripts/demo-trips.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
