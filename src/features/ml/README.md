@@ -139,6 +139,14 @@ menu". Groups use the union of members' needs.
 - Deck: city, union dietary, per-member individual scores, group score
   `0.6 × mean + 0.4 × min`, a veto when anyone would hate a place (dropped if it leaves < 5), and
   ~18 cards with MMR variety plus 3 explore picks.
+- Travel fairness (`config.group.travel`): each member's straight-line distance from tonight's start
+  station scores 1 at the door to 0 at 6 mi; the group's travel score is `0.6 × mean + 0.4 × min`
+  (the longest ride counts extra), blended in at a small weight: `0.85 × taste + 0.15 × travel`.
+  It reorders near-ties and pushes down places that are a long ride for one person, but a clearly
+  better place still wins (it can overcome a taste lead of about 0.18 × the travel gap; see the
+  config comment for how 0.15 was chosen). Cards say "close for everyone" or "a long ride for one
+  of you (4.6 mi)". A place we can't locate gets the average travel score. Straight line for now;
+  T travel time (src/features/directions planSubwayTrip) would be the next step.
 - Top 5: like ratio among members who swiped, then a bonus if every member liked it, then group
   score, then rating. Short on likes → fill from unvoted places, marked `not-voted`.
 - `groupVotesToSwipes()` turns group votes into each member's individual swipes (weighted 0.7).

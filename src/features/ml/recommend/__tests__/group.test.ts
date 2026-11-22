@@ -232,3 +232,63 @@ describe("group swipes feed individual recommendations", () => {
     expect(sim(after, "thai-4")).toBeGreaterThan(sim(after, "italian-4"));
   });
 });
+
+// ------------------------------------------------------------- travel fairness
+
+describe("buildGroupDeck: travel fairness (a small weight, never the deciding factor)", () => {
+  // Real stations: Davis and Harvard (Cambridge/Somerville), Chinatown, Maverick (East Boston).
+  const crew = (starts: string[]) => starts.map((start, i) => member(`t${i}`, { start, location: null }));
+  const spreadOut = crew(["place-davis", "place-harsq", "place-chncl", "place-mvbcl"]);
+  const PARK_ST = { lat: 42.3564, lng: -71.0624 }; // in the middle of them
+  const DAVIS = { lat: 42.3967, lng: -71.1218 }; // next door for one, ~5 mi for East Boston
+  const twin = (id: string, at: { lat?: number; lng?: number }, extra: Partial<RestaurantCandidate> = {}) =>
+    makePlace(id, { cuisines: ["thai"], city: "Boston", rating: 4.4, reviewCount: 400, priceLevel: 2, dietStyle: "mixed", dietary: ["vegetarian"], ...at, ...extra });
+  const T = RECOMMENDER_CONFIG.group.travel;
+
+  it("measures each member's ride from tonight's start station; the longest ride counts extra", () => {
+    const r = buildGroupDeck(spreadOut, [twin("central", PARK_ST), twin("lopsided", DAVIS)]);
+    const central = r.ranked.find((c) => c.place.id === "central")!.travel!;
+    const lopsided = r.ranked.find((c) => c.place.id === "lopsided")!.travel!;
+    expect(central.measured).toBe(4);
+    expect(central.maxMiles).toBeLessThan(lopsided.maxMiles);
+    expect(lopsided.maxMiles).toBeGreaterThan(4); // Maverick -> Davis
+    expect(central.score).toBeGreaterThan(lopsided.score);
+  });
+
+  it("between two places the group likes equally, the fairer trip wins", () => {
+    const r = buildGroupDeck(spreadOut, [twin("lopsided", DAVIS), twin("central", PARK_ST)]);
+    expect(r.ranked.map((c) => c.place.id)).toEqual(["central", "lopsided"]);
+    // Same taste: only travel separates them, by weight * travel gap.
+    const [a, b] = r.ranked;
+    expect(a.mean).toBeCloseTo(b.mean, 6);
+    expect(a.groupScore - b.groupScore).toBeCloseTo(T.weight * (a.travel!.score - b.travel!.score), 3);
+  });
+
+  it("a clearly better place still wins even if it's a longer ride for someone", () => {
+    const loved = twin("loved-but-far", DAVIS, { rating: 4.9, reviewCount: 3000 });
+    const meh = twin("meh-but-central", PARK_ST, { rating: 3.6, reviewCount: 400 });
+    const r = buildGroupDeck(spreadOut, [meh, loved]);
+    expect(r.ranked[0].place.id).toBe("loved-but-far");
+  });
+
+  it("a place we can't locate gets an average travel score, not a free pass", () => {
+    const r = buildGroupDeck(spreadOut, [twin("central", PARK_ST), twin("lopsided", DAVIS), twin("nowhere", { lat: undefined, lng: undefined })]);
+    const ids = r.ranked.map((c) => c.place.id);
+    expect(ids.indexOf("nowhere")).toBe(1); // between the fair and the lopsided one
+    expect(r.ranked.find((c) => c.place.id === "nowhere")!.travel).toBeUndefined();
+  });
+
+  it("with nobody's start known, scores are taste only", () => {
+    const r = buildGroupDeck([member("x", { location: null }), member("y", { location: null })], [twin("central", PARK_ST)]);
+    const c = r.ranked[0];
+    const g = RECOMMENDER_CONFIG.group;
+    expect(c.travel).toBeUndefined();
+    expect(c.groupScore).toBeCloseTo((g.avgWeight * c.mean + g.minWeight * c.min) / (g.avgWeight + g.minWeight), 3);
+  });
+
+  it("the card says when a place is close for everyone, or a long ride for one of you", () => {
+    const nearby = crew(["place-chncl", "place-pktrm", "place-dwnxg"]);
+    expect(buildGroupDeck(nearby, [twin("central", PARK_ST)]).deck[0].reason).toMatch(/close for everyone/);
+    expect(buildGroupDeck(spreadOut, [twin("lopsided", DAVIS)]).deck[0].reason).toMatch(/a long ride for one of you \(\d\.\d mi\)/);
+  });
+});

@@ -81,6 +81,20 @@ export const RECOMMENDER_CONFIG = {
     topN: 5,
     /** Extra like-ratio credit for a unanimous like among members who swiped. */
     unanimousBonus: 0.25,
+    /**
+     * Travel fairness: a place that's a long ride for one person shouldn't be preferred, but taste
+     * still decides. Each member's travel score is 1 at the door, falling linearly to 0 at maxMiles
+     * (straight line from the station they start from tonight). The group's travel score is
+     * avgWeight * mean + minWeight * min (like taste: the person with the longest ride counts
+     * extra). Then group score = (1 - weight) * taste + weight * travel.
+     *
+     * Why 0.15: on our restaurants, the top 15 candidates' taste scores span ~0.12 and neighbors sit
+     * 0.002-0.03 apart. Travel can overcome a taste lead of weight / (1 - weight) * (travel gap)
+     * = 0.18 * gap. Typical gap ~0.15 -> ~0.027 (reorders near-ties); extreme (one person ~6 mi,
+     * everyone else ~1 mi) ~0.5 -> ~0.09 (drops noticeably, but never the whole top 15). 0.2 would
+     * let the extreme case outweigh the whole top-15 taste range; 0.1 barely moves near-ties.
+     */
+    travel: { weight: 0.15, maxMiles: 6, avgWeight: 0.6, minWeight: 0.4, closeMiles: 1.5, longMiles: 4 },
   },
 
   /**
