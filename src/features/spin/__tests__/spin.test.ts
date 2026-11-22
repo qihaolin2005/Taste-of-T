@@ -67,11 +67,17 @@ describe("picking from the model's ranking", () => {
     expect([...picks].every((id) => Number(id.slice(1)) < SPIN_POOL)).toBe(true);
   });
 
-  it("loosens filters instead of coming back empty, and says so", () => {
-    const noRamenCheap = pickSpin(ranked, req({ craving: "sushi" }));
-    expect(noRamenCheap?.notes[0]).toMatch(/No sushi within 1 mi/);
+  it("never swaps the cuisine you picked for another one", () => {
+    // No sushi in the list: nothing, rather than a ramen or pizza quest.
+    expect(pickSpin(ranked, req({ craving: "sushi" }))).toBeNull();
+  });
+
+  it("loosens the budget (keeping the cuisine) instead of coming back empty, and says so", () => {
     const pricey = pickSpin([item("a", 0.9, { priceLevel: 4 })], req({ budget: 1 }));
     expect(pricey?.notes[0]).toMatch(/budget/);
+    const priceyRamen = pickSpin([item("pizza-x", 0.9, { priceLevel: 1, cuisines: ["pizza"] }), item("ramen-x", 0.5, { priceLevel: 4, cuisines: ["ramen"] })], req({ craving: "ramen", budget: 1 }));
+    expect(priceyRamen?.pick.placeId).toBe("ramen-x");
+    expect(priceyRamen?.notes[0]).toMatch(/Nothing ramen in your budget/);
     expect(pickSpin([], req())).toBeNull();
   });
 
@@ -198,5 +204,43 @@ describe("going there completes the quest", () => {
     await expect(startTrip(db, u, { place: { id: other.id, name: other.name ?? null, lat: other.lat!, lng: other.lng! }, questId: r.quest.id }, T0)).rejects.toThrow(
       /quest's restaurant/,
     );
+  });
+});
+
+describe("Spin the T: a picked cuisine is a filter, not a nudge", () => {
+  const COPLEY_SQ = { lat: 42.3499, lng: -71.0773 };
+
+  it("asking for Indian always gives an Indian place, even if your taste profile prefers others", async () => {
+    const u = (await createGuest(db)).id;
+    // Taste profile pulls toward ramen and Japanese.
+    await db.userPreferences.upsert({ where: { userId: u }, create: { userId: u, tastes: ["ramen", "japanese"] }, update: { tastes: ["ramen", "japanese"] } });
+    for (const roll of [0, 0.5, 0.99]) {
+      const r = await spinTheT(db, u, spinRequestSchema.parse({ origin: COPLEY_SQ, radiusMiles: 5, craving: "indian" }), { findPlace: seedCoords, rng: () => roll });
+      expect(r.place.cuisines).toContain("indian");
+      expect(r.notes.join(" ")).not.toMatch(/something else/);
+    }
+  });
+
+  it("when no place of that cuisine is in range, it says so instead of picking another cuisine", async () => {
+    const u = (await createGuest(db)).id;
+    await expect(spinTheT(db, u, spinRequestSchema.parse({ origin: CHINATOWN, radiusMiles: 0.5, craving: "indian" }), { findPlace: seedCoords })).rejects.toThrow(
+      /No Indian places within 0.5 mi\. Try a bigger distance or another craving/,
+    );
+    expect(await db.quest.count({ where: { userId: u } })).toBe(0);
+  });
+
+  it("your dietary needs still apply inside the cuisine, and it says when they're the reason", async () => {
+    const u = (await createGuest(db)).id;
+    await db.userPreferences.upsert({ where: { userId: u }, create: { userId: u, dietary: ["halal"] }, update: { dietary: ["halal"] } });
+    // Seafood nearby: Wharf Fish House and Hanover Trattoria, neither halal.
+    await expect(spinTheT(db, u, spinRequestSchema.parse({ origin: CHINATOWN, radiusMiles: 2, craving: "seafood" }), { findPlace: seedCoords })).rejects.toThrow(
+      /No Seafood places within 2 mi fit your dietary needs/,
+    );
+  });
+
+  it('"Anything" still picks from your whole taste profile', async () => {
+    const u = (await createGuest(db)).id;
+    const r = await spinTheT(db, u, spinRequestSchema.parse({ origin: COPLEY_SQ, radiusMiles: 5, craving: "anything" }), { findPlace: seedCoords, rng: () => 0 });
+    expect(r.found).toBeGreaterThan(5); // the whole list nearby, not one cuisine
   });
 });
