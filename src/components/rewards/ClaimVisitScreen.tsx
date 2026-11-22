@@ -36,6 +36,7 @@ async function postJson<T>(path: string, data: unknown): Promise<T> {
 
 export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: string | null }) {
   const [places, setPlaces] = useState<Claimable[] | null>(null);
+  const [left, setLeft] = useState<number | null>(null);
   const [rides, setRides] = useState<Ride[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [placeId, setPlaceId] = useState(initialPlaceId ?? "");
@@ -50,9 +51,10 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
   const [result, setResult] = useState<Result | null>(null);
 
   useEffect(() => {
-    Promise.all([getJson<{ places: Claimable[] }>("/api/rewards/eligible"), getJson<{ rides: Ride[] }>("/api/rides").catch(() => ({ rides: [] }))])
+    Promise.all([getJson<{ places: Claimable[]; visitsLeftToday: number }>("/api/rewards/eligible"), getJson<{ rides: Ride[] }>("/api/rides").catch(() => ({ rides: [] }))])
       .then(([e, r]) => {
         setPlaces(e.places);
+        setLeft(e.visitsLeftToday);
         setRides(r.rides.filter((x) => x.status === "verified" && x.id && !x.usedForReward));
         setPlaceId((cur) => cur || e.places[0]?.placeId || "");
       })
@@ -108,11 +110,27 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
     );
   }
 
+  if (left === 0) {
+    return (
+      <div className="mt-3 rounded-[14px] bg-cell px-4 py-10 text-center">
+        <p className="text-[17px] font-semibold">That&apos;s 2 rewarded meals today</p>
+        <p className="mt-1 text-[15px] text-label-2">You can claim points for up to 2 visits a day. Come back tomorrow!</p>
+        <div className="mt-5">
+          <Button href="/profile" variant="tinted">
+            See My Points
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (places.length === 0) {
     return (
       <div className="mt-3 rounded-[14px] bg-cell px-4 py-10 text-center">
         <p className="text-[17px] font-semibold">Nothing to claim yet</p>
-        <p className="mt-1 text-[15px] text-label-2">Points are for places we recommended in the last 48 hours. Spin the T or plan a night with your group first.</p>
+        <p className="mt-1 text-[15px] text-label-2">
+          Points are for places we recommended in the last 48 hours that you haven&apos;t claimed today. Spin the T or plan a night with your group first.
+        </p>
         <div className="mt-5">
           <Button href="/spin" variant="tinted">
             Spin the T

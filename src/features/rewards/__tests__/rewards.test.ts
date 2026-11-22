@@ -4,7 +4,7 @@ import { getOrCreateUser } from "@/features/users";
 import { getRecommendations } from "@/features/ml";
 import { completeQuest, createQuest, getPoints } from "@/features/gamification";
 import { ALL_PLACES } from "@/features/ml/recommend/__tests__/fixtures";
-import { basePoints, claimVisit, claimVisitSchema, getRewards, groupMultiplier, listClaimablePlaces, merchantMatches, REWARDS_CONFIG, RewardError, type ClaimVisitInput } from "@/features/rewards";
+import { basePoints, claimVisit, claimVisitSchema, getRewards, groupMultiplier, listClaimablePlaces, visitsLeftToday, merchantMatches, REWARDS_CONFIG, RewardError, type ClaimVisitInput } from "@/features/rewards";
 
 const db = createTestDb();
 afterAll(() => db.$disconnect());
@@ -321,5 +321,18 @@ describe("listClaimablePlaces", () => {
       ["solo-b", "for-you"],
     ]);
     expect(list[0].name).toBe("Squad A");
+  });
+
+  it("hides places already claimed today and reports how many claims are left", async () => {
+    const u = await newUser();
+    await recommend(u, "c1");
+    await recommend(u, "c2");
+    await recommend(u, "c3");
+    expect(await visitsLeftToday(db, u, { now: NOW })).toBe(2);
+    await claimVisit(db, u, claim("c1", 20), { now: NOW });
+    expect((await listClaimablePlaces(db, u, { now: NOW })).map((p) => p.placeId).sort()).toEqual(["c2", "c3"]);
+    expect(await visitsLeftToday(db, u, { now: NOW })).toBe(1);
+    await claimVisit(db, u, claim("c2", 20), { now: NOW });
+    expect(await visitsLeftToday(db, u, { now: NOW })).toBe(0);
   });
 });

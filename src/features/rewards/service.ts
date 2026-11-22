@@ -151,7 +151,17 @@ export async function listClaimablePlaces(db: Db, userId: string, opts: { now?: 
   }
   const shown = await db.recommendationShown.findMany({ where: { userId, shownAt: { gte: since } }, orderBy: { shownAt: "desc" }, take: 30 });
   for (const r of shown) if (!out.has(r.placeId)) out.set(r.placeId, { placeId: r.placeId, name: null, via: "for-you", at: r.shownAt.toISOString() });
+  // Places already rewarded today can't be claimed again today (limits.perPlacePerDay).
+  const claimedToday = await db.rewardVisit.findMany({ where: { userId, day: bostonDay(now) }, select: { placeId: true } });
+  for (const c of claimedToday) out.delete(c.placeId);
   return [...out.values()];
+}
+
+/** How many more rewarded visits the user can claim today (limits.visitsPerDay). */
+export async function visitsLeftToday(db: Db, userId: string, opts: { now?: Date; config?: RewardsConfig } = {}): Promise<number> {
+  const cfg = opts.config ?? REWARDS_CONFIG;
+  const used = await db.rewardVisit.count({ where: { userId, day: bostonDay(opts.now ?? new Date()) } });
+  return Math.max(0, cfg.limits.visitsPerDay - used);
 }
 
 // ------------------------------------------------------------- claim
