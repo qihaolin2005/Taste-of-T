@@ -4,7 +4,7 @@ import { getOrCreateUser } from "@/features/users";
 import { getRecommendations } from "@/features/ml";
 import { completeQuest, createQuest, getPoints } from "@/features/gamification";
 import { ALL_PLACES } from "@/features/ml/recommend/__tests__/fixtures";
-import { basePoints, claimVisit, claimVisitSchema, getRewards, groupMultiplier, listClaimablePlaces, visitsLeftToday, merchantMatches, REWARDS_CONFIG, RewardError, type ClaimVisitInput } from "@/features/rewards";
+import { basePoints, claimVisit, fixIsNear, claimVisitSchema, getRewards, groupMultiplier, listClaimablePlaces, visitsLeftToday, merchantMatches, REWARDS_CONFIG, RewardError, type ClaimVisitInput } from "@/features/rewards";
 
 const db = createTestDb();
 afterAll(() => db.$disconnect());
@@ -133,7 +133,9 @@ describe("claimVisit", () => {
 
     const u2 = await newUser();
     await recommend(u2, "p-far");
-    const far = await claimVisit(db, u2, claim("p-far", 10, {}, { rideId: await verifiedRide(u2, "bus") }), { now: NOW, placeCoords: { lat: 42.39674, lng: -71.12181 } }); // Davis
+    const davis = { lat: 42.39674, lng: -71.12181 };
+    const farClaim = { ...claim("p-far", 10, {}, { rideId: await verifiedRide(u2, "bus") }), presence: { ...davis, accuracyM: 15 } }; // they're at the place now
+    const far = await claimVisit(db, u2, farClaim, { now: NOW, placeCoords: davis });
     expect(far.breakdown.travel).toBe(0);
     expect(far.travelNote).toMatch(/km from this restaurant/);
   });
@@ -334,5 +336,76 @@ describe("listClaimablePlaces", () => {
     expect(await visitsLeftToday(db, u, { now: NOW })).toBe(1);
     await claimVisit(db, u, claim("c2", 20), { now: NOW });
     expect(await visitsLeftToday(db, u, { now: NOW })).toBe(0);
+  });
+});
+
+// ------------------------------------------------------------- were you there?
+
+describe("proof you were at the restaurant", () => {
+  const PLACE = { lat: 42.3601, lng: -71.0589 }; // near City Hall
+  const at = (dLatM: number) => ({ lat: PLACE.lat + dLatM / 111_320, lng: PLACE.lng }); // dLatM meters north
+  const withFix = (placeId: string, fix: { lat: number; lng: number; accuracyM: number }) => ({ ...claim(placeId, 30), presence: fix });
+
+  it("a phone fix near the place (with GPS error allowed) passes; far or imprecise fails", () => {
+    expect(fixIsNear({ ...at(100), accuracyM: 10 }, PLACE).ok).toBe(true);
+    expect(fixIsNear({ ...at(190), accuracyM: 50 }, PLACE).ok).toBe(true); // 150 + 50 allowance
+    expect(fixIsNear({ ...at(400), accuracyM: 10 }, PLACE)).toMatchObject({ ok: false, reason: expect.stringMatching(/400 m away/) });
+    expect(fixIsNear({ ...at(10), accuracyM: 500 }, PLACE)).toMatchObject({ ok: false, reason: expect.stringMatching(/precise/) });
+  });
+
+  it("claiming at the restaurant works and records how it was confirmed (not where)", async () => {
+    const u = await newUser();
+    await recommend(u, "p-here");
+    const r = await claimVisit(db, u, withFix("p-here", { ...at(40), accuracyM: 12 }), { now: NOW, placeCoords: PLACE });
+    expect(r.verifiedBy).toBe("here");
+    const stored = await db.rewardVisit.findUniqueOrThrow({ where: { id: r.visitId } });
+    expect(stored.breakdown).toMatchObject({ verifiedBy: "here" });
+    expect(JSON.stringify(stored)).not.toContain(String(at(40).lat));
+  });
+
+  it("typing a receipt from home is refused", async () => {
+    const u = await newUser();
+    await recommend(u, "p-home");
+    await expectReward(claimVisit(db, u, withFix("p-home", { ...at(3000), accuracyM: 10 }), { now: NOW, placeCoords: PLACE }), "forbidden", /couldn't confirm.*3\.0 km away/);
+    await expectReward(claimVisit(db, u, claim("p-home", 30), { now: NOW, placeCoords: PLACE }), "forbidden", /Turn on location/);
+    expect(await db.rewardVisit.count({ where: { userId: u } })).toBe(0);
+  });
+
+  it("being at the place hours after the receipt isn't proof for that receipt", async () => {
+    const u = await newUser();
+    await recommend(u, "p-late");
+    const old = { ...claim("p-late", 30, { date: minsAgo(5 * 60) }), presence: { ...at(10), accuracyM: 10 } };
+    await expectReward(claimVisit(db, u, old, { now: NOW, placeCoords: PLACE }), "forbidden", /more than 3 hours/);
+  });
+
+  it("claiming later from home works if a recorded trip passed the place around the receipt time", async () => {
+    const u = await newUser();
+    await recommend(u, "p-trip");
+    const start = new Date(NOW.getTime() - 3 * 3_600_000); // trip started 3 h ago, arrived 20 min later
+    await db.trip.create({ data: { userId: u, startedAt: start, lastPointAt: new Date(start.getTime() + 1200_000), points: [[42.35, -71.06, 0], [at(30).lat, at(30).lng, 1200]] } });
+    const later = { ...claim("p-trip", 30, { date: minsAgo(150) }), presence: { ...at(5000), accuracyM: 10 } }; // now at home
+    const r = await claimVisit(db, u, later, { now: NOW, placeCoords: PLACE });
+    expect(r.verifiedBy).toBe("trip");
+  });
+
+  it("a verified ride that ended near the place counts; one that ended far away doesn't", async () => {
+    const u = await newUser();
+    await recommend(u, "p-ride");
+    await recommend(u, "p-ride-far");
+    await verifiedRide(u, "bus"); // ends at 42.3526, -71.0628: ~950 m from PLACE
+    await expectReward(claimVisit(db, u, claim("p-ride-far", 30), { now: NOW, placeCoords: PLACE }), "forbidden");
+    const nearStop = { lat: 42.3555, lng: -71.0605 }; // ~170 m from where the ride ended
+    const r = await claimVisit(db, u, claim("p-ride", 30), { now: NOW, placeCoords: nearStop });
+    expect(r.verifiedBy).toBe("ride");
+  });
+
+  it("a place we can't locate isn't checked, and says so", async () => {
+    const u = await newUser();
+    await recommend(u, "p-unknown");
+    expect((await claimVisit(db, u, claim("p-unknown", 30), { now: NOW, placeCoords: null })).verifiedBy).toBe("unchecked");
+  });
+
+  it("the location in the request must be a real fix", () => {
+    expect(() => claimVisitSchema.parse({ placeId: "p", receipt: { total: 10, date: minsAgo(5) }, presence: { lat: 99, lng: 0, accuracyM: 5 } })).toThrow();
   });
 });

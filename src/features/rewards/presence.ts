@@ -1,0 +1,85 @@
+// Owner: P1 - Planner & Quests (ML, rewards) (see TEAM.md)
+// "Were you actually at the restaurant?" A claim needs ONE of these, around the receipt time
+// (config.presence.windowHours before or after it):
+//   here - the phone's location sent with the claim is near the place, with a usable GPS fix
+//          (claiming at the table, or right after)
+//   trip - a trip you recorded (src/features/trips) passed near the place
+//   ride - a bus/T ride verified against live MBTA data (src/features/rides) ended near it
+// Only which proof was used is stored, never the coordinates.
+// GPS can be faked by a determined cheater; this stops casual "type a receipt from home" claims.
+import type { PrismaClient } from "@/generated/prisma/client";
+import { distanceMeters, type LatLng } from "@/lib/geo";
+import { REWARDS_CONFIG, type RewardsConfig } from "./config";
+
+type Db = PrismaClient;
+const HOUR = 3_600_000;
+
+export type PresenceFix = LatLng & { accuracyM: number };
+/** How the visit was confirmed. "unchecked": we don't know where the place is, so it can't be checked. */
+export type VisitProof = "here" | "trip" | "ride" | "unchecked";
+
+const fmt = (m: number) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
+
+/** Is this phone fix close enough to the place? Allows for some GPS error, never a bad fix. */
+export function fixIsNear(fix: PresenceFix, place: LatLng, cfg: RewardsConfig = REWARDS_CONFIG): { ok: true } | { ok: false; reason: string } {
+  const p = cfg.presence;
+  if (!(fix.accuracyM <= p.maxAccuracyM)) return { ok: false, reason: `Your location isn't precise enough (±${fmt(fix.accuracyM)}). Step outside or wait a moment, then try again.` };
+  const d = distanceMeters(fix, place);
+  if (d > p.radiusM + Math.min(fix.accuracyM, p.accuracyAllowanceM)) return { ok: false, reason: `You're ${fmt(d)} away.` };
+  return { ok: true };
+}
+
+export async function proveVisit(
+  db: Db,
+  userId: string,
+  opts: { place: LatLng | null; placeName?: string | null; here?: PresenceFix; receiptAt: Date; now: Date; config?: RewardsConfig },
+): Promise<{ proof: VisitProof } | { reason: string }> {
+  const cfg = opts.config ?? REWARDS_CONFIG;
+  const p = cfg.presence;
+  if (!opts.place) return { proof: "unchecked" };
+  const place = opts.place;
+  const from = opts.receiptAt.getTime() - p.windowHours * HOUR;
+  const to = opts.receiptAt.getTime() + p.windowHours * HOUR;
+  const inWindow = (t: number) => t >= from && t <= to;
+
+  // 1. Here now
+  let hereNote: string | null = null;
+  if (opts.here) {
+    const near = fixIsNear(opts.here, place, cfg);
+    if (near.ok && inWindow(opts.now.getTime())) return { proof: "here" };
+    hereNote = near.ok ? `Your receipt is from more than ${p.windowHours} hours ago.` : near.reason;
+  }
+
+  // 2. A recorded trip that passed near the place in the window
+  const trips = await db.trip.findMany({
+    where: { userId, startedAt: { lte: new Date(to) }, OR: [{ lastPointAt: { gte: new Date(from) } }, { lastPointAt: null, startedAt: { gte: new Date(from) } }] },
+    select: { startedAt: true, points: true },
+  });
+  for (const t of trips) {
+    const pts = Array.isArray(t.points) ? (t.points as unknown[]) : [];
+    for (const pt of pts) {
+      if (!Array.isArray(pt) || pt.length < 3) continue;
+      const [lat, lng, sec] = pt as number[];
+      if (inWindow(t.startedAt.getTime() + sec * 1000) && distanceMeters({ lat, lng }, place) <= p.radiusM) return { proof: "trip" };
+    }
+  }
+
+  // 3. A verified ride that ended near the place in the window
+  const rides = await db.ride.findMany({
+    where: { userId, status: "verified", lastMatchAt: { gte: new Date(from), lte: new Date(to) }, endLat: { not: null }, endLng: { not: null } },
+    select: { endLat: true, endLng: true },
+  });
+  if (rides.some((r) => distanceMeters({ lat: r.endLat!, lng: r.endLng! }, place) <= p.rideEndRadiusM)) return { proof: "ride" };
+
+  const where = opts.placeName ?? "the restaurant";
+  return {
+    reason: [
+      `We couldn't confirm you were at ${where}.`,
+      hereNote,
+      opts.here ? null : "Turn on location and claim while you're there,",
+      opts.here ? "Claim while you're there, or record your trip there next time." : "or record your trip there next time.",
+    ]
+      .filter(Boolean)
+      .join(" "),
+  };
+}

@@ -33,6 +33,23 @@ export const REWARDS_CONFIG = {
     windowHours: 12,
   },
 
+  /**
+   * Proof you were there (src/features/rewards/presence.ts): your phone near the place when you
+   * claim, a recorded trip that passed it, or a verified bus/T ride that ended near it, within
+   * windowHours of the receipt time.
+   */
+  presence: {
+    /** Phone fix or trip point this close to the place counts. */
+    radiusM: 150,
+    /** A fix's own accuracy is added to the radius, up to this much. */
+    accuracyAllowanceM: 50,
+    /** Fixes less precise than this can't confirm anything (indoor guesses). */
+    maxAccuracyM: 100,
+    /** Stops can be a few blocks away, so a ride may end this far from the place. */
+    rideEndRadiusM: 400,
+    windowHours: 3,
+  },
+
   limits: {
     /** One reward per place per day (Boston date). */
     perPlacePerDay: 1,

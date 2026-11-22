@@ -2,6 +2,9 @@
 // /rewards/claim: claim points for eating at a recommended place (src/features/rewards).
 //   pick the place (recommended in the last 48 h) -> receipt total, time, people on the bill
 //   -> optional verified bus/T ride -> optional rating -> POST /api/rewards/visits
+// On submit it asks for the phone's location, so the server can confirm you're at the place
+// (src/features/rewards/presence.ts). Location is checked, never stored. If it's off or denied,
+// a trip you recorded there (or a verified ride) can still confirm it.
 // The receipt is typed in for now (no photo reading yet); only these facts are sent and stored.
 "use client";
 
@@ -11,7 +14,22 @@ import { Button, ListRow, ListSection, SegmentedControl, SelectRow, StarIcon, Te
 type Claimable = { placeId: string; name: string | null; via: "squad" | "for-you"; at: string };
 type Ride = { id: string | null; status: string; mode: "bus" | "t" | null; routeName: string | null; usedForReward: boolean; verifiedAt: string | null };
 type Breakdown = { meal: number; spend: number; travel: number; travelMode: string; firstVisit: number; repeatFactor: number; base: number };
-type Result = { points: number; xp: number; groupMultiplier: number; groupSize: number; breakdown: Breakdown; travelNote?: string };
+type Result = { points: number; xp: number; groupMultiplier: number; groupSize: number; breakdown: Breakdown; travelNote?: string; verifiedBy?: string };
+type Fix = { lat: number; lng: number; accuracyM: number };
+
+const VERIFIED: Record<string, string> = { here: "Your location", trip: "Your recorded trip", ride: "Your verified ride" };
+
+/** The phone's location for this claim, or null if it's off, denied or slow. */
+function currentFix(): Promise<Fix | null> {
+  if (typeof navigator === "undefined" || !navigator.geolocation) return Promise.resolve(null);
+  return new Promise((resolve) =>
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, accuracyM: p.coords.accuracy }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
+    ),
+  );
+}
 
 /** "2026-11-21T19:40" in the phone's local time, for <input type="datetime-local">. */
 function localNow(minutesAgo = 0): string {
@@ -46,7 +64,7 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
   const [merchant, setMerchant] = useState("");
   const [rideId, setRideId] = useState("");
   const [stars, setStars] = useState(0);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<false | "locating" | "claiming">(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
 
@@ -67,11 +85,14 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
 
   async function submit() {
     if (!valid || !place) return;
-    setBusy(true);
+    setBusy("locating");
     setError(null);
     try {
+      const fix = await currentFix();
+      setBusy("claiming");
       const res = await postJson<Result>("/api/rewards/visits", {
         placeId: place.placeId,
+        ...(fix ? { presence: fix } : {}),
         receipt: { total: Math.round(amount * 100) / 100, date: new Date(when).toISOString(), diners, ...(merchant.trim() ? { merchantName: merchant.trim() } : {}) },
         ...(rideId ? { travel: { rideId } } : {}),
       });
@@ -90,7 +111,7 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
 
   if (result) {
     const b = result.breakdown;
-    const parts = [`${b.meal} meal`, `${b.spend} spend`, b.travel ? `${b.travel} ${b.travelMode === "bus" ? "bus" : "T"} ride` : null, b.firstVisit ? `${b.firstVisit} first visit` : null].filter(Boolean);
+    const parts = [`${b.meal} meal`, `${Math.round(b.spend)} spend`, b.travel ? `${b.travel} ${b.travelMode === "bus" ? "bus" : "T"} ride` : null, b.firstVisit ? `${b.firstVisit} first visit` : null].filter(Boolean);
     return (
       <>
         <div className="mt-3 rounded-[22px] bg-tint p-6 text-center text-tint-fg">
@@ -101,6 +122,7 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
         <ListSection header="How you earned it" footer={result.travelNote}>
           <ListRow title={parts.join(" + ")} />
           {b.repeatFactor < 1 && <ListRow title={`Repeat visit ×${b.repeatFactor}`} />}
+          {result.verifiedBy && VERIFIED[result.verifiedBy] && <ListRow title="Visit confirmed by" value={VERIFIED[result.verifiedBy]} />}
           {result.groupSize > 1 && <ListRow title={`Group bonus ×${result.groupMultiplier}`} subtitle={`${result.groupSize} of your squad ate here. More squad-mates claiming raises everyone's bonus.`} />}
         </ListSection>
         <div className="mt-6">
@@ -179,9 +201,12 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
 
       {error && <p className="mt-3 rounded-[14px] bg-cell px-4 py-3 text-[14px] text-danger">{error}</p>}
       <div className="mt-6">
-        <Button onClick={submit} disabled={!valid || busy}>
-          <StarIcon size={18} /> {busy ? "Claiming…" : "Claim Points"}
+        <Button onClick={submit} disabled={!valid || busy !== false}>
+          <StarIcon size={18} /> {busy === "locating" ? "Checking your location…" : busy ? "Claiming…" : "Claim Points"}
         </Button>
+        <p className="mt-2 px-4 text-center text-[13px] text-label-2">
+          We check your location to confirm you&apos;re at {place?.name ?? "the restaurant"}. It&apos;s never saved. Already left? A trip you recorded there works too.
+        </p>
       </div>
     </>
   );
