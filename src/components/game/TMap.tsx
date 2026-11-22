@@ -1,7 +1,8 @@
 // Owner: P4 - Game Layer & Map (see TEAM.md)
 // Interactive T map: real MBTA lines + stations, live trains, your stamps.
-// Uses Google Maps when NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is set and loads; otherwise (no key,
-// bad key, offline) the SVG map drawn from the same MBTA snapshot. The demo never breaks.
+// Uses Google Maps when turned on (NEXT_PUBLIC_MAP=google + NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) and
+// it loads; otherwise (off, no key, bad key, offline) the SVG map drawn from the same MBTA
+// snapshot. The demo never breaks.
 // With a `destination` (/map?to=lat,lng&name=..., from Spin or a group pick) it also shows the
 // route there by T and bus from where you are (GET /api/directions).
 "use client";
@@ -10,7 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { distanceMeters, walkMinutes, type LatLng } from "@/lib/geo";
 import type { LineRecord, StationRecord } from "@/lib/mbta/stations";
 import { tRoutesInTrip, type TripPlan } from "@/features/directions/types";
-import GoogleTMap, { hasGoogleMapsKey } from "./map/GoogleTMap";
+import GoogleTMap, { googleMapsEnabled } from "./map/GoogleTMap";
 import SvgTMap from "./map/SvgTMap";
 import StationCard from "./map/StationCard";
 import RouteCard, { type RouteState } from "./map/RouteCard";
@@ -75,7 +76,7 @@ export default function TMap({ stations, lines, destination = null }: Props) {
   const drawn = useMemo(() => decodeLines(lines), [lines]);
   const [googleFailed, setGoogleFailed] = useState(false);
   const onGoogleFail = useCallback(() => setGoogleFailed(true), []);
-  const useGoogle = hasGoogleMapsKey && !googleFailed;
+  const useGoogle = googleMapsEnabled && !googleFailed;
 
   const [showTrains, setShowTrains] = useState(true);
   const trains = useLiveTrains(showTrains);

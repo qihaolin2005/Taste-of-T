@@ -5,7 +5,7 @@
 
 import { AdvancedMarker, AdvancedMarkerAnchorPoint, APIProvider, ColorScheme, Map, Polyline, useMap } from "@vis.gl/react-google-maps";
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { hasGoogleMapsKey } from "@/components/game/map/GoogleTMap";
+import { googleMapsEnabled } from "@/components/game/map/GoogleTMap";
 import type { TripView } from "@/features/trips/service";
 
 const MAP_ID = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID";
@@ -188,7 +188,7 @@ export default function TripMap({ trips, destination, className = "h-[320px]" }:
   const [failed, setFailed] = useState(false);
   return (
     <div className={`overflow-hidden rounded-[10px] bg-cell ${className}`}>
-      {hasGoogleMapsKey && !failed ? <GoogleTripMap trips={trips} destination={destination} onFail={() => setFailed(true)} /> : <SvgTripMap trips={trips} destination={destination} />}
+      {googleMapsEnabled && !failed ? <GoogleTripMap trips={trips} destination={destination} onFail={() => setFailed(true)} /> : <SvgTripMap trips={trips} destination={destination} />}
     </div>
   );
 }

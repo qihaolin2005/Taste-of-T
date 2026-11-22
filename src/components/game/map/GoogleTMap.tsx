@@ -1,5 +1,5 @@
 // Owner: P4 - Game Layer & Map (see TEAM.md)
-// Google Maps renderer. Needs NEXT_PUBLIC_GOOGLE_MAPS_API_KEY; calls onFail() if the
+// Google Maps renderer. Needs NEXT_PUBLIC_MAP=google and NEXT_PUBLIC_GOOGLE_MAPS_API_KEY; calls onFail() if the
 // API can't load or the key is rejected, so TMap can fall back to the offline SVG map.
 "use client";
 
@@ -22,7 +22,12 @@ const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 // Advanced markers + dark mode need a Map ID; Google's DEMO_MAP_ID works for development.
 const MAP_ID = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID";
 
-export const hasGoogleMapsKey = API_KEY.length > 0;
+/**
+ * Google Maps is OFF unless NEXT_PUBLIC_MAP=google, so the demo doesn't spend the browser
+ * key's quota; the offline SVG maps are used instead. Turning it on also needs the key.
+ * (Restart `next dev` / rebuild after changing it: NEXT_PUBLIC_ values are baked in.)
+ */
+export const googleMapsEnabled = process.env.NEXT_PUBLIC_MAP === "google" && API_KEY.length > 0;
 
 function FailureWatcher({ onFail }: { onFail: () => void }) {
   const status = useApiLoadingStatus();
