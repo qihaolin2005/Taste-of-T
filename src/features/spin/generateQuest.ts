@@ -10,6 +10,7 @@ import { z } from "zod";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { createQuest, type QuestView } from "@/features/gamification/quests";
 import {
+  cuisinesOf,
   getRecommendations,
   loadRestaurants,
   questPoints,
@@ -107,16 +108,26 @@ const CRAVING_WORDS: Partial<Record<string, string[]>> = {
   mexican: ["taco", "taqueria", "burrito", "mexican", "cantina"],
 };
 
-function hasCuisine(r: RecommendationItem, craving: string): boolean {
-  if (r.cuisines.some((x) => x.toLowerCase() === craving)) return true;
-  const name = (r.name ?? "").toLowerCase();
-  return (CRAVING_WORDS[craving] ?? [craving.replace("-", " ")]).some((w) => name.includes(w));
+/** The cuisine you picked, or null for "anything" / "dinner" / "dessert" (no cuisine filter). */
+export function cuisineOf(craving: SpinRequest["craving"]): string | null {
+  return craving !== "anything" && craving !== "dinner" && craving !== "dessert" ? craving : null;
 }
+
+function matchesCuisine(cuisines: readonly string[], name: string | null | undefined, craving: string): boolean {
+  if (cuisines.some((x) => x.toLowerCase() === craving)) return true;
+  const n = (name ?? "").toLowerCase();
+  return (CRAVING_WORDS[craving] ?? [craving.replace("-", " ")]).some((w) => n.includes(w));
+}
+const hasCuisine = (r: RecommendationItem, craving: string) => matchesCuisine(r.cuisines, r.name, craving);
+/** For the candidate list, before ranking: cuisine tags (or tags) and the name. */
+export const placeHasCuisine = (p: RestaurantCandidate, craving: string) => matchesCuisine(cuisinesOf(p), p.name, craving);
 const withinBudget = (r: RecommendationItem, budget: number | undefined) => budget == null || r.priceLevel == null || r.priceLevel <= budget;
 
 /**
- * Pick from the model's ranked list. Filters are loosened one at a time (cuisine, then budget,
- * then places you've already seen) rather than coming back empty.
+ * Pick from the model's ranked list. A picked cuisine is a filter, never dropped: asking for Indian
+ * and getting ramen is wrong (spinTheT already narrowed the list to that cuisine, and says so when
+ * nothing fits). Budget, then places you've already seen, are loosened one at a time rather than
+ * coming back empty; those notes still keep the cuisine.
  */
 export function pickSpin(
   ranked: readonly RecommendationItem[],
@@ -125,7 +136,7 @@ export function pickSpin(
 ): { pick: RecommendationItem; pool: number; notes: string[] } | null {
   if (!ranked.length) return null;
   const notes: string[] = [];
-  const cuisine = req.craving !== "anything" && req.craving !== "dinner" && req.craving !== "dessert" ? req.craving : null;
+  const cuisine = cuisineOf(req.craving);
   const seen = new Set(req.exclude);
 
   const attempts: { list: RecommendationItem[]; note?: string }[] = [];
@@ -134,9 +145,8 @@ export function pickSpin(
     list.filter((r) => (!useCuisine || !cuisine || hasCuisine(r, cuisine)) && (!useBudget || withinBudget(r, req.budget)));
   const label = cuisine?.replace("-", " ");
   attempts.push({ list: filter(fresh, true, true) });
-  if (cuisine) attempts.push({ list: filter(fresh, false, true), note: `No ${label} within ${req.radiusMiles} mi${req.budget ? " in your budget" : ""}, so here's something else you'll like.` });
-  if (req.budget) attempts.push({ list: filter(fresh, false, false), note: `Nothing in your budget within ${req.radiusMiles} mi, so this one costs a bit more.` });
-  if (seen.size) attempts.push({ list: filter(ranked as RecommendationItem[], true, true), note: "You've seen every spot nearby, so we're starting over." });
+  if (req.budget) attempts.push({ list: filter(fresh, true, false), note: `Nothing${label ? ` ${label}` : ""} in your budget within ${req.radiusMiles} mi, so this one costs a bit more.` });
+  if (seen.size) attempts.push({ list: filter(ranked as RecommendationItem[], true, true), note: `You've seen every${label ? ` ${label}` : ""} spot nearby, so we're starting over.` });
 
   const hit = attempts.find((a) => a.list.length);
   if (!hit) return null;
@@ -174,21 +184,31 @@ export type SpinDeps = {
   now?: Date;
 };
 
-/** The general list plus a targeted search for a specific craving near you (deduped, validated). */
+/**
+ * What the model ranks. "Anything": undefined (the model loads the general list itself, and your
+ * taste profile picks). A cuisine: the general list plus a targeted search for it near you
+ * (deduped, validated), narrowed to places of that cuisine BEFORE ranking, so it's a filter, not a
+ * nudge: the model then ranks only those, with your diet and budget.
+ */
 async function candidatesFor(req: SpinRequest, deps: SpinDeps): Promise<RestaurantCandidate[] | undefined> {
-  const cuisine = req.craving !== "anything" && req.craving !== "dinner" && req.craving !== "dessert" ? req.craving : null;
-  if (!cuisine || !req.origin || !deps.searchCraving) return undefined; // the model loads the general list itself
+  const cuisine = cuisineOf(req.craving);
+  if (!cuisine) return undefined;
   const radiusM = req.radiusMiles * 1609.34;
   const [base, extra] = await Promise.all([
     loadRestaurants(deps.source),
-    deps.searchCraving(req.origin, CRAVING_QUERY[cuisine] ?? cuisine.replace("-", " "), radiusM).catch(() => []),
+    req.origin && deps.searchCraving
+      ? deps.searchCraving(req.origin, CRAVING_QUERY[cuisine] ?? cuisine.replace("-", " "), radiusM).catch(() => [])
+      : Promise.resolve([] as unknown[]),
   ]);
   const valid = extra.flatMap((p) => {
     const r = restaurantSchema.safeParse(p);
     return r.success ? [r.data as RestaurantCandidate] : [];
   });
   const seen = new Set<string>();
-  return [...valid, ...base.places].filter((p) => !seen.has(p.id) && !!seen.add(p.id)).slice(0, 500);
+  return [...valid, ...base.places]
+    .filter((p) => !seen.has(p.id) && !!seen.add(p.id))
+    .filter((p) => placeHasCuisine(p, cuisine))
+    .slice(0, 500);
 }
 
 export async function spinTheT(db: Db, userId: string, req: SpinRequest, deps: SpinDeps): Promise<SpinResult> {
@@ -200,6 +220,19 @@ export async function spinTheT(db: Db, userId: string, req: SpinRequest, deps: S
     { source: deps.source, now: deps.now },
   );
   if (!recs) throw new SpinError("User not found.");
+
+  const cuisine = cuisineOf(req.craving);
+  if (cuisine && !recs.results.length) {
+    const label = cuisine.replace("-", " ");
+    const label2 = label[0].toUpperCase() + label.slice(1);
+    // Some were near but didn't fit your dietary needs (or you'd ruled them out): say which.
+    const dietCut = recs.counts.dietary > 0 && recs.counts.scored === 0;
+    throw new SpinError(
+      dietCut
+        ? `No ${label2} places within ${req.radiusMiles} mi fit your dietary needs. Try a bigger distance or another craving.`
+        : `No ${label2} places within ${req.radiusMiles} mi. Try a bigger distance or another craving.`,
+    );
+  }
 
   const picked = pickSpin(recs.results, req, deps.rng);
   if (!picked) throw new SpinError(`Nothing the model likes within ${req.radiusMiles} mi. Try a bigger distance.`);
