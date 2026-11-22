@@ -170,8 +170,12 @@ limited per IP so nobody can scan for strangers' groups.
 positions, and which stations you've stamped.
 
 - **Offline map (default)**: the map draws the real MBTA geometry as an SVG, so it uses no
-  Google quota. Trip maps work the same way. It's also the automatic fallback when Google
-  Maps is on but the key is missing or bad, or there's no internet.
+  Google quota. It's also the automatic fallback when Google Maps is on but the key is
+  missing or bad, or there's no internet.
+- **Group Trip Map** (`/room/CODE/trips`, everyone's live paths): uses Google Maps whenever
+  `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is set, even with the T map offline. Set
+  `NEXT_PUBLIC_TRIP_MAP=offline` to draw it as an SVG too. It unlocks once the group has
+  picked a place to eat.
 - **Google Maps**: set `NEXT_PUBLIC_MAP=google` and `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` in
   `.env` (create a key with the "Maps JavaScript API" enabled in Google Cloud Console, and
   restrict it to your domains, since it ships to browsers). Restart `npm run dev` after

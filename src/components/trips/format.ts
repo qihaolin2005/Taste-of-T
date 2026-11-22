@@ -22,5 +22,9 @@ export function statusText(t: Pick<TripView, "status" | "arrived">): string {
   return t.arrived ? "Arrived" : "Finished";
 }
 
+/** A group's Boston date ("2026-11-21") as "Sat, Nov 21". */
+export const dayText = (date: string) =>
+  new Date(`${date}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+
 export const whenText = (iso: string) =>
   new Date(iso).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });

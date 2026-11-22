@@ -6,12 +6,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button, ListRow, ListSection, Screen, SelectRow } from "@/components/shared/ios";
 import SnapReceiptButton from "@/components/rewards/SnapReceiptButton";
+import { useWatchedLocation } from "@/components/game/map/hooks";
 import type { SquadPlan } from "@/features/ml";
 import { fetchRoomTrips } from "@/features/trips/client";
 import type { TripView } from "@/features/trips/service";
-import { duration, howText, miles, statusText } from "./format";
+import { dayText, duration, howText, miles, statusText } from "./format";
 import TripMap, { TRIP_COLORS } from "./TripMap";
 import TripRecorderCard from "./TripRecorderCard";
+import { placeChosen } from "./tripMapAccess";
 
 const POLL_MS = 10_000;
 
@@ -21,7 +23,7 @@ function Swatch({ color }: { color: string }) {
   return <span className="block size-[14px] shrink-0 rounded-full border-2 border-white shadow" style={{ background: color }} />;
 }
 
-type Pick = { id: string; name: string };
+type Pick = { id: string; name: string; lat?: number; lng?: number };
 
 /**
  * After your trip: pick where the group ate, then snap the receipt. Claiming one of the group's
@@ -49,13 +51,17 @@ function ClaimGroupMeal({ picks, ateAt, onAteAt, arrived, placeName }: { picks: 
 }
 
 /** The group's Top 5 (GET /api/rooms/[code]/plan): where a group trip can go and be claimed. */
-function useGroupPicks(code: string): Pick[] {
-  const [picks, setPicks] = useState<Pick[]>([]);
+function useGroupPicks(code: string): Pick[] | null {
+  const [picks, setPicks] = useState<Pick[] | null>(null); // null = still loading
   useEffect(() => {
     fetch(`/api/rooms/${encodeURIComponent(code)}/plan`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((body: { plan: SquadPlan | null } | null) =>
-        setPicks((body?.plan?.picks ?? []).filter((p) => typeof p.place.lat === "number").map((p) => ({ id: p.place.id, name: p.place.name ?? p.place.id }))),
+        setPicks(
+          (body?.plan?.picks ?? [])
+            .filter((p) => typeof p.place.lat === "number" && typeof p.place.lng === "number")
+            .map((p) => ({ id: p.place.id, name: p.place.name ?? p.place.id, lat: p.place.lat!, lng: p.place.lng! })),
+        ),
       )
       .catch(() => setPicks([]));
   }, [code]);
@@ -65,8 +71,14 @@ function useGroupPicks(code: string): Pick[] {
 export default function GroupTripsScreen({ code }: { code: string }) {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const back = { href: `/room/${code}`, label: "Group" };
-  const picks = useGroupPicks(code);
+  // An ended group: a read-only record of how everyone got there (opened from My Trips).
+  const ended = data?.ended ?? false;
+  const back = ended ? { href: "/trips", label: "My Trips" } : { href: `/room/${code}`, label: "Group" };
+  const loadedPicks = useGroupPicks(code);
+  const picks = loadedPicks ?? [];
+  // Your blue dot: the phone's position now, even before you start a trip (stays on the device).
+  // Not on a past group trip.
+  const { me, error: locError } = useWatchedLocation(!!data && !ended);
   // Where you're going (before the trip) / where you ate (after). "" = the default below.
   const [goingTo, setGoingTo] = useState("");
   const [ateAt, setAteAt] = useState("");
@@ -109,27 +121,72 @@ export default function GroupTripsScreen({ code }: { code: string }) {
     );
   }
 
+  // Locked until the group has a place to eat (opened from an old link, or before swiping ends).
+  if (!ended && loadedPicks && !placeChosen({ picks: loadedPicks }, data.destination)) {
+    return (
+      <Screen title="Trip Map" tab="night" back={back}>
+        <div className="mt-3 rounded-[10px] bg-cell px-4 py-10 text-center">
+          <p className="text-[17px] font-semibold">Pick a place to eat first</p>
+          <p className="mt-1 text-[15px] text-label-2">The Trip Map opens once your group has chosen where to eat. Finish swiping in your group to pick one.</p>
+        </div>
+        <div className="mt-6">
+          <Button href={back.href} variant="tinted">
+            Back to Group
+          </Button>
+        </div>
+      </Screen>
+    );
+  }
+
   const colored = data.trips.map((t, i) => ({ ...t, color: TRIP_COLORS[i % TRIP_COLORS.length], label: t.isYou ? "You" : (t.name ?? "Member") }));
   const mine = data.trips.find((t) => t.isYou) ?? null;
-  const destination = data.destination ?? colored.find((t) => t.place)?.place ?? null;
+  // Your trip gets its own button; the list is everyone else (colors match the map).
+  const yours = colored.find((t) => t.isYou) ?? null;
+  const others = colored.filter((t) => !t.isYou);
+  const tripsPlace = data.destination ?? colored.find((t) => t.place)?.place ?? null;
   const arrived = data.trips.filter((t) => t.arrived).length;
   // Default trip destination: where your group is already heading, else Tonight's pick.
-  const heading = goingTo || (destination?.id && picks.some((p) => p.id === destination.id) ? destination.id : picks[0]?.id) || "";
+  const heading = goingTo || (tripsPlace?.id && picks.some((p) => p.id === tripsPlace.id) ? tripsPlace.id : picks[0]?.id) || "";
+  // The restaurant pin: where the trips are heading, else the pick you're heading to (so it shows
+  // before anyone starts, and when a trip was started without a place).
+  const headingPick = picks.find((p) => p.id === heading);
+  const destination =
+    tripsPlace ?? (headingPick?.lat != null && headingPick.lng != null ? { id: headingPick.id, name: headingPick.name, lat: headingPick.lat, lng: headingPick.lng } : null);
 
   return (
-    <Screen title="Trip Map" tab="night" back={back}>
+    <Screen title={ended ? data.name : "Trip Map"} tab={ended ? "profile" : "night"} back={back}>
       <p className="-mt-1 mb-3 text-[15px] text-label-2">
+        {ended && `${dayText(data.date)} · `}
         {destination?.name ? `Everyone's way to ${destination.name}` : "Everyone's way there"}
         {data.trips.length > 0 && ` · ${arrived}/${data.trips.length} arrived`}
       </p>
 
-      <TripMap trips={colored} destination={destination} className="h-[380px]" />
+      <TripMap trips={colored} destination={destination} me={me} className="h-[380px]" />
+      {locError && <p className="mt-2 px-1 text-[13px] text-label-2">Your blue dot: {locError.toLowerCase()}. Turn on location for this site to see where you are.</p>}
 
-      <ListSection header="Who Went How" footer={data.trips.length ? "Thick lines are bus/T, thin lines are walking." : undefined}>
-        {colored.length === 0 ? (
-          <ListRow title="No trips yet" subtitle="Start yours below. Everyone's path shows up here." />
+      {/* The group first (the map above); your own trip is one tap away. */}
+      {yours && (
+        <div className="mt-4">
+          <Button href={`/trips/${yours.id}`} variant="tinted">
+            <Swatch color={yours.color} /> View Your Trip
+            <span className="font-medium opacity-70">
+              · {miles(yours.distanceM)} · {statusText(yours)}
+            </span>
+          </Button>
+        </div>
+      )}
+
+      <ListSection
+        header={yours ? "Everyone Else" : "Who Went How"}
+        footer={data.trips.length ? "Thick lines are bus/T, thin lines are walking. Tap someone to see their trip, then step through everyone's." : undefined}
+      >
+        {others.length === 0 ? (
+          <ListRow
+            title={yours ? "Nobody else yet" : "No trips yet"}
+            subtitle={ended ? "Nobody else recorded a trip." : yours ? "Their paths show up here once they start." : "Start yours below. Everyone's path shows up here."}
+          />
         ) : (
-          colored.map((t) => (
+          others.map((t) => (
             <ListRow
               key={t.id}
               href={`/trips/${t.id}`}
@@ -144,7 +201,8 @@ export default function GroupTripsScreen({ code }: { code: string }) {
 
       {/* Before starting: pick which of the group's places you're heading to (default: the one
           your group is already going to, else Tonight's pick). */}
-      {!mine && picks.length > 1 && (
+      {/* A past group trip is read-only: no starting trips or claiming meals. */}
+      {!ended && !mine && picks.length > 1 && (
         <ListSection header="Where Are You Going?" footer="Arriving there ends your trip. Pick the place your group is eating at.">
           <SelectRow
             label="Heading to"
@@ -155,7 +213,7 @@ export default function GroupTripsScreen({ code }: { code: string }) {
         </ListSection>
       )}
 
-      {(!mine || mine.status === "recording") && (
+      {!ended && (!mine || mine.status === "recording") && (
         <TripRecorderCard
           roomId={data.roomId}
           placeId={heading || undefined}
@@ -165,7 +223,7 @@ export default function GroupTripsScreen({ code }: { code: string }) {
       )}
 
       {/* After "I'm Here": claim points for the meal at the group's place. */}
-      {mine && mine.status !== "recording" && (picks.length > 0 || mine.place?.id) && (
+      {!ended && mine && mine.status !== "recording" && (picks.length > 0 || mine.place?.id) && (
         <ClaimGroupMeal
           picks={picks}
           ateAt={ateAt || mine.place?.id || picks[0]?.id || ""}

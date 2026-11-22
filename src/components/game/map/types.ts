@@ -17,6 +17,24 @@ export type RendererProps = {
   destination?: (LatLng & { name?: string }) | null;
   route?: readonly TripPath[] | null;
   visibleRoutes?: VisibleRoutes;
+  /** Your group's adventure: everyone's path so far and where they are now, drawn live. */
+  crew?: readonly CrewTrail[];
+};
+
+/** One person's trip on the adventure map (see adventure.ts). */
+export type CrewTrail = {
+  id: string;
+  /** "You", or their name in the group. */
+  label: string;
+  you: boolean;
+  color: string;
+  /** Still on the way (recording): their dot pulses. */
+  live: boolean;
+  arrived: boolean;
+  /** The path so far: bus/T legs drawn thick, walking thin. */
+  legs: { transit: boolean; path: LatLng[] }[];
+  /** Where they are now (the end of the path), null before the first GPS fix. */
+  at: LatLng | null;
 };
 
 /**

@@ -7,6 +7,8 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import type { LatLng } from "@/lib/geo";
 import type { RendererProps } from "./types";
 import { DOWNTOWN, familyOf, isInterchange, onVisibleRoute, stationFamilies } from "./model";
+import { crewKey } from "./adventure";
+import { SvgFoodPin } from "./FoodPin";
 
 const W = 1000; // projected width in SVG units
 const MIN_W = 40; // most zoomed in (viewBox width)
@@ -33,7 +35,7 @@ function useProjection(stations: RendererProps["stations"]) {
   }, [stations]);
 }
 
-export default function SvgTMap({ stations: allStations, lines: allLines, stamped, vehicles: allVehicles, selectedId, onSelect, me, destination, route, visibleRoutes }: RendererProps) {
+export default function SvgTMap({ stations: allStations, lines: allLines, stamped, vehicles: allVehicles, selectedId, onSelect, me, destination, route, visibleRoutes, crew }: RendererProps) {
   // Project with every station so the map doesn't jump when lines are hidden.
   const { project, H } = useProjection(allStations);
   // With a route showing, draw only the T lines it rides (plus their stations and trains).
@@ -83,19 +85,31 @@ export default function SvgTMap({ stations: allStations, lines: allLines, stampe
     }
   }
 
-  // Frame the trip (you, the route, the place) when a route arrives.
-  const [lastRoute, setLastRoute] = useState(route);
-  if (route !== lastRoute) {
-    setLastRoute(route);
-    const pts = [...(route ?? []).flatMap((p) => p.points), ...(destination ? [destination] : []), ...(me ? [me] : [])].map(project);
-    if (pts.length >= 2) {
-      const xs = pts.map((p) => p.x);
-      const ys = pts.map((p) => p.y);
-      const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-      const aspect = px.h / px.w;
-      const w = Math.min(W * 1.2, Math.max(MIN_W, (x1 - x0) * 1.25, ((y1 - y0) * 1.25) / aspect));
-      setBox({ x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - (w * aspect) / 2, w, h: w * aspect });
+  // Frame the trip (you, the route, the place, and your group's positions) when a route arrives,
+  // or when someone joins the adventure map. Not on every live update, so you can pan around.
+  const frameTrip = () => {
+    const crewAt = (crew ?? []).flatMap((c) => (c.at ? [c.at] : []));
+    const pts = [...(route ?? []).flatMap((p) => p.points), ...crewAt, ...(destination ? [destination] : []), ...(me ? [me] : [])].map(project);
+    if (!pts.length) return;
+    if (pts.length === 1) {
+      // just the place (no one's position yet): center on it
+      setBox((b) => ({ ...b, x: pts[0].x - b.w / 2, y: pts[0].y - b.h / 2 }));
+      return;
     }
+    const xs = pts.map((p) => p.x);
+    const ys = pts.map((p) => p.y);
+    const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    const aspect = px.h / px.w;
+    const w = Math.min(W * 1.2, Math.max(MIN_W, (x1 - x0) * 1.25, ((y1 - y0) * 1.25) / aspect));
+    setBox({ x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - (w * aspect) / 2, w, h: w * aspect });
+  };
+  const [lastRoute, setLastRoute] = useState(route);
+  const frameKey = crewKey(crew, destination);
+  const [lastFrameKey, setLastFrameKey] = useState(frameKey);
+  if (route !== lastRoute || frameKey !== lastFrameKey) {
+    setLastRoute(route);
+    setLastFrameKey(frameKey);
+    frameTrip();
   }
 
   const unitsPerPx = box.w / px.w; // SVG units per screen pixel: keeps dots/text a constant size
@@ -202,6 +216,24 @@ export default function SvgTMap({ stations: allStations, lines: allLines, stampe
           );
         })}
 
+        {/* The group adventure: each person's path so far in their color (bus/T thick, walks thin). */}
+        {(crew ?? []).flatMap((c) =>
+          c.legs.map((leg, i) => (
+            <polyline
+              key={`crew-${c.id}-${i}`}
+              points={leg.path.map((p) => { const q = project(p); return `${q.x.toFixed(1)},${q.y.toFixed(1)}`; }).join(" ")}
+              fill="none"
+              stroke={c.color}
+              strokeWidth={leg.transit ? 6 : 3.5}
+              strokeOpacity={leg.transit ? 0.95 : 0.8}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+              pointerEvents="none"
+            />
+          )),
+        )}
+
         {stations.map((s) => {
           const p = project(s);
           const color = stationFamilies(s)[0]?.color ?? "#8e8e93";
@@ -259,23 +291,28 @@ export default function SvgTMap({ stations: allStations, lines: allLines, stampe
 
         {destination && (() => {
           const p = project(destination);
+          return <SvgFoodPin x={p.x} y={p.y} u={u} name={destination.name} />;
+        })()}
+
+        {/* Where everyone is now: a dot in their color with their name; pulsing while on the way. */}
+        {(crew ?? []).map((c) => {
+          if (!c.at) return null;
+          const p = project(c.at);
           return (
-            <g pointerEvents="none">
-              <path
-                d={`M${p.x} ${p.y} l${-8 * u} ${-12 * u} a${10 * u} ${10 * u} 0 1 1 ${16 * u} 0 Z`}
-                fill="#7954ac"
-                stroke="#fff"
-                strokeWidth={2.5 * u}
-              />
-              <circle cx={p.x} cy={p.y - 15 * u} r={3.5 * u} fill="#fff" />
-              {destination.name && (
-                <text x={p.x} y={p.y - 30 * u} textAnchor="middle" fontSize={13 * u} fontWeight={700} fill="#7954ac" stroke="var(--cell)" strokeWidth={3 * u} paintOrder="stroke">
-                  {destination.name}
-                </text>
+            <g key={`crew-at-${c.id}`} pointerEvents="none">
+              {c.live && (
+                <circle cx={p.x} cy={p.y} r={8 * u} fill={c.color} opacity={0.3}>
+                  <animate attributeName="r" values={`${8 * u};${18 * u};${8 * u}`} dur="1.8s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0.35;0;0.35" dur="1.8s" repeatCount="indefinite" />
+                </circle>
               )}
+              <circle cx={p.x} cy={p.y} r={7 * u} fill={c.color} stroke="#fff" strokeWidth={3 * u} />
+              <text x={p.x} y={p.y - 13 * u} textAnchor="middle" fontSize={12 * u} fontWeight={700} fill={c.color} stroke="var(--cell)" strokeWidth={3 * u} paintOrder="stroke">
+                {c.label}
+              </text>
             </g>
           );
-        })()}
+        })}
 
         {me && (() => {
           const p = project(me);

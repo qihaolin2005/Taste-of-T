@@ -61,6 +61,50 @@ export function useStampedStations(): Set<string> {
   return ids;
 }
 
+/**
+ * "You are here", kept up to date while the page is open and visible (asks for location on
+ * first use). Location stays on the device; it isn't sent to the server.
+ */
+export function useWatchedLocation(enabled = true) {
+  const [me, setMe] = useState<(LatLng & { accuracyM: number }) | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+    if (!("geolocation" in navigator)) {
+      // reported from a callback, like the other errors, not set during the effect itself
+      const id = setTimeout(() => setError("Location isn't available on this device"), 0);
+      return () => clearTimeout(id);
+    }
+    let watchId: number | null = null;
+    const start = () => {
+      if (watchId != null || document.visibilityState !== "visible") return;
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          setMe({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracyM: pos.coords.accuracy });
+          setError(null);
+        },
+        (err) => setError(err.code === err.PERMISSION_DENIED ? "Location permission denied" : "Couldn't get your location"),
+        { enableHighAccuracy: true, timeout: 20_000, maximumAge: 5_000 },
+      );
+    };
+    const stop = () => {
+      if (watchId != null) navigator.geolocation.clearWatch(watchId);
+      watchId = null;
+    };
+    // GPS is off while the app is hidden (saves battery), back on when it's shown again.
+    const onVisibility = () => (document.visibilityState === "visible" ? start() : stop());
+    start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [enabled]);
+
+  return { me: enabled ? me : null, error: enabled ? error : null };
+}
+
 /** One-shot "locate me". Location stays on the device; it isn't sent to the server. */
 export function useMyLocation() {
   const [me, setMe] = useState<(LatLng & { accuracyM: number }) | null>(null);

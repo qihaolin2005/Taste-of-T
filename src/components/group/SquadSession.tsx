@@ -186,8 +186,13 @@ function Standings({ live, header, final }: { live: LiveState; header: string; f
   );
 }
 
-export default function SquadSession({ code }: { code: string }) {
+/** `onPlaceChosen(true)` once the group has its picks (the Trip Map unlocks then). */
+export default function SquadSession({ code, onPlaceChosen }: { code: string; onPlaceChosen?: (chosen: boolean) => void }) {
   const { live, error, refresh } = useSession(code);
+  const placeChosen = live?.status === "planned" && (live.plan?.picks.length ?? 0) > 0;
+  useEffect(() => {
+    onPlaceChosen?.(placeChosen);
+  }, [placeChosen, onPlaceChosen]);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   // Swipes this phone made that a poll may not show yet. Merged over the server's list so a poll
