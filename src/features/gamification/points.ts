@@ -7,6 +7,7 @@
 //  - Amounts are decided on the server (see pointsForQuest, and src/features/rewards for
 //    restaurant visits), never taken from the client.
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
+import { redeemedKey, rewardByKey } from "./shop";
 
 export type Db = PrismaClient;
 type Tx = Prisma.TransactionClient;
@@ -16,7 +17,7 @@ type Tx = Prisma.TransactionClient;
  * restaurant_visit: ate at a recommended place, shown with a receipt (src/features/rewards)
  * group_bonus:      more squad-mates ate at the same place, so an earlier visit's bonus went up
  */
-export type PointsReason = "quest_completed" | "restaurant_visit" | "group_bonus";
+export type PointsReason = "quest_completed" | "restaurant_visit" | "group_bonus" | `redeem:${string}`;
 
 export type PointsEventView = {
   id: string;
@@ -83,6 +84,9 @@ export async function getPoints(db: Db, userId: string, limit = 20): Promise<Poi
 }
 
 function eventTitle(reason: PointsReason, questTitle: string | null, placeName: string | null): string {
+  // Spending points on a reward (shop.ts): a negative entry.
+  const redeemed = redeemedKey(reason);
+  if (redeemed) return `Redeemed · ${rewardByKey(redeemed)?.title ?? "Reward"}`;
   if (reason === "restaurant_visit") return placeName ?? "Restaurant visit";
   if (reason === "group_bonus") return placeName ? `Group bonus · ${placeName}` : "Group bonus";
   return questTitle ?? "Quest completed";

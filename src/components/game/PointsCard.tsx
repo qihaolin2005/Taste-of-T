@@ -50,7 +50,7 @@ export function PointsHistory() {
             iconBg="#ffcc00"
             title={e.title}
             subtitle={when(e.createdAt)}
-            value={<span className="font-semibold text-tint">+{e.amount}</span>}
+            value={e.amount < 0 ? <span className="font-semibold text-label-2">−{Math.abs(e.amount)}</span> : <span className="font-semibold text-tint">+{e.amount}</span>}
           />
         ))
       )}

@@ -127,3 +127,68 @@ export const ShareIcon =({ size = 18, className }: P) => (
     <path d="M12 15V3.5M8 7l4-4 4 4M7 10.5H5.5v10h13v-10H17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
+
+// Rewards and achievements (same line style: 2px stroke, round caps, currentColor).
+
+export const CoffeeIcon = ({ size = 18, className }: P) => (
+  <svg {...svg(size, className)}>
+    <path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5V9ZM16 10.5h1.5a2.5 2.5 0 0 1 0 5H16M8.5 3.5c-.6.8-.6 1.7 0 2.5M12 3.5c-.6.8-.6 1.7 0 2.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+export const CakeIcon = ({ size = 18, className }: P) => (
+  <svg {...svg(size, className)}>
+    <path d="M4.5 20.5h15V13a2.5 2.5 0 0 0-2.5-2.5H7A2.5 2.5 0 0 0 4.5 13v7.5ZM4.5 15c1.3 1 2.5 1 3.75 0s2.5-1 3.75 0 2.5 1 3.75 0 2.5-1 3.75 0M12 10.5V7M12 3.5c.9 1 .9 2 0 3-.9-1-.9-2 0-3Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+export const TagIcon = ({ size = 18, className }: P) => (
+  <svg {...svg(size, className)}>
+    <path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7a1 1 0 0 1 .7.3l7.8 7.8a1.5 1.5 0 0 1 0 2.1l-6.9 6.9a1.5 1.5 0 0 1-2.1 0l-7.9-7.8a1 1 0 0 1-.3-.6Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+    <circle cx="8" cy="8" r="1.6" fill="currentColor" />
+  </svg>
+);
+
+export const BikeIcon = ({ size = 18, className }: P) => (
+  <svg {...svg(size, className)}>
+    <circle cx="5.5" cy="16" r="3.5" stroke="currentColor" strokeWidth="2" />
+    <circle cx="18.5" cy="16" r="3.5" stroke="currentColor" strokeWidth="2" />
+    <path d="M5.5 16 9 8.5h7M18.5 16 15 6.5h2.5M9 8.5l3.5 7.5L16 8.5M7.5 6.5h3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+export const BusIcon = ({ size = 18, className }: P) => (
+  <svg {...svg(size, className)}>
+    <rect x="4.5" y="3" width="15" height="15" rx="3" stroke="currentColor" strokeWidth="2" />
+    <path d="M4.5 11h15M4.5 7h15M7.5 18v2.5M16.5 18v2.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    <circle cx="8.5" cy="14.5" r="1" fill="currentColor" />
+    <circle cx="15.5" cy="14.5" r="1" fill="currentColor" />
+  </svg>
+);
+
+export const SwapIcon = ({ size = 18, className }: P) => (
+  <svg {...svg(size, className)}>
+    <path d="M4 8h14M14.5 4.5 18 8l-3.5 3.5M20 16H6M9.5 12.5 6 16l3.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+export const RouteIcon = ({ size = 18, className }: P) => (
+  <svg {...svg(size, className)}>
+    <circle cx="6" cy="18" r="2.5" stroke="currentColor" strokeWidth="2" />
+    <circle cx="18" cy="6" r="2.5" stroke="currentColor" strokeWidth="2" />
+    <path d="M8.5 18h6.5a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
+export const CompassIcon = ({ size = 18, className }: P) => (
+  <svg {...svg(size, className)}>
+    <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="2" />
+    <path d="m15.5 8.5-2 5-5 2 2-5 5-2Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+  </svg>
+);
+
+export const TrophyIcon = ({ size = 18, className }: P) => (
+  <svg {...svg(size, className)}>
+    <path d="M8 4h8v5a4 4 0 0 1-8 0V4ZM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20.5h7M10 17h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);

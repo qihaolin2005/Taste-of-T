@@ -16,6 +16,8 @@ import Wordmark from "@/components/auth/Wordmark";
 import { useStampedStations } from "@/components/game/map/hooks";
 import { usePoints } from "@/components/game/usePoints";
 import { ChevronRight, DiceIcon, ForkKnifeIcon, GroupIcon, MapIcon, MoonIcon, StarIcon, TrainIcon } from "@/components/shared/ios";
+import GameIcon from "@/components/game/GameIcon";
+import { REWARDS } from "@/features/gamification/shop";
 import { getMe } from "@/lib/identity";
 import "./home.css";
 
@@ -239,18 +241,35 @@ export default function HomeScreen({ stations }: { stations: readonly HomeStatio
         </Link>
       </section>
 
-      {/* Figma .rewards-strip: points total -> the points history on Profile. */}
+      {/* Figma .rewards-strip, now the way into Rewards: your points, the next reward, a few to spend them on. */}
       <Link
-        href="/profile"
-        className="tot-home-in mt-[15px] flex w-full items-center justify-between rounded-[16px] bg-lavender px-4 py-[14px] text-[14px] text-label transition active:scale-[0.99]"
+        href="/rewards"
+        className="tot-home-in mt-[15px] block w-full rounded-[16px] bg-lavender px-4 py-[14px] text-[14px] text-label transition active:scale-[0.99]"
         style={{ animationDelay: "160ms" }}
       >
-        <span className="flex items-center gap-2">
-          <StarIcon size={17} /> {total == null ? "Your points" : `${total.toLocaleString("en-US")} ${total === 1 ? "point" : "points"} earned`}
+        <span className="flex items-center justify-between">
+          <span className="flex items-center gap-2">
+            <StarIcon size={17} /> {total == null ? "Your points" : `${total.toLocaleString("en-US")} ${total === 1 ? "point" : "points"}`}
+          </span>
+          <b className="flex items-center gap-1 font-bold text-plum">
+            Rewards <ChevronRight size={13} />
+          </b>
         </span>
-        <b className="flex items-center gap-1 font-bold text-plum">
-          Points history <ChevronRight size={13} />
-        </b>
+        {total != null && (() => {
+          const next = REWARDS.find((r) => r.cost > total);
+          return (
+            <span className="mt-1 block text-[13px] text-label-2">
+              {next ? `${(next.cost - total).toLocaleString("en-US")} more for ${next.title}` : "You can redeem any reward!"}
+            </span>
+          );
+        })()}
+        <span className="mt-2.5 flex gap-2 overflow-hidden">
+          {REWARDS.slice(0, 3).map((r) => (
+            <span key={r.key} className="flex shrink-0 items-center gap-1 rounded-full bg-cell px-2.5 py-1 text-[12px] font-semibold text-plum">
+              <GameIcon name={r.icon} size={14} /> {r.title} · {r.cost}
+            </span>
+          ))}
+        </span>
       </Link>
 
       <aside className="tot-home-in mt-4 flex items-start gap-3 rounded-[17px] border border-separator bg-cell p-[14px]" style={{ animationDelay: "200ms" }}>
