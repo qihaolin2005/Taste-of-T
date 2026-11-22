@@ -45,9 +45,10 @@ host creates squad ──► members join ──► host taps "Start adventure"
 
 - **Anyone can host**, guests (anonymous users) included. Only the user id matters, so this
   works the same before and after Google login lands.
-- **Dietary restrictions are a hard filter.** Every one of the 10 satisfies every member's
-  restrictions combined. A place with unknown dietary info is never shown to someone with a
-  restriction.
+- **Dietary restrictions filter first.** Halal, kosher and allergies are strict: every place
+  lists them. Vegetarian/vegan never get a meat-only place, but do get ordinary places that likely
+  have options (marked "likely has vegan options" / "check the menu"), so a vegan still gets a full
+  shortlist. Details: `src/features/ml/recommend/dietary.ts`.
 - **Swipes are saved as history.** Squad swipes also improve each member's solo
   recommendations next time.
 
@@ -148,7 +149,7 @@ The seed file is empty, and starting an adventure with no restaurants returns a
 [`ml-schema-proposal.md`, section 3](ml-schema-proposal.md#3-restaurant-fields). These matter most:
 
 - `city`: places without one are excluded from squad shortlists
-- `dietary` and `dietStyle`: without them a place is never shown to anyone with a restriction
+- `dietary` and `dietStyle`: without them a place is never shown for halal/kosher/allergies, and is only a "likely" for vegetarians and a "maybe" for vegans
 - `cuisines`, `rating`, `reviewCount`, `priceLevel`, `lat`/`lng`, `neighborhood`
 
 What the places client must return, and how it plugs in, is spelled out in

@@ -6,6 +6,9 @@ import { useEffect, useState } from "react";
 import { Button, ListRow, ListSection, StarIcon } from "@/components/shared/ios";
 import type { SquadPlan } from "@/features/ml";
 
+/** Reasons come lowercase from the recommender. */
+const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
 type State = { status: "loading" } | { status: "ready"; plan: SquadPlan | null; roomStatus: string } | { status: "error"; message: string };
 
 export default function SquadPlanView({ code }: { code: string }) {
@@ -46,7 +49,7 @@ export default function SquadPlanView({ code }: { code: string }) {
         <div className="mt-3 rounded-[22px] bg-tint p-5 text-tint-fg">
           <p className="text-[13px] font-semibold uppercase tracking-wide opacity-80">Tonight&apos;s pick</p>
           <p className="mt-1 font-serif text-[26px] leading-tight">{plan.recommended.place.name ?? plan.recommended.place.id}</p>
-          <p className="mt-1 text-[14px] opacity-90">{plan.recommended.reason}</p>
+          <p className="mt-1 text-[14px] opacity-90">{cap(plan.recommended.reason)}</p>
         </div>
       )}
       <ListSection header="Top 5" footer={plan.complete ? undefined : "Ended early, before everyone finished swiping."}>
@@ -55,7 +58,7 @@ export default function SquadPlanView({ code }: { code: string }) {
             key={p.place.id}
             icon={p.rank === 1 ? <StarIcon size={16} /> : <span className="text-[14px] font-bold">{p.rank}</span>}
             title={p.place.name ?? p.place.id}
-            subtitle={p.reason}
+            subtitle={cap(p.reason)}
             href={p.status !== "not-voted" ? `/rewards/claim?placeId=${encodeURIComponent(p.place.id)}` : undefined}
           />
         ))}

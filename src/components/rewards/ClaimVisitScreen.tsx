@@ -113,8 +113,8 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
   if (left === 0) {
     return (
       <div className="mt-3 rounded-[14px] bg-cell px-4 py-10 text-center">
-        <p className="text-[17px] font-semibold">That&apos;s 2 rewarded meals today</p>
-        <p className="mt-1 text-[15px] text-label-2">You can claim points for up to 2 visits a day. Come back tomorrow!</p>
+        <p className="text-[17px] font-semibold">You&apos;ve claimed 2 meals today</p>
+        <p className="mt-1 text-[15px] text-label-2">Points are limited to 2 meals a day. Come back tomorrow!</p>
         <div className="mt-5">
           <Button href="/profile" variant="tinted">
             See My Points
@@ -151,11 +151,11 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
         />
       </ListSection>
 
-      <ListSection header="Receipt" footer="Type the total from your receipt. Only the amount, time and restaurant name are kept, never a photo.">
+      <ListSection header="Receipt" footer="Type the total from your receipt. We only keep the amount, time and restaurant name.">
         <TextFieldRow label="Total ($)" inputMode="decimal" placeholder="42.50" value={total} onChange={(e) => setTotal(e.target.value.replace(/[^\d.]/g, ""))} />
         <TextFieldRow label="Time" type="datetime-local" value={when} max={localNow()} onChange={(e) => setWhen(e.target.value)} />
-        <SelectRow label="People on it" value={diners} options={Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: String(i + 1) }))} onChange={setDiners} />
-        <TextFieldRow label="Name on it" placeholder="Optional" value={merchant} onChange={(e) => setMerchant(e.target.value)} />
+        <SelectRow label="People on bill" value={diners} options={Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: String(i + 1) }))} onChange={setDiners} />
+        <TextFieldRow label="Restaurant" placeholder="As on receipt (optional)" value={merchant} onChange={(e) => setMerchant(e.target.value)} />
       </ListSection>
 
       <ListSection header="How did you get there?" footer={rides.length ? "Verified bus rides earn 10, T rides 5." : "Record your trip by bus or T next time for travel points."}>
