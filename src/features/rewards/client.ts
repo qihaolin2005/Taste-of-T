@@ -59,3 +59,32 @@ export function currentFix(): Promise<Fix> {
     );
   });
 }
+
+// ------------------------------------------------------------- scan, then claim on another screen
+
+/** A receipt scanned on another screen (e.g. Spin, right after "I'm Here"), waiting for the claim. */
+const PENDING_SCAN = "tot:pendingReceiptScan";
+
+/** Keep a scan for the claim screen. Survives the navigation, not a closed tab. */
+export function savePendingScan(placeId: string, scan: ScannedReceipt): void {
+  try {
+    sessionStorage.setItem(PENDING_SCAN, JSON.stringify({ placeId, scan }));
+  } catch {
+    // private mode / storage off: the claim screen just asks for the photo again
+  }
+}
+
+/** The scan waiting for this place, if it hasn't expired. Removes it either way: it's used once. */
+export function takePendingScan(placeId: string | null, now = Date.now()): ScannedReceipt | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_SCAN);
+    if (!raw) return null;
+    sessionStorage.removeItem(PENDING_SCAN);
+    const saved = JSON.parse(raw) as { placeId?: string; scan?: ScannedReceipt };
+    if (!saved.scan || !placeId || saved.placeId !== placeId) return null;
+    // A minute of margin so it doesn't expire between here and the claim request.
+    return new Date(saved.scan.expiresAt).getTime() - 60_000 > now ? saved.scan : null;
+  } catch {
+    return null;
+  }
+}
