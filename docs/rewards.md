@@ -45,7 +45,16 @@ reason `restaurant_visit`, and each top-up a `group_bonus`, linked to the `Rewar
      ("LANTERN DUMPLING HSE" matches "Lantern Dumpling House")
 3. **No reuse:** each person can claim a receipt once, and at most as many people as the
    `diners` on it.
-4. **Limits:** one reward **per place per day** (Boston date), **2 rewarded visits per day**.
+4. **You were there** (`src/features/rewards/presence.ts`), within **3 h** of the receipt time, by
+   any one of:
+   - **here:** the phone's location sent with the claim (`presence: { lat, lng, accuracyM }`) is
+     within **150 m** of the place (+ up to 50 m for GPS error), with a fix of **±100 m** or better
+   - **trip:** a trip you recorded (`src/features/trips`) passed within 150 m of the place
+   - **ride:** a verified bus/T ride ended within **400 m** of it
+   Otherwise the claim is refused (403) with what to do. Only which proof was used is stored
+   (`breakdown.verifiedBy`), never the coordinates. A place with no coordinates can't be checked
+   and is stored as `"unchecked"`. GPS can be spoofed; this stops casual "typed it from home" claims.
+5. **Limits:** one reward **per place per day** (Boston date), **2 rewarded visits per day**.
 
 ## API
 

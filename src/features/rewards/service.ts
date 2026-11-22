@@ -4,7 +4,9 @@
 //   claimVisit(db, userId, { placeId, receipt, travel })
 //     1. the place was recommended to you in the last 48 h (your "for you" list or a squad's top 5)
 //     2. the receipt is plausible: recent, not in the future, from this restaurant, not reused
-//     3. limits: once per place per day, 2 rewarded visits per day
+//     3. you were there: phone near the place now, a recorded trip past it, or a verified ride
+//        that ended near it, around the receipt time (presence.ts)
+//     4. limits: once per place per day, 2 rewarded visits per day
 //     4. points = (meal + spend + travel + first visit) x repeat factor x group multiplier
 //     5. squad visits: when more squad-mates eat at the same place, everyone's group bonus is
 //        topped up (the first person to claim isn't penalized for being first)
@@ -13,8 +15,8 @@
 // row ("restaurant_visit", then "group_bonus" top-ups) and shows in the points history.
 //
 // The receipt is passed in already read (total, date, merchant name). Reading the photo (OCR) and
-// detecting bus vs T happen elsewhere; only their results reach this code, and no photo or GPS
-// trace is stored.
+// detecting bus vs T happen elsewhere; only their results reach this code, and no photo, GPS
+// fix or trace is stored (only which proof of presence was used).
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { PrismaClient } from "@/generated/prisma/client";
@@ -23,6 +25,7 @@ import type { LatLng } from "@/lib/geo";
 import { awardPointsTx } from "@/features/gamification";
 import { checkRideForReward } from "@/features/rides";
 import { REWARDS_CONFIG, type RewardsConfig } from "./config";
+import { proveVisit, type VisitProof } from "./presence";
 import { basePoints, groupMultiplier, withGroup, type PointsBreakdown, type TravelMode } from "./points";
 
 type Db = PrismaClient;
@@ -51,6 +54,11 @@ export const claimVisitSchema = z
      * The server looks up its mode (bus or T); the client can't just claim one.
      */
     travel: z.object({ rideId: z.string().min(1).max(40) }).strict().optional(),
+    /** The phone's location when claiming, to confirm you're at the place. Checked, never stored. */
+    presence: z
+      .object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180), accuracyM: z.number().min(0).max(100_000) })
+      .strict()
+      .optional(),
   })
   .strict();
 export type ClaimVisitInput = z.infer<typeof claimVisitSchema>;
@@ -179,6 +187,8 @@ export type ClaimResult = {
   xp: number;
   /** Set when a ride was sent but couldn't earn travel points, and why. */
   travelNote?: string;
+  /** How we confirmed you were there. */
+  verifiedBy: VisitProof;
 };
 
 export async function claimVisit(
@@ -209,7 +219,11 @@ export async function claimVisit(
   const allowed = Math.max(diners, ...claimsOnReceipt.map((c) => c.dinersOnReceipt));
   if (claimsOnReceipt.length >= allowed) fail("conflict", "Everyone on this receipt has already claimed it.");
 
-  // 3. Limits
+  // 3. Were you there?
+  const presence = await proveVisit(db, userId, { place: opts.placeCoords ?? null, placeName: opts.placeName, here: input.presence, receiptAt: printed, now, config: cfg });
+  const verifiedBy: VisitProof = "reason" in presence ? fail("forbidden", presence.reason) : presence.proof;
+
+  // 4. Limits
   const [samePlaceToday, visitsToday, previousVisits] = await Promise.all([
     db.rewardVisit.count({ where: { userId, placeId, day } }),
     db.rewardVisit.count({ where: { userId, day } }),
@@ -218,7 +232,7 @@ export async function claimVisit(
   if (samePlaceToday >= cfg.limits.perPlacePerDay) fail("conflict", "You've already earned points here today.");
   if (visitsToday >= cfg.limits.visitsPerDay) fail("too_many_requests", `That's ${cfg.limits.visitsPerDay} rewarded visits today. Come back tomorrow!`);
 
-  // 4. Travel: only a ride verified against live MBTA data, ending near this place, unused.
+  // 5. Travel: only a ride verified against live MBTA data, ending near this place, unused.
   let travelMode: TravelMode = "none";
   let rideId: string | null = null;
   let travelNote: string | undefined;
@@ -234,7 +248,7 @@ export async function claimVisit(
   const breakdown = basePoints({ receiptTotal: receipt.total, dinersOnReceipt: diners, travelMode, previousVisits }, cfg);
   const roomId = rec.via === "squad" ? rec.roomId : null;
 
-  // 5. Store, then (for squads) recompute everyone's group bonus. One transaction, so totals stay right.
+  // 6. Store, then (for squads) recompute everyone's group bonus. One transaction, so totals stay right.
   try {
     return await db.$transaction(async (tx) => {
       const visit = await tx.rewardVisit.create({
@@ -253,7 +267,7 @@ export async function claimVisit(
           basePoints: breakdown.base,
           groupMultiplier: 1,
           pointsAwarded: 0,
-          breakdown,
+          breakdown: { ...breakdown, verifiedBy },
           createdAt: now, // the claim time; the group window is measured from the same clock
         },
       });
@@ -288,6 +302,7 @@ export async function claimVisit(
         recommendedVia: rec.via,
         xp: user.xp,
         ...(travelNote ? { travelNote } : {}),
+        verifiedBy,
       };
     });
   } catch (err) {

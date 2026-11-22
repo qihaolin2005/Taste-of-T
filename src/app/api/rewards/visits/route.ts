@@ -1,6 +1,8 @@
 // Owner: P1 - Planner & Quests (ML, rewards) (see TEAM.md)
-//   POST /api/rewards/visits  { placeId, receipt: { total, date, merchantName?, diners?, receiptNumber? }, travel?: { rideId } }
-//     -> 201 ClaimResult { visitId, points, breakdown, groupMultiplier, groupSize, recommendedVia, xp, travelNote? }
+//   POST /api/rewards/visits  { placeId, receipt: { total, date, merchantName?, diners?, receiptNumber? }, travel?: { rideId }, presence?: { lat, lng, accuracyM } }
+//     -> 201 ClaimResult { visitId, points, breakdown, groupMultiplier, groupSize, recommendedVia, xp, travelNote?, verifiedBy }
+//     403 when nothing confirms you were at the place (presence: phone near it now, a recorded
+//     trip past it, or a verified ride ending near it; src/features/rewards/presence.ts)
 // Claim points for eating at a recommended place. The receipt arrives already read (OCR happens
 // before this); `travel.rideId` is a ride verified against live MBTA data (POST /api/rides/ping).
 // Rules: src/features/rewards/config.ts.
@@ -31,7 +33,7 @@ export async function POST(req: Request) {
   const { places } = await loadRestaurants(googlePlacesEnabled() ? listRestaurants : null);
   const place = places.find((p) => p.id === parsed.data.placeId);
   const placeName = place?.name ?? null;
-  // Where the place is, to check a ride actually ended near it.
+  // Where the place is: to confirm you were there, and that a ride actually ended near it.
   const placeCoords = place && typeof place.lat === "number" && typeof place.lng === "number" ? { lat: place.lat, lng: place.lng } : null;
 
   try {
