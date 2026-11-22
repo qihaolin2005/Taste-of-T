@@ -44,6 +44,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${dmSans.variable} ${dmSerif.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: frameScript }} />
+        {/* Restaurant photos come from Google: connect early so the first one shows sooner. */}
+        <link rel="preconnect" href="https://lh3.googleusercontent.com" />
       </head>
       <body className="min-h-full">{children}</body>
     </html>

@@ -1,6 +1,7 @@
 // Owner: P3 - Group Mode & App Shell (see TEAM.md)
 // Spin the T result: the place, why the model picked it, the mission, and the points.
 import { Button, TrainIcon } from "@/components/shared/ios";
+import PlacePhoto from "@/components/shared/PlacePhoto";
 import { routeMapHref } from "@/features/directions/types";
 import type { SpinResult } from "@/features/spin/generateQuest";
 import { distanceText, priceText } from "@/features/spin/missionText";
@@ -13,6 +14,7 @@ export default function QuestCard({ spin }: { spin: SpinResult }) {
   const routeHref = routeMapHref(p);
   return (
     <section className="mt-4 overflow-hidden rounded-[20px] bg-cell shadow-[0_6px_24px_rgb(56_46_90/0.10)]">
+      <PlacePhoto placeId={p.placeId} alt={p.name ?? "Your quest's restaurant"} className="h-48 w-full" priority />
       <div className="bg-tint px-5 pb-4 pt-5 text-tint-fg">
         <p className="text-[13px] font-semibold uppercase tracking-wide opacity-80">Your quest</p>
         <h2 className="mt-1 font-serif text-[28px] leading-tight">{p.name ?? "Mystery spot"}</h2>

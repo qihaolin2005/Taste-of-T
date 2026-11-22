@@ -11,6 +11,7 @@ import { rateLimit } from "@/lib/rateLimit";
 import { requireUser } from "@/lib/requireUser";
 import { SpinError, spinRequestSchema, spinTheT } from "@/features/spin";
 import { findPlace } from "@/features/trips/http";
+import { warmGallery } from "@/lib/places/photos";
 
 export async function POST(req: Request) {
   const auth = await requireUser();
@@ -25,6 +26,8 @@ export async function POST(req: Request) {
       searchCraving: google ? searchTextNear : undefined,
       findPlace,
     });
+    // Start loading the place's photos now: they're usually ready by the time the card shows.
+    warmGallery(result.place.placeId);
     return Response.json(result, { status: 201 });
   } catch (err) {
     if (err instanceof SpinError) return apiError("not_found", err.message);
