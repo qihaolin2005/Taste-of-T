@@ -74,3 +74,36 @@ describe("receipt name vs the recommended restaurant", () => {
     expect(merchantMatches("", "Lantern Dumpling House")).toBe(false);
   });
 });
+
+describe("real Google Places names (branch labels, foreign articles)", () => {
+  it("ignores Google's branch label: it says where, not which place", () => {
+    const jefes = "El Jefe's Taqueria - Boston Common";
+    expect(merchantMatches("EL JEFE'S TAQUERIA", jefes)).toBe(true);
+    expect(merchantMatches("EL JEFES TAQUERIA #3", jefes)).toBe(true);
+    expect(merchantMatches("BOSTON COMMON COFFEE CO", jefes)).toBe(false);
+    const phin = "PHIN COFFEE HOUSE - Financial District";
+    expect(merchantMatches("PHIN COFFEE", phin)).toBe(true);
+    expect(merchantMatches("STARBUCKS FINANCIAL DISTRICT", phin)).toBe(false);
+    expect(merchantMatches("SWEETGREEN", "Sweetgreen (Back Bay)")).toBe(true);
+    expect(merchantMatches("BACK BAY SOCIAL", "Sweetgreen (Back Bay)")).toBe(false);
+  });
+
+  it("'El', 'La', 'De'... don't make two places the same", () => {
+    const jefes = "El Jefe's Taqueria - Boston Common";
+    expect(merchantMatches("EL PELON TAQUERIA", jefes)).toBe(false);
+    expect(merchantMatches("TAQUERIA EL AMIGO", jefes)).toBe(false);
+    expect(merchantMatches("LA TAQUERIA", jefes)).toBe(false);
+  });
+
+  it("real names from a live search near Chinatown still match their own receipts", () => {
+    const cases: [string, string][] = [
+      ["OSTRA", "Ostra"],
+      ["FOGO DE CHAO", "Fogo de Chão Brazilian Steakhouse"],
+      ["THE Q RESTAURANT", "The Q"],
+      ["LIUYISHOU HOTPOT", "Liuyishou Hotpot Boston"],
+      ["JIANGNAN", "JiangNan Boston"],
+      ["MAMMA MARIA", "Mamma Maria"],
+    ];
+    for (const [receipt, place] of cases) expect(merchantMatches(receipt, place), `${receipt} -> ${place}`).toBe(true);
+  });
+});
