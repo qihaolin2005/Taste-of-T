@@ -29,9 +29,11 @@ async function shrinkPhoto(file: File): Promise<Blob> {
 }
 
 /** Uploads a receipt photo; resolves with what was read, or throws with a message to show. */
-export async function scanReceiptPhoto(file: File): Promise<ScannedReceipt> {
+/** `placeId`: the restaurant being claimed (lets a demo server fill in a matching receipt). */
+export async function scanReceiptPhoto(file: File, placeId?: string | null): Promise<ScannedReceipt> {
   const form = new FormData();
   form.append("photo", await shrinkPhoto(file), "receipt.jpg");
+  if (placeId) form.append("placeId", placeId);
   const r = await fetch("/api/rewards/receipt", { method: "POST", body: form });
   const body = await r.json().catch(() => null);
   if (!r.ok) throw new Error(body?.error?.message ?? `Couldn't scan the receipt (${r.status})`);

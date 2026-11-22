@@ -30,7 +30,7 @@ export default function SnapReceiptButton({ placeId }: { placeId: string }) {
     setReading(true);
     setError(null);
     try {
-      savePendingScan(placeId, await scanReceiptPhoto(file));
+      savePendingScan(placeId, await scanReceiptPhoto(file, placeId));
       router.push(claimHref);
     } catch (err) {
       const message = (err as Error).message;

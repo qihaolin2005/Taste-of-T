@@ -105,7 +105,7 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
     setScanning(true);
     setScanError(null);
     try {
-      const s = await scanReceiptPhoto(file);
+      const s = await scanReceiptPhoto(file, placeId);
       setScan(s);
       if (s.receipt.diners) setDiners(s.receipt.diners);
     } catch (err) {
