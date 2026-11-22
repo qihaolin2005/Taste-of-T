@@ -15,7 +15,7 @@ import ShareLink from "./ShareLink";
 import SquadSession from "./SquadSession";
 
 const STOP_LABEL = { dinner: "Dinner", dessert: "Dessert", activity: "Activity" } as const;
-const back = { href: "/room/new", label: "Night" };
+const back = { href: "/room/new", label: "Adventure" };
 
 function whenText(room: RoomView): string {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());

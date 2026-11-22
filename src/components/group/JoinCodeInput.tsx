@@ -59,7 +59,7 @@ export default function JoinCodeInput() {
         </div>
       </label>
       <p id="code-help" className="mt-2 text-center text-[13px] text-label-2">
-        Ask whoever started the night for their 4-letter code.
+        Ask whoever started the adventure for their 4-letter code.
       </p>
       <div className="mt-4">
         <Button type="submit" disabled={!ready}>

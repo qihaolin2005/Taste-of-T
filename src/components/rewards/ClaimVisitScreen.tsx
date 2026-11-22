@@ -129,7 +129,7 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
       <div className="mt-3 rounded-[14px] bg-cell px-4 py-10 text-center">
         <p className="text-[17px] font-semibold">Nothing to claim yet</p>
         <p className="mt-1 text-[15px] text-label-2">
-          Points are for places we recommended in the last 48 hours that you haven&apos;t claimed today. Spin the T or plan a night with your group first.
+          Points are for places we recommended in the last 48 hours that you haven&apos;t claimed today. Spin the T or plan an adventure with your group first.
         </p>
         <div className="mt-5">
           <Button href="/spin" variant="tinted">

@@ -16,7 +16,7 @@ export const NAV_SPACE = "calc(max(12px, var(--safe-bottom)) + 70px + 24px)";
 const TABS: { id: TabId; href: string; label: string; Icon: typeof HomeIcon }[] = [
   { id: "home", href: "/", label: "Home", Icon: HomeIcon },
   { id: "spin", href: "/spin", label: "Spin", Icon: DiceIcon },
-  { id: "night", href: "/room/new", label: "Night", Icon: GroupIcon },
+  { id: "night", href: "/room/new", label: "Adventure", Icon: GroupIcon },
   { id: "map", href: "/map", label: "T Map", Icon: MapIcon },
   { id: "profile", href: "/profile", label: "Profile", Icon: PersonIcon },
 ];

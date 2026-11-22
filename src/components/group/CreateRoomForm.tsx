@@ -1,5 +1,5 @@
 // Owner: P3 - Group Mode & App Shell (see TEAM.md)
-// Start a night: name, when, and which stops. Creates the room and opens it to show the code.
+// Start an Adventure: name, when, and which stops. Creates the room and opens it to show the code.
 "use client";
 
 import { useRouter } from "next/navigation";
@@ -39,7 +39,7 @@ export default function CreateRoomForm() {
     setBusy(true);
     setError(null);
     try {
-      const { code } = await createRoom({ name: name.trim() || "Night out", day, startTime, slots: [...slots] });
+      const { code } = await createRoom({ name: name.trim() || "Adventure", day, startTime, slots: [...slots] });
       router.push(`/room/${code}`);
     } catch (err) {
       setError((err as Error).message);
@@ -49,7 +49,7 @@ export default function CreateRoomForm() {
 
   return (
     <div>
-      <ListSection header="The Night">
+      <ListSection header="The Adventure">
         <TextFieldRow label="Name" placeholder="Friday crew" value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
         <SelectRow label="Starts" value={startTime} options={TIMES} onChange={setStartTime} />
       </ListSection>
