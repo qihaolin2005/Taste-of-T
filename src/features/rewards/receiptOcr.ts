@@ -16,7 +16,28 @@ export const RECEIPT_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "im
 export type ReceiptImageType = (typeof RECEIPT_IMAGE_TYPES)[number];
 
 export function receiptScanEnabled(): boolean {
-  return !!process.env.GEMINI_API_KEY;
+  return !!process.env.GEMINI_API_KEY || demoReceipts();
+}
+
+/**
+ * DEMO ONLY (DEMO_RECEIPTS=1): any photo is accepted as a receipt and nothing is sent to Gemini.
+ * The other claim checks (being at the place, daily limits) still apply.
+ */
+export function demoReceipts(): boolean {
+  return process.env.DEMO_RECEIPTS === "1" || process.env.DEMO_RECEIPTS === "true";
+}
+
+/**
+ * The receipt a demo scan "reads": from the restaurant being claimed (so the name check passes),
+ * dated now, with a believable total and a unique number (so it can be claimed again next demo).
+ */
+export function demoReceiptFacts(merchantName: string | null, now = new Date(), rand: () => number = Math.random): ReceiptFacts {
+  return {
+    merchantName: (merchantName?.trim() || "Demo Restaurant").slice(0, 120),
+    total: Math.round((24 + rand() * 36) * 100) / 100, // $24-$60
+    date: now.toISOString(),
+    receiptNumber: `DEMO-${now.getTime().toString(36).toUpperCase()}-${Math.floor(rand() * 1e4)}`,
+  };
 }
 
 /** What the model returns: everything nullable, so "can't read it" is an answer, not a guess. */
