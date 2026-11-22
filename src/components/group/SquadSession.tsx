@@ -7,7 +7,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Button, CheckIcon, HeartIcon, ListRow, ListSection, StarIcon } from "@/components/shared/ios";
+import { Button, CheckIcon, HeartIcon, ListRow, ListSection, StarIcon, TrainIcon } from "@/components/shared/ios";
+import { routeMapHref } from "@/features/directions/types";
 import { endSession, fetchSession, sendSwipe, startSession, type LiveState } from "@/features/squads/client";
 
 const POLL_MS = 2000;
@@ -159,15 +160,20 @@ function Progress({ live }: { live: LiveState }) {
 
 function Standings({ live, header, final }: { live: LiveState; header: string; final: boolean }) {
   if (!live.standings.length) return null;
+  // Once planned, tapping a pick shows the way there on the T map (the plan has its coordinates).
+  const routes = new Map((final ? (live.plan?.picks ?? []) : []).map((p) => [p.place.id, routeMapHref(p.place)]));
+  const footer = [final && live.plan && !live.plan.complete ? "Ended early, before everyone finished swiping." : null, final && routes.size ? "Tap a place to see how to get there by T or bus." : null]
+    .filter(Boolean)
+    .join(" ");
   return (
-    <ListSection header={header} footer={final && live.plan && !live.plan.complete ? "Ended early, before everyone finished swiping." : undefined}>
+    <ListSection header={header} footer={footer || undefined}>
       {live.standings.map((s) => (
         <ListRow
           key={s.placeId}
           icon={s.rank === 1 ? <StarIcon size={16} /> : <span className="text-[14px] font-bold">{s.rank}</span>}
           title={s.name ?? s.placeId}
           subtitle={cap(s.reason)}
-          href={final && s.status !== "not-voted" ? `/rewards/claim?placeId=${encodeURIComponent(s.placeId)}` : undefined}
+          href={routes.get(s.placeId) ?? undefined}
         />
       ))}
     </ListSection>
@@ -275,6 +281,7 @@ export default function SquadSession({ code }: { code: string }) {
 
   if (live.status === "planned") {
     const top = live.plan?.recommended;
+    const topRoute = top ? routeMapHref(top.place) : null;
     return (
       <div className="mt-6">
         {top && (
@@ -282,6 +289,13 @@ export default function SquadSession({ code }: { code: string }) {
             <p className="text-[13px] font-semibold uppercase tracking-wide opacity-80">Tonight&apos;s pick</p>
             <p className="mt-1 font-serif text-[26px] leading-tight">{top.place.name ?? top.place.id}</p>
             <p className="mt-1 text-[14px] opacity-90">{sentence(top.reason)}</p>
+          </div>
+        )}
+        {topRoute && (
+          <div className="mt-3">
+            <Button href={topRoute} variant="tinted">
+              <TrainIcon size={18} /> Route on the T Map
+            </Button>
           </div>
         )}
         <Standings live={live} header="Your Top 5" final />

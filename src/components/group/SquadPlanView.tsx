@@ -3,7 +3,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, ListRow, ListSection, StarIcon } from "@/components/shared/ios";
+import { Button, ListRow, ListSection, StarIcon, TrainIcon } from "@/components/shared/ios";
+import { routeMapHref } from "@/features/directions/types";
 import type { SquadPlan } from "@/features/ml";
 
 /** Reasons come lowercase from the recommender. */
@@ -52,14 +53,21 @@ export default function SquadPlanView({ code }: { code: string }) {
           <p className="mt-1 text-[14px] opacity-90">{cap(plan.recommended.reason)}</p>
         </div>
       )}
-      <ListSection header="Top 5" footer={plan.complete ? undefined : "Ended early, before everyone finished swiping."}>
+      {plan.recommended && routeMapHref(plan.recommended.place) && (
+        <div className="mt-3">
+          <Button href={routeMapHref(plan.recommended.place)!} variant="tinted">
+            <TrainIcon size={18} /> Route on the T Map
+          </Button>
+        </div>
+      )}
+      <ListSection header="Top 5" footer={[plan.complete ? null : "Ended early, before everyone finished swiping.", "Tap a place to see how to get there by T or bus."].filter(Boolean).join(" ")}>
         {plan.picks.map((p) => (
           <ListRow
             key={p.place.id}
             icon={p.rank === 1 ? <StarIcon size={16} /> : <span className="text-[14px] font-bold">{p.rank}</span>}
             title={p.place.name ?? p.place.id}
             subtitle={cap(p.reason)}
-            href={p.status !== "not-voted" ? `/rewards/claim?placeId=${encodeURIComponent(p.place.id)}` : undefined}
+            href={routeMapHref(p.place) ?? undefined}
           />
         ))}
       </ListSection>

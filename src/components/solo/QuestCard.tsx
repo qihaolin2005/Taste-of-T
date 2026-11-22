@@ -1,5 +1,7 @@
 // Owner: P3 - Group Mode & App Shell (see TEAM.md)
 // Spin the T result: the place, why the model picked it, the mission, and the points.
+import { Button, TrainIcon } from "@/components/shared/ios";
+import { routeMapHref } from "@/features/directions/types";
 import type { SpinResult } from "@/features/spin/generateQuest";
 import { distanceText, priceText } from "@/features/spin/missionText";
 
@@ -8,6 +10,7 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).replace(/-/g, 
 export default function QuestCard({ spin }: { spin: SpinResult }) {
   const p = spin.place;
   const facts = [distanceText(p.distanceMiles), priceText(p.priceLevel), p.rating != null ? `★ ${p.rating.toFixed(1)}` : null, p.neighborhood].filter(Boolean);
+  const routeHref = routeMapHref(p);
   return (
     <section className="mt-4 overflow-hidden rounded-[20px] bg-cell shadow-[0_6px_24px_rgb(56_46_90/0.10)]">
       <div className="bg-tint px-5 pb-4 pt-5 text-tint-fg">
@@ -44,6 +47,13 @@ export default function QuestCard({ spin }: { spin: SpinResult }) {
             {n}
           </p>
         ))}
+        {routeHref && (
+          <div className="pt-1">
+            <Button href={routeHref} variant="tinted">
+              <TrainIcon size={18} /> Route on the T Map
+            </Button>
+          </div>
+        )}
       </div>
     </section>
   );
