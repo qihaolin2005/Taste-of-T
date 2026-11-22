@@ -119,14 +119,20 @@ async function settle(db: Db, trip: Trip, now: Date): Promise<Trip> {
   return db.trip.update({ where: { id: trip.id }, data: { status: "finished", endedAt: last } });
 }
 
-/** You're a member of this live (not expired) group. Returns the room code or throws. */
-async function requireMembership(db: Db, rawCode: string, userId: string, now: Date) {
+/**
+ * You're a member of this group. Returns the room code or throws. Live groups only, unless
+ * `allowEnded`: an ended group's trips stay viewable (read-only) for the people who were in it.
+ */
+async function requireMembership(db: Db, rawCode: string, userId: string, now: Date, allowEnded = false) {
   const code = normalizeCode(rawCode);
   const member = code
-    ? await db.roomMember.findFirst({ where: { roomId: code, userId, room: { expiresAt: { gt: now } } }, select: { roomId: true, name: true } })
+    ? await db.roomMember.findFirst({
+        where: { roomId: code, userId, ...(allowEnded ? {} : { room: { expiresAt: { gt: now } } }) },
+        select: { roomId: true, name: true, room: { select: { name: true, date: true, expiresAt: true } } },
+      })
     : null;
   if (!member) throw new TripError("not_found", "Group not found, or you're not in it.");
-  return member;
+  return { roomId: member.roomId, name: member.name, room: member.room, ended: member.room.expiresAt <= now };
 }
 
 export type StartTripInput = { roomId?: string | null; place?: TripPlace | null; questId?: string | null };
@@ -247,14 +253,14 @@ export async function listMyTrips(db: Db, userId: string, now = new Date(), take
   return trips.map((t) => toView(t, { viewerId: userId, rides }));
 }
 
-/** One trip: yours, or a group-mate's while you're both in the (live) group. */
+/** One trip: yours, or a group-mate's while you're both in the group (live or ended). */
 export async function getTrip(db: Db, viewerId: string, tripId: string, now = new Date()): Promise<TripView> {
   const found = await db.trip.findUnique({ where: { id: tripId } });
   if (!found) throw new TripError("not_found", "Trip not found.");
   let name: string | null = null;
   if (found.userId !== viewerId) {
     if (!found.roomId) throw new TripError("not_found", "Trip not found.");
-    await requireMembership(db, found.roomId, viewerId, now).catch(() => {
+    await requireMembership(db, found.roomId, viewerId, now, true).catch(() => {
       throw new TripError("not_found", "Trip not found.");
     });
     name = (await db.roomMember.findFirst({ where: { roomId: found.roomId, userId: found.userId }, select: { name: true } }))?.name ?? "Group member";
@@ -263,14 +269,24 @@ export async function getTrip(db: Db, viewerId: string, tripId: string, now = ne
   return toView(trip, { viewerId, name, rides: await ridesFor(db, [trip.userId], trip.startedAt) });
 }
 
-export type GroupTrips = { roomId: string; trips: TripView[]; destination: TripPlace | null };
+export type GroupTrips = {
+  roomId: string;
+  /** The group's name and Boston date ("YYYY-MM-DD"), for the past-trip header. */
+  name: string;
+  date: string;
+  /** The group is over: the map is a read-only record of how everyone got there. */
+  ended: boolean;
+  trips: TripView[];
+  destination: TripPlace | null;
+};
 
 /**
  * Everyone's latest trip in a group, for the shared map. Only members of the group can see
- * it, and only members who are still in it are shown.
+ * it, and only members who are still in it are shown. Works after the group ends too, so a
+ * group trip can be looked back on.
  */
 export async function listRoomTrips(db: Db, viewerId: string, rawCode: string, now = new Date()): Promise<GroupTrips> {
-  const { roomId } = await requireMembership(db, rawCode, viewerId, now);
+  const { roomId, room, ended } = await requireMembership(db, rawCode, viewerId, now, true);
   const members = await db.roomMember.findMany({ where: { roomId, userId: { not: null } }, select: { userId: true, name: true } });
   const nameOf = new Map(members.map((m) => [m.userId!, m.name]));
   const rows = await db.trip.findMany({ where: { roomId, userId: { in: [...nameOf.keys()] } }, orderBy: { startedAt: "desc" } });
@@ -283,5 +299,51 @@ export async function listRoomTrips(db: Db, viewerId: string, rawCode: string, n
     .map((t) => toView(t, { viewerId, name: nameOf.get(t.userId) ?? null, rides }))
     // you first, then by start time
     .sort((a, b) => Number(b.isYou) - Number(a.isYou) || a.startedAt.localeCompare(b.startedAt));
-  return { roomId, trips: views, destination: views.find((v) => v.place)?.place ?? null };
+  return { roomId, name: room.name, date: room.date, ended, trips: views, destination: views.find((v) => v.place)?.place ?? null };
+}
+
+export type GroupTripSummary = {
+  roomId: string;
+  name: string;
+  date: string;
+  ended: boolean;
+  /** Where the group went (the first trip with a place). */
+  place: TripPlace | null;
+  /** People with a trip, and how many of them arrived. */
+  people: number;
+  arrived: number;
+  /** When the first person set off. */
+  startedAt: string;
+};
+
+/** Your group outings (groups you're in that have trips), newest first, for My Trips. */
+export async function listMyGroupTrips(db: Db, userId: string, now = new Date(), take = 20): Promise<GroupTripSummary[]> {
+  const rooms = await db.room.findMany({
+    where: { members: { some: { userId } }, trips: { some: {} } },
+    select: { id: true, name: true, date: true, expiresAt: true, members: { where: { userId: { not: null } }, select: { userId: true } } },
+    take: 50,
+  });
+  const out = await Promise.all(
+    rooms.map(async (r) => {
+      const memberIds = r.members.map((m) => m.userId!);
+      const rows = await db.trip.findMany({ where: { roomId: r.id, userId: { in: memberIds } }, orderBy: { startedAt: "asc" } });
+      if (!rows.length) return null;
+      const latest = [...new Map(rows.map((t) => [t.userId, t])).values()]; // latest per person
+      const placed = rows.find((t) => t.placeLat != null && t.placeLng != null);
+      return {
+        roomId: r.id,
+        name: r.name,
+        date: r.date,
+        ended: r.expiresAt <= now,
+        place: placed ? { id: placed.placeId ?? "", name: placed.placeName, lat: placed.placeLat!, lng: placed.placeLng! } : null,
+        people: latest.length,
+        arrived: latest.filter((t) => t.arrived).length,
+        startedAt: rows[0].startedAt.toISOString(),
+      };
+    }),
+  );
+  return out
+    .filter((g): g is GroupTripSummary => g !== null)
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+    .slice(0, take);
 }

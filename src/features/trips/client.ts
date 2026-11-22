@@ -13,7 +13,7 @@
 // - Keeps the screen awake: iPhone web apps can't track location in the background, so the
 //   app has to stay open (the phone can sit in your pocket with the screen on).
 import type { RideView } from "@/features/rides/service";
-import type { TripView } from "./service";
+import type { GroupTrips, GroupTripSummary, TripView } from "./service";
 
 const FLUSH_MS = 15_000;
 const RIDE_PING_MS = 30_000;
@@ -32,8 +32,8 @@ async function call<T>(url: string, init?: RequestInit): Promise<T> {
 export const createTrip = (input: { roomId?: string; placeId?: string; questId?: string } = {}) => call<TripView>("/api/trips", { method: "POST", body: JSON.stringify(input) });
 export const fetchMyTrips = () => call<{ trips: TripView[] }>("/api/trips").then((r) => r.trips);
 export const fetchTrip = (id: string) => call<TripView>(`/api/trips/${encodeURIComponent(id)}`);
-export const fetchRoomTrips = (code: string) =>
-  call<{ roomId: string; trips: TripView[]; destination: TripView["place"] }>(`/api/rooms/${encodeURIComponent(code)}/trips`);
+export const fetchRoomTrips = (code: string) => call<GroupTrips>(`/api/rooms/${encodeURIComponent(code)}/trips`);
+export const fetchMyGroupTrips = () => call<{ groups: GroupTripSummary[] }>("/api/trips/groups").then((r) => r.groups);
 export const endTrip = (id: string) => call<TripView>(`/api/trips/${encodeURIComponent(id)}/finish`, { method: "POST" });
 export const removeTrip = (id: string) => call<null>(`/api/trips/${encodeURIComponent(id)}`, { method: "DELETE" });
 

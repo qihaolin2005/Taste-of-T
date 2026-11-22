@@ -13,6 +13,7 @@ import { formatMinutes } from "@/lib/time";
 import MemberForm from "./MemberForm";
 import ShareLink from "./ShareLink";
 import SquadSession from "./SquadSession";
+import { useTripsHeading } from "@/components/trips/tripMapAccess";
 
 const STOP_LABEL = { dinner: "Dinner", dessert: "Dessert", activity: "Activity" } as const;
 const back = { href: "/room/new", label: "Adventure" };
@@ -37,6 +38,10 @@ export default function RoomScreen({ code, stations }: { code: string; stations:
   // Next keeps this page alive after you leave it; don't come back to a stuck "Leaving…".
   useEffect(() => () => setLeaving(false), []);
   const stationName = (id: string) => stations.find((s) => s.id === id)?.name ?? id;
+  // A place to eat is chosen when swiping produced picks, or someone's trip is already heading to one.
+  const [swipePicked, setSwipePicked] = useState(false);
+  const tripsHeading = useTripsHeading(code);
+  const tripMapUnlocked = swipePicked || tripsHeading;
 
   if (state.status === "loading") {
     return (
@@ -137,10 +142,24 @@ export default function RoomScreen({ code, stations }: { code: string; stations:
       {you && !editing && (
         <>
           {/* The swipe session: host starts, everyone swipes 10 places, top 5 (src/features/squads). */}
-          <SquadSession code={room.code} />
-          <ListSection footer="Record your way there and see everyone's paths on one map.">
-            <ListRow icon={<MapIcon size={16} />} iconBg="#ff375f" title="Trip Map" subtitle="Everyone's path to the restaurant" href={`/room/${room.code}/trips`} />
-          </ListSection>
+          <SquadSession code={room.code} onPlaceChosen={setSwipePicked} />
+          {/* The Trip Map is for going somewhere: it unlocks once there's a place to eat. */}
+          <div className="mt-6">
+            {tripMapUnlocked ? (
+              <Button href={`/room/${room.code}/trips`}>
+                <MapIcon size={18} /> Open Trip Map
+              </Button>
+            ) : (
+              <Button disabled>
+                <MapIcon size={18} /> Trip Map
+              </Button>
+            )}
+            <p className="mt-2 px-4 text-center text-[13px] text-label-2">
+              {tripMapUnlocked
+                ? "Record your way there and see everyone's live path to the restaurant on one map."
+                : "Unlocks once your group picks a place to eat. Finish swiping to choose one."}
+            </p>
+          </div>
           <ListSection footer={room.youAreHost ? "If you leave, the next person who joined becomes host." : undefined}>
             <ListRow title={leaving ? "Leaving…" : "Leave Group"} destructive onClick={leaving ? undefined : leave} />
           </ListSection>

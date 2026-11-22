@@ -5,6 +5,8 @@
 // snapshot. The demo never breaks.
 // With a `destination` (/map?to=lat,lng&name=..., from Spin or a group pick) it also shows the
 // route there by T and bus from where you are (GET /api/directions).
+// In a group adventure (map/adventure.ts) it shows the group's place the same way, plus everyone's
+// live position and the path they've taken so far, drawn as it grows.
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -17,6 +19,8 @@ import StationCard from "./map/StationCard";
 import RouteCard, { type RouteState } from "./map/RouteCard";
 import { useLiveTrains, useMyLocation, useStampedStations } from "./map/hooks";
 import { decodeLines, onVisibleRoute } from "./map/model";
+import { useAdventure } from "./map/adventure";
+import AdventureCard from "./map/AdventureCard";
 
 type Props = { stations: readonly StationRecord[]; lines: readonly LineRecord[]; destination?: (LatLng & { name?: string }) | null };
 
@@ -72,8 +76,11 @@ function TrainToggleIcon() {
   );
 }
 
-export default function TMap({ stations, lines, destination = null }: Props) {
+export default function TMap({ stations, lines, destination: routeTo = null }: Props) {
   const drawn = useMemo(() => decodeLines(lines), [lines]);
+  // In a group with somewhere to go: show the adventure (unless the link asked for another place).
+  const adventure = useAdventure(!routeTo);
+  const destination = routeTo ?? adventure?.destination ?? null;
   const [googleFailed, setGoogleFailed] = useState(false);
   const onGoogleFail = useCallback(() => setGoogleFailed(true), []);
   const useGoogle = googleMapsEnabled && !googleFailed;
@@ -127,6 +134,7 @@ export default function TMap({ stations, lines, destination = null }: Props) {
     destination,
     route,
     visibleRoutes,
+    crew: adventure?.crew,
   };
 
   const trainStatus =
@@ -187,6 +195,8 @@ export default function TMap({ stations, lines, destination = null }: Props) {
       </div>
 
       {locError && <p className="mt-2 px-1 text-[13px] text-[#ff3b30]">{locError}</p>}
+
+      {adventure && !routeTo && <AdventureCard adventure={adventure} />}
 
       {selected ? (
         <StationCard station={selected} stamped={stamped.has(selected.id)} me={me} onClose={() => setSelectedId(null)} />

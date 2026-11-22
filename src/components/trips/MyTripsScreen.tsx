@@ -1,12 +1,12 @@
 // Owner: P4 - Game Layer & Map (see TEAM.md)
-// /trips: record a solo trip and see your past trips.
+// /trips: record a solo trip, your group outings (each opens its group map), and solo trips.
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ListRow, ListSection, MapIcon, Screen } from "@/components/shared/ios";
-import { fetchMyTrips } from "@/features/trips/client";
-import type { TripView } from "@/features/trips/service";
-import { duration, howText, miles, statusText, whenText } from "./format";
+import { GroupIcon, ListRow, ListSection, MapIcon, Screen } from "@/components/shared/ios";
+import { fetchMyGroupTrips, fetchMyTrips } from "@/features/trips/client";
+import type { GroupTripSummary, TripView } from "@/features/trips/service";
+import { dayText, duration, howText, miles, statusText, whenText } from "./format";
 import TripRecorderCard from "./TripRecorderCard";
 
 export default function MyTripsScreen() {
@@ -18,16 +18,38 @@ export default function MyTripsScreen() {
   }, []);
   useEffect(load, [load]);
 
+  // Group outings: one button each, opening the group map (everyone's paths), then each person's.
+  const [groups, setGroups] = useState<GroupTripSummary[] | null>(null);
+  useEffect(() => {
+    fetchMyGroupTrips().then(setGroups, () => setGroups([]));
+  }, []);
+
   const upsert = (t: TripView) => setTrips((list) => [t, ...(list ?? []).filter((x) => x.id !== t.id)]);
   const current = trips?.find((t) => t.status === "recording" && !t.roomId) ?? null;
-  // The trip shown in the recorder card above isn't "past" yet, so leave it out of the list.
-  const past = trips?.filter((t) => t.id !== current?.id) ?? null;
+  // Solo trips only: group trips live under their group above. The trip in the recorder card
+  // isn't "past" yet either.
+  const past = trips?.filter((t) => !t.roomId && t.id !== current?.id) ?? null;
 
   return (
     <Screen title="My Trips" tab="profile" back={{ href: "/profile", label: "Profile" }}>
       <TripRecorderCard current={current} onChange={upsert} />
 
-      <ListSection header="Past Trips" footer={past?.length ? "Group trips also show on that group's trip map." : undefined}>
+      {groups && groups.length > 0 && (
+        <ListSection header="Group Trips" footer="See everyone's way there on one map, then each person's trip.">
+          {groups.map((g) => (
+            <ListRow
+              key={g.roomId}
+              href={`/room/${g.roomId}/trips`}
+              icon={<GroupIcon size={17} />}
+              title={g.name}
+              subtitle={[dayText(g.date), g.place?.name, `${g.people} ${g.people === 1 ? "person" : "people"}`, g.ended ? null : "live now"].filter(Boolean).join(" · ")}
+              value={g.ended ? undefined : <span className="text-[13px] font-semibold text-tint">Live</span>}
+            />
+          ))}
+        </ListSection>
+      )}
+
+      <ListSection header={groups?.length ? "Solo Trips" : "Past Trips"}>
         {error ? (
           <ListRow title="Couldn't load trips" subtitle={error} />
         ) : !past ? (

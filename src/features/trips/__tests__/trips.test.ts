@@ -9,6 +9,7 @@ import {
   finishTrip,
   getTrip,
   hideStart,
+  listMyGroupTrips,
   listMyTrips,
   listRoomTrips,
   splitLegs,
@@ -206,12 +207,36 @@ describe("group trip map", () => {
     expect((await listMyTrips(db, friend, at(2))).map((t) => t.id)).toEqual([b.id]);
   });
 
-  it("disappears for the group when the group expires", async () => {
+  it("stays viewable (read-only) for the group after it ends, and only for them", async () => {
     const { code, host, friend } = await group();
-    const b = await startTrip(db, friend, { roomId: code }, T0);
+    const b = await startTrip(db, friend, { roomId: code, place: DEST }, T0);
+    await addPoints(db, friend, b.id, [fix(0, 0), ...bus(0, 0, 150)], at(150));
+    expect((await listRoomTrips(db, host, code, at(200))).ended).toBe(false);
+
     const expired = new Date(T0.getTime() + 3 * 24 * 3600_000);
-    await expect(listRoomTrips(db, host, code, expired)).rejects.toThrow(/not found/i);
-    await expect(getTrip(db, host, b.id, expired)).rejects.toThrow(/not found/);
-    expect((await getTrip(db, friend, b.id, expired)).id).toBe(b.id);
+    const past = await listRoomTrips(db, host, code, expired);
+    expect(past).toMatchObject({ roomId: code, name: "Friday crew", ended: true, destination: { name: "Lantern Dumpling House" } });
+    expect(past.trips.map((t) => t.name)).toEqual(["Ben"]);
+    expect((await getTrip(db, host, b.id, expired)).name).toBe("Ben");
+    // ...but you can't start a trip in an ended group
+    await expect(startTrip(db, host, { roomId: code }, expired)).rejects.toThrow(/not in it/);
+    // strangers still can't see it
+    const stranger = await newUser();
+    await expect(listRoomTrips(db, stranger, code, expired)).rejects.toThrow(/not in it/);
+    await expect(getTrip(db, stranger, b.id, expired)).rejects.toThrow(/not found/);
+  });
+
+  it("lists your group outings for My Trips, newest first, live or ended", async () => {
+    const { code, host, friend } = await group();
+    const a = await startTrip(db, host, { roomId: code, place: DEST }, T0);
+    await addPoints(db, host, a.id, [fix(0, 0), ...walk(0, 0, 300)], at(300));
+    await startTrip(db, friend, { roomId: code, place: DEST }, at(10));
+
+    const [g] = await listMyGroupTrips(db, friend, at(400));
+    expect(g).toMatchObject({ roomId: code, name: "Friday crew", ended: false, people: 2, place: { name: "Lantern Dumpling House" } });
+    const expired = new Date(T0.getTime() + 3 * 24 * 3600_000);
+    expect((await listMyGroupTrips(db, friend, expired))[0]).toMatchObject({ roomId: code, ended: true });
+    // not yours: not listed
+    expect(await listMyGroupTrips(db, await newUser(), expired)).toEqual([]);
   });
 });
