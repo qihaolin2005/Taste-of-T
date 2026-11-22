@@ -169,11 +169,13 @@ limited per IP so nobody can scan for strangers' groups.
 `/map` shows the real MBTA network (all subway lines and branches, 125 stations), live train
 positions, and which stations you've stamped.
 
-- **Google Maps**: set `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` in `.env` (create a key with the
-  "Maps JavaScript API" enabled in Google Cloud Console, and restrict it to your domains,
-  since it ships to browsers). Restart `npm run dev` after adding it.
-- **Offline map**: with no key, a bad key, or no internet, the map draws the same MBTA
-  geometry as an SVG automatically. The demo works either way.
+- **Offline map (default)**: the map draws the real MBTA geometry as an SVG, so it uses no
+  Google quota. Trip maps work the same way. It's also the automatic fallback when Google
+  Maps is on but the key is missing or bad, or there's no internet.
+- **Google Maps**: set `NEXT_PUBLIC_MAP=google` and `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` in
+  `.env` (create a key with the "Maps JavaScript API" enabled in Google Cloud Console, and
+  restrict it to your domains, since it ships to browsers). Restart `npm run dev` after
+  changing either one.
 - **Station data** is a committed snapshot in `data/stations.json`. Refresh it with
   `npm run stations`.
 - **Live trains** come from `GET /api/vehicles`, which proxies MBTA `/vehicles` with a
