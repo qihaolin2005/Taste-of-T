@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, CheckIcon, HeartIcon, ListRow, ListSection, StarIcon, TrainIcon } from "@/components/shared/ios";
+import PlacePhoto, { prefetchPlacePhotos } from "@/components/shared/PlacePhoto";
 import { routeMapHref } from "@/features/directions/types";
 import { endSession, fetchSession, sendSwipe, SquadApiError, startSession, type LiveState } from "@/features/squads/client";
 
@@ -111,17 +112,18 @@ function SwipeCard({ card, onSwipe }: { card: Card; onSwipe: (liked: boolean) =>
         onPointerCancel={end}
       >
         <span
-          className="pointer-events-none absolute right-4 top-4 rounded-full bg-tint px-3 py-1 text-[13px] font-bold tracking-wide text-tint-fg"
+          className="pointer-events-none absolute right-4 top-4 z-10 rounded-full bg-tint px-3 py-1 text-[13px] font-bold tracking-wide text-tint-fg"
           style={{ opacity: dx > 0 ? hint : 0 }}
         >
           LIKE
         </span>
         <span
-          className="pointer-events-none absolute left-4 top-4 rounded-full bg-cell-2 px-3 py-1 text-[13px] font-bold tracking-wide text-label-2"
+          className="pointer-events-none absolute left-4 top-4 z-10 rounded-full bg-cell-2 px-3 py-1 text-[13px] font-bold tracking-wide text-label-2"
           style={{ opacity: dx < 0 ? hint : 0 }}
         >
           PASS
         </span>
+        <PlacePhoto placeId={card.placeId} alt={card.name ?? "The place"} className="-mx-5 -mt-5 mb-4 h-48 rounded-t-[22px]" priority />
         <p className="pr-16 font-serif text-[26px] leading-tight text-label">{card.name ?? "A place nearby"}</p>
         {meta && <p className="mt-1 text-[15px] text-label-2">{meta}</p>}
         {card.cuisines.length > 0 && (
@@ -191,6 +193,20 @@ export default function SquadSession({ code }: { code: string }) {
   // Swipes this phone made that a poll may not show yet. Merged over the server's list so a poll
   // that started before a swipe landed can't bring the card back.
   const [pending, setPending] = useState<Record<string, boolean>>({});
+
+  // Load the photos of this card and the next two while you're deciding, so each new card's
+  // photo is already there when it comes up.
+  const upcoming =
+    live?.status === "swiping" && live.deck
+      ? live.deck
+          .filter((c) => !(c.placeId in live.mySwipes) && !(c.placeId in pending))
+          .slice(0, 3)
+          .map((c) => c.placeId)
+          .join(",")
+      : "";
+  useEffect(() => {
+    for (const id of upcoming.split(",")) if (id) prefetchPlacePhotos(id);
+  }, [upcoming]);
 
   async function act(fn: () => Promise<unknown>) {
     setBusy(true);
@@ -291,7 +307,8 @@ export default function SquadSession({ code }: { code: string }) {
     return (
       <div className="mt-6">
         {top && (
-          <div className="rounded-[22px] bg-tint p-5 text-tint-fg">
+          <div className="overflow-hidden rounded-[22px] bg-tint p-5 text-tint-fg">
+            <PlacePhoto placeId={top.place.id} alt={top.place.name ?? "Tonight's pick"} className="-mx-5 -mt-5 mb-4 h-44" priority />
             <p className="text-[13px] font-semibold uppercase tracking-wide opacity-80">Tonight&apos;s pick</p>
             <p className="mt-1 font-serif text-[26px] leading-tight">{top.place.name ?? top.place.id}</p>
             <p className="mt-1 text-[14px] opacity-90">{sentence(top.reason)}</p>

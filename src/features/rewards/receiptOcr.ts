@@ -82,9 +82,15 @@ export async function scanReceipt(image: { data: Buffer; mediaType: ReceiptImage
   client ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const interaction = await client.interactions.create({
     model: RECEIPT_MODEL,
+    // Stable (v1) API: images must go inside a user_input step (a bare image item is v1beta-only).
     input: [
-      { type: "text", text: INSTRUCTIONS },
-      { type: "image", data: image.data.toString("base64"), mime_type: image.mediaType },
+      {
+        type: "user_input",
+        content: [
+          { type: "text", text: INSTRUCTIONS },
+          { type: "image", data: image.data.toString("base64"), mime_type: image.mediaType },
+        ],
+      },
     ],
     response_format: { type: "text", mime_type: "application/json", schema: JSON_SCHEMA },
     // A simple extraction: minimal thinking keeps it fast.
