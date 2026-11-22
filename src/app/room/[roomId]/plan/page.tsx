@@ -10,7 +10,7 @@ async function Plan({ params }: { params: PageProps<"/room/[roomId]/plan">["para
   const code = roomId.toUpperCase();
   return (
     <Screen title="Tonight's Plan" tab="night" back={{ href: `/room/${code}`, label: "Group" }}>
-      <SquadPlanView code={code} />
+      <SquadPlanView key={code} code={code} />
     </Screen>
   );
 }

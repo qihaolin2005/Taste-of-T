@@ -76,6 +76,19 @@ export default function ClaimVisitScreen({ initialPlaceId }: { initialPlaceId: s
       .catch((err: Error) => setLoadError(err.message));
   }, []);
 
+  // Next keeps this page alive while you're on another one. When you leave, clear the finished
+  // claim, so coming back (say, to claim your second meal) shows the form, not the last result.
+  // The effect above runs again on return and reloads what's claimable.
+  useEffect(
+    () => () => {
+      setResult(null);
+      setError(null);
+      setScan(null);
+      setScanError(null);
+    },
+    [],
+  );
+
   const place = useMemo(() => places?.find((p) => p.placeId === placeId) ?? null, [places, placeId]);
   const amount = Number(total);
   const typedValid = Number.isFinite(amount) && amount > 0 && amount <= 2000 && when !== "";

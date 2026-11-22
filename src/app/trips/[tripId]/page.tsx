@@ -6,7 +6,7 @@ import TripDetailScreen from "@/components/trips/TripDetailScreen";
 
 async function Trip({ params }: { params: PageProps<"/trips/[tripId]">["params"] }) {
   const { tripId } = await params;
-  return <TripDetailScreen id={tripId} />;
+  return <TripDetailScreen key={tripId} id={tripId} />;
 }
 
 export default function Page({ params }: PageProps<"/trips/[tripId]">) {

@@ -25,6 +25,7 @@ import type { LatLng } from "@/lib/geo";
 import { awardPointsTx } from "@/features/gamification";
 import { checkRideForReward } from "@/features/rides";
 import { REWARDS_CONFIG, type RewardsConfig } from "./config";
+import { merchantMatches } from "./merchant";
 import { findRideToPlace, proveVisit, type VisitProof } from "./presence";
 import { basePoints, groupMultiplier, withGroup, type PointsBreakdown, type TravelMode } from "./points";
 
@@ -88,19 +89,8 @@ const HOUR = 3_600_000;
 
 // ------------------------------------------------------------- checks
 
-const STOPWORDS = new Set(["the", "and", "restaurant", "kitchen", "cafe", "bar", "grill", "house", "llc", "inc", "co"]);
-const words = (s: string) =>
-  s
-    .toLowerCase()
-    .replace(/[^a-z0-9 ]+/g, " ")
-    .split(/\s+/)
-    .filter((w) => w.length >= 3 && !STOPWORDS.has(w));
-
-/** Receipt merchant names are abbreviated ("LANTERN DUMPLING HSE #2"), so one shared word is enough. */
-export function merchantMatches(receiptName: string, placeName: string): boolean {
-  const a = new Set(words(receiptName));
-  return words(placeName).some((w) => a.has(w) || [...a].some((x) => x.length >= 4 && (w.startsWith(x) || x.startsWith(w))));
-}
+// "Is this receipt from that restaurant?" lives in merchant.ts (generic vs distinctive name words).
+export { merchantMatches } from "./merchant";
 
 function receiptKey(placeId: string, r: ClaimVisitInput["receipt"]): string {
   const id = r.receiptNumber

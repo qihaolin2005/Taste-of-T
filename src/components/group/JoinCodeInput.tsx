@@ -17,7 +17,8 @@ export default function JoinCodeInput() {
   const ready = code.length === LENGTH;
 
   function go() {
-    if (ready) router.push(`/room/${code}`);
+    // replace: once you join, the Adventure page would bounce "back" right into the group.
+    if (ready) router.replace(`/room/${code}`);
   }
 
   return (

@@ -10,7 +10,7 @@ const stations = getStations().map((s) => ({ id: s.id, name: s.name }));
 
 async function Room({ params }: { params: PageProps<"/room/[roomId]">["params"] }) {
   const { roomId } = await params;
-  return <RoomScreen code={roomId.toUpperCase()} stations={stations} />;
+  return <RoomScreen key={roomId.toUpperCase()} code={roomId.toUpperCase()} stations={stations} />;
 }
 
 export default function Page({ params }: PageProps<"/room/[roomId]">) {

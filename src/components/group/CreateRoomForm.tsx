@@ -5,7 +5,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button, CheckIcon, ListRow, ListSection, SegmentedControl, SelectRow, TextFieldRow } from "@/components/shared/ios";
-import { createRoom } from "@/features/rooms/client";
+import { ApiError, createRoom, fetchCurrentRoom } from "@/features/rooms/client";
 import type { StopCategory } from "@/features/rooms/schemas";
 import { formatMinutes, halfHours } from "@/lib/time";
 
@@ -40,8 +40,13 @@ export default function CreateRoomForm() {
     setError(null);
     try {
       const { code } = await createRoom({ name: name.trim() || "Adventure", day, startTime, slots: [...slots] });
-      router.push(`/room/${code}`);
+      // replace, not push: "back" from the group shouldn't land on this page, which would just send
+      // you back to the group (CurrentGroupGate).
+      router.replace(`/room/${code}`);
     } catch (err) {
+      // Already in a group (say, from another tab): go back to it instead.
+      const current = err instanceof ApiError && err.status === 409 ? await fetchCurrentRoom().catch(() => null) : null;
+      if (current) return router.replace(`/room/${current}`);
       setError((err as Error).message);
       setBusy(false);
     }

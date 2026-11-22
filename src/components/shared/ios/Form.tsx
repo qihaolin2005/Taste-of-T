@@ -13,10 +13,17 @@ export function TextFieldRow({ label, id, ...input }: FieldProps) {
   return (
     <div className="ios-row flex items-center">
       <div className="ios-row-body ml-4 flex min-h-[56px] flex-1 items-center gap-3 pr-4">
-        <label htmlFor={inputId} className="w-24 shrink-0 text-[16px] font-semibold">
+        <label htmlFor={inputId} className="shrink-0 text-[16px] font-semibold">
           {label}
         </label>
-        <input id={inputId} className="min-w-0 flex-1 bg-transparent py-3 text-[16px] outline-none placeholder:text-label-3" {...input} />
+        {/* Right-aligned like SelectRow and ListRow values, so every row's value lines up on the right
+            (iOS Settings style). Date/time inputs need the WebKit pseudo-element to follow. */}
+        <input
+          id={inputId}
+          className="min-w-0 flex-1 bg-transparent py-3 text-right text-[16px] outline-none placeholder:text-label-3 [&::-webkit-date-and-time-value]:text-right"
+          {...input}
+        />
+
       </div>
     </div>
   );

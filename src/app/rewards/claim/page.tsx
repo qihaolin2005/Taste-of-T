@@ -5,8 +5,11 @@ import { Screen } from "@/components/shared/ios";
 import ClaimVisitScreen from "@/components/rewards/ClaimVisitScreen";
 
 async function Claim({ searchParams }: { searchParams: PageProps<"/rewards/claim">["searchParams"] }) {
-  const placeId = (await searchParams).placeId;
-  return <ClaimVisitScreen initialPlaceId={typeof placeId === "string" ? placeId : null} />;
+  const raw = (await searchParams).placeId;
+  const placeId = typeof raw === "string" ? raw : null;
+  // Keyed by place: Next reuses this page's state when only ?placeId= changes, which kept showing
+  // the restaurant you tapped before. A new key starts a fresh claim.
+  return <ClaimVisitScreen key={placeId ?? ""} initialPlaceId={placeId} />;
 }
 
 export default function Page({ searchParams }: PageProps<"/rewards/claim">) {

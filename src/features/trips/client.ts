@@ -55,6 +55,7 @@ export function recordTrip(tripId: string, { onUpdate, onRide, onError }: Option
   let rideId: string | undefined;
   let offVehicle = 0;
   let wakeLock: { release: () => Promise<void> } | null = null;
+  let sentFirst = false;
 
   const keepAwake = async () => {
     try {
@@ -123,7 +124,13 @@ export function recordTrip(tripId: string, { onUpdate, onRide, onError }: Option
       const fix: Fix = { lat: pos.coords.latitude, lng: pos.coords.longitude, t: Math.round(pos.timestamp), accuracyM: pos.coords.accuracy };
       latest = fix;
       buffer.push(fix);
-      if (buffer.length === 1 && !sending) void flush(); // first fix shows up right away
+      // Only the trip's very first fix is sent right away (so the path shows up); the rest go in
+      // FLUSH_MS batches. Sending whenever the buffer was empty meant one request per GPS fix
+      // (about one a second while moving), which ran into the points route's rate limit (429).
+      if (!sentFirst && !sending) {
+        sentFirst = true;
+        void flush();
+      }
       if (Date.now() - lastRidePing >= RIDE_PING_MS) void pingRide();
     },
     (err) => onError?.(err.code === err.PERMISSION_DENIED ? "Allow location to record your trip (Settings > Safari > Location)." : "Can't get your location right now."),

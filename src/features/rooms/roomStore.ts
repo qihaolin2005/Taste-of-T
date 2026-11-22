@@ -20,6 +20,31 @@ export class RoomNotFoundError extends Error {
     super("No group with that code. Check the letters and try again.");
   }
 }
+/**
+ * The code is real but the group is over (the host deleted it, or it expired). Not a guess, so
+ * unlike RoomNotFoundError it doesn't count toward the wrong-code limit: members still looking at
+ * the page mustn't lock their whole network out of groups.
+ */
+export class RoomEndedError extends Error {
+  constructor() {
+    super("This group has ended. Start a new one or join another.");
+  }
+}
+
+/** You're still in another live group: leave it (or, as host, delete it) first. */
+export class AlreadyInRoomError extends Error {
+  constructor(readonly code: string) {
+    super(`You're already in group ${code}. Leave it first to start or join another one.`);
+  }
+}
+
+/** Only the host can do this (e.g. delete the group). */
+export class NotHostError extends Error {
+  constructor() {
+    super("Only the group's host can do that.");
+  }
+}
+
 export class RoomFullError extends Error {
   constructor() {
     super(`This group is full (${MAX_MEMBERS} people max).`);
@@ -73,11 +98,36 @@ async function findLiveRoom(db: Db, code: string, now: Date) {
   return room;
 }
 
+/** The live room, or throws: RoomEndedError for a real code whose group is over, else RoomNotFoundError. */
+async function liveRoomOrThrow(db: Db, code: string | null, now: Date) {
+  const room = code ? await findLiveRoom(db, code, now) : null;
+  if (room) return room;
+  if (code && (await db.room.count({ where: { id: code } }))) throw new RoomEndedError();
+  throw new RoomNotFoundError();
+}
+
+/**
+ * The group you're in right now: the newest live (unexpired) room where you're a member or the
+ * host. The Adventure tab sends you back here until you leave, the host deletes it, everyone
+ * leaves, or it expires. null when you're in none.
+ */
+export async function currentRoomCode(db: Db, userId: string, now = new Date()): Promise<string | null> {
+  const room = await db.room.findFirst({
+    where: { expiresAt: { gt: now }, OR: [{ hostUserId: userId }, { members: { some: { userId } } }] },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  return room?.id ?? null;
+}
+
 /**
  * Create a room with a fresh random code. If the random code belongs to an expired room,
  * that old room is deleted and the code reused; if it belongs to a live room, try again.
  */
 export async function createRoom(db: Db, hostUserId: string, input: CreateRoomInput, now = new Date(), nextCode = generateCode): Promise<string> {
+  // One group at a time: you come back to the one you're in until it's over.
+  const current = await currentRoomCode(db, hostUserId, now);
+  if (current) throw new AlreadyInRoomError(current);
   for (let attempt = 0; attempt < CREATE_ATTEMPTS; attempt++) {
     const code = nextCode();
     const existing = await db.room.findUnique({ where: { id: code }, select: { expiresAt: true } });
@@ -107,9 +157,7 @@ export async function createRoom(db: Db, hostUserId: string, input: CreateRoomIn
 
 /** Room as seen by `viewerUserId`. Throws RoomNotFoundError for unknown or expired codes. */
 export async function getRoomView(db: Db, rawCode: string, viewerUserId: string, now = new Date()): Promise<RoomView> {
-  const code = normalizeCode(rawCode);
-  const room = code ? await findLiveRoom(db, code, now) : null;
-  if (!room) throw new RoomNotFoundError();
+  const room = await liveRoomOrThrow(db, normalizeCode(rawCode), now);
 
   const mine = room.members.find((m) => m.userId === viewerUserId) ?? null;
   return {
@@ -147,11 +195,14 @@ export async function getRoomView(db: Db, rawCode: string, viewerUserId: string,
  * dietary needs are copied from your profile, so the planner treats them as hard constraints.
  */
 export async function joinRoom(db: Db, rawCode: string, userId: string, input: MemberInput, now = new Date()): Promise<RoomView> {
-  const code = normalizeCode(rawCode);
-  const room = code ? await findLiveRoom(db, code, now) : null;
-  if (!room) throw new RoomNotFoundError();
+  const room = await liveRoomOrThrow(db, normalizeCode(rawCode), now);
 
   const already = room.members.some((m) => m.userId === userId);
+  if (!already) {
+    // One group at a time (the host joining their own new group is fine).
+    const current = await currentRoomCode(db, userId, now);
+    if (current && current !== room.id) throw new AlreadyInRoomError(current);
+  }
   if (!already && room.members.length >= MAX_MEMBERS) throw new RoomFullError();
 
   const prefs = await db.userPreferences.findUnique({ where: { userId } });
@@ -174,8 +225,33 @@ export async function joinRoom(db: Db, rawCode: string, userId: string, input: M
   return getRoomView(db, room.id, userId, now);
 }
 
+/**
+ * Leave a room. If you're the host, the earliest-joined remaining member becomes host, so the group
+ * can still start its adventure. Once everyone has left, it's nobody's current group; the room
+ * itself stays until it expires, so its top 5 can still be claimed for points (rewards look up the
+ * squad's plan and swipes).
+ */
 export async function leaveRoom(db: Db, rawCode: string, userId: string): Promise<void> {
   const code = normalizeCode(rawCode);
   if (!code) return;
-  await db.roomMember.deleteMany({ where: { roomId: code, userId } });
+  await db.$transaction(async (tx) => {
+    await tx.roomMember.deleteMany({ where: { roomId: code, userId } });
+    const room = await tx.room.findUnique({ where: { id: code }, include: { members: { orderBy: { joinedAt: "asc" } } } });
+    if (room?.hostUserId === userId) {
+      await tx.room.update({ where: { id: code }, data: { hostUserId: room.members.find((m) => m.userId)?.userId ?? null } });
+    }
+  });
+}
+
+/**
+ * Host only: end the group for everyone, now. It's marked expired rather than deleted, so it's gone
+ * from the app (the code stops working) but its plan and swipes stay: everyone can still claim
+ * points for the night's top 5, and the swipes still count toward their tastes.
+ */
+export async function deleteRoom(db: Db, rawCode: string, userId: string, now = new Date()): Promise<void> {
+  const code = normalizeCode(rawCode);
+  const room = code ? await findLiveRoom(db, code, now) : null;
+  if (!room) throw new RoomNotFoundError();
+  if (room.hostUserId !== userId) throw new NotHostError();
+  await db.room.update({ where: { id: room.id }, data: { expiresAt: now } });
 }
